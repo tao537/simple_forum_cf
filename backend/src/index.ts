@@ -74,23 +74,25 @@ app.get('/', (c) => c.json({ ok: true, service: 'forum-api' }));
 
 // ==================== 认证 ====================
 const handleRegister = async (c: any) => {
-  const { username, email, password } = await c.req.json();
-  if (!username || !email || !password) {
-    return c.json({ message: '用户名、邮箱、密码不能为空' }, 400);
+  const { username, email, password, nickname } = await c.req.json();
+  if (!username || !password) {
+    return c.json({ message: '用户名和密码不能为空' }, 400);
   }
+
+  const finalEmail = email || `${username}@local`;
 
   const db = c.env.DB;
   const exists = await db
     .prepare('SELECT id FROM users WHERE username = ? OR email = ?')
-    .bind(username, email)
+    .bind(username, finalEmail)
     .first();
 
   if (exists) return c.json({ message: '用户名或邮箱已被注册' }, 409);
 
   const hash = await hashPassword(password);
   const result = await db
-    .prepare('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)')
-    .bind(username, email, hash)
+    .prepare('INSERT INTO users (username, email, password_hash, nickname) VALUES (?, ?, ?, ?)')
+    .bind(username, finalEmail, hash, nickname || '')
     .run();
 
   const id = result.meta.last_row_id as number;
