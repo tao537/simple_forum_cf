@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>登录 · 注册 | 论坛</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+         min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         background: #0f172a; }
+  body::before { content: ''; position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 0; }
+  .card { position: relative; z-index: 1; background: rgba(255,255,255,.94); border-radius: 18px; width: 100%;
+          max-width: 400px; padding: 36px 32px 28px; box-shadow: 0 20px 60px rgba(0,0,0,.4);
+          backdrop-filter: blur(10px); }
+  .brand { text-align: center; margin-bottom: 28px; }
+  .brand .logo { font-size: 30px; }
+  .brand h1 { font-size: 20px; margin-top: 8px; color: #1e293b; }
+  .brand p { font-size: 13px; color: #94a3b8; margin-top: 4px; }
+  .tabs { display: flex; background: #f1f5f9; border-radius: 10px; padding: 4px;
+          margin-bottom: 22px; }
+  .tabs button { flex: 1; padding: 9px 0; border: none; background: transparent;
+                 border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600;
+                 color: #64748b; transition: .15s; }
+  .tabs button.active { background: #fff; color: #2563eb; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; color: #475569; margin-bottom: 6px; }
+  .field input { width: 100%; padding: 11px 14px; border: 1px solid #e2e8f0;
+                 border-radius: 10px; font-size: 14px; outline: none; transition: .15s; }
+  .field input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
+  .hint { font-size: 12px; color: #94a3b8; }
+  .submit { width: 100%; padding: 12px; border: none; border-radius: 10px;
+            background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff;
+            font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 6px; transition: .2s; }
+  .submit:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(37,99,235,.35); }
+  .submit:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+  .back { display: block; text-align: center; margin-top: 18px; color: #64748b;
+          text-decoration: none; font-size: 13px; }
+  .back:hover { color: #2563eb; }
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+           background: #0f172a; color: #fff; padding: 10px 20px; border-radius: 8px;
+           font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 20; }
+  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #toast.err { background: #dc2626; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <div class="logo">📋</div>
+      <h1>论坛</h1>
+      <p>登录后即可发帖、评论、点赞</p>
+    </div>
+    <div class="tabs">
+      <button id="tab-login" class="active" onclick="switchTab('login')">登录</button>
+      <button id="tab-register" onclick="switchTab('register')">注册</button>
+    </div>
+
+    <div id="form-login">
+      <div class="field">
+        <label>用户名</label>
+        <input id="l-username" type="text" autocomplete="username" placeholder="请输入用户名" />
+      </div>
+      <div class="field">
+        <label>密码</label>
+        <input id="l-password" type="password" autocomplete="current-password" placeholder="请输入密码" />
+      </div>
+      <button class="submit" onclick="doLogin()">登录</button>
+    </div>
+
+    <div id="form-register" style="display:none">
+      <div class="field">
+        <label>用户名</label>
+        <input id="r-username" type="text" autocomplete="username" placeholder="2-30 位，字母/数字/下划线/中文" />
+      </div>
+      <div class="field">
+        <label>密码</label>
+        <input id="r-password" type="password" autocomplete="new-password" placeholder="至少 6 位" />
+      </div>
+      <div class="field">
+        <label>昵称（可选）</label>
+        <input id="r-nickname" type="text" placeholder="展示名，默认取用户名" />
+      </div>
+      <button class="submit" onclick="doRegister()">注册并登录</button>
+      <div class="hint" style="margin-top:10px">💡 第一个注册的用户会自动成为管理员</div>
+    </div>
+
+    <a href="/" class="back">← 返回论坛首页</a>
+  </div>
+
+<div id="toast"></div>
+
+<script type="module">
+  import { auth, api, initAnimatedBackground, initMusicPlayer } from './common.js';
+
+  // 动态背景 + 背景音乐
+  initAnimatedBackground();
+  initMusicPlayer({
+    tracks: [
+      { name: 'Follow', url: '/music/01.mp3' },
+      { name: 'Solaris', url: '/music/02.mp3' },
+    ],
+  });
+
+  function toast(msg, isErr = false) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = isErr ? 'show err' : 'show';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => (el.className = ''), 2400);
+  }
+  window.toast = toast;
+
+  window.switchTab = function (tab) {
+    document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+    document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+    document.getElementById('form-login').style.display = tab === 'login' ? '' : 'none';
+    document.getElementById('form-register').style.display = tab === 'register' ? '' : 'none';
+  };
+
+  if (auth.isLoggedIn()) location.href = '/';
+
+  window.doLogin = async function () {
+    const username = document.getElementById('l-username').value.trim();
+    const password = document.getElementById('l-password').value;
+    if (!username || !password) return toast('请输入用户名和密码', true);
+    try {
+      const data = await api('/api/users/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      });
+      auth.set(data.token, data.user);
+      toast('登录成功');
+      setTimeout(() => (location.href = '/'), 400);
+    } catch (e) { toast(e.message, true); }
+  };
+
+  window.doRegister = async function () {
+    const username = document.getElementById('r-username').value.trim();
+    const password = document.getElementById('r-password').value;
+    const nickname = document.getElementById('r-nickname').value.trim();
+    if (!username || !password) return toast('请填写用户名和密码', true);
+    try {
+      const data = await api('/api/users/register', {
+        method: 'POST',
+        body: JSON.stringify({ username, password, nickname }),
+      });
+      auth.set(data.token, data.user);
+      toast('注册成功');
+      setTimeout(() => (location.href = '/'), 400);
+    } catch (e) { toast(e.message, true); }
+  };
+
+  ['l-username','l-password'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); }));
+  ['r-username','r-password','r-nickname'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); }));
+</script>
+</body>
+</html>

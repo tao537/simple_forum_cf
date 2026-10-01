@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>个人主页</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+         color: #1f2937; min-height: 100vh; }
+  nav { background: rgba(255,255,255,.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 1px 3px rgba(15,23,42,.06); position: sticky; top: 0; z-index: 30; }
+  nav .inner { max-width: 860px; margin: 0 auto; padding: 12px 16px;
+               display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0f172a; }
+  .brand .logo { width: 34px; height: 34px; border-radius: 10px; font-size: 18px;
+                 display: flex; align-items: center; justify-content: center;
+                 background: linear-gradient(135deg,#3b82f6,#2563eb); color: #fff; }
+  .brand b { font-size: 18px; }
+  .nav-right { display: flex; align-items: center; gap: 10px; }
+  .user-chip { display: flex; align-items: center; gap: 8px; font-size: 14px;
+               color: #334155; background: #f1f5f9; padding: 6px 12px; border-radius: 999px;
+               text-decoration: none; }
+  .user-chip:hover { background: #e2e8f0; }
+  .user-chip .avatar { width: 24px; height: 24px; border-radius: 50%;
+                       background: #3b82f6; color: #fff; font-size: 12px;
+                       display: flex; align-items: center; justify-content: center; }
+  .link { color: #3b82f6; text-decoration: none; font-size: 14px; font-weight: 500; }
+  .link:hover { text-decoration: underline; }
+  .logout { color: #94a3b8; font-size: 13px; cursor: pointer; }
+  .logout:hover { color: #ef4444; }
+  .bell { position: relative; font-size: 18px; text-decoration: none; }
+  .bell-count { position: absolute; top: -6px; right: -10px; min-width: 18px; height: 18px;
+                padding: 0 4px; border-radius: 999px; background: #ef4444; color: #fff;
+                font-size: 11px; font-weight: 700; display: none; align-items: center;
+                justify-content: center; }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 0 16px 40px; }
+  .back { display: inline-block; margin: 18px 0 14px; color: #3b82f6;
+          text-decoration: none; font-size: 14px; font-weight: 500; }
+  .back:hover { text-decoration: underline; }
+
+  .profile { background: rgba(255,255,255,.9); backdrop-filter: blur(12px); border-radius: 16px; padding: 26px; box-shadow: 0 2px 10px rgba(15,23,42,.07); border: 1px solid rgba(255,255,255,.6);
+             display: flex; gap: 20px; align-items: center; margin-bottom: 18px; }
+  .big-avatar { width: 76px; height: 76px; border-radius: 50%; background: linear-gradient(135deg,#3b82f6,#2563eb);
+                color: #fff; font-size: 34px; display: flex; align-items: center; justify-content: center; }
+  .p-info h1 { font-size: 22px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+  .p-info .uname { color: #94a3b8; font-size: 14px; }
+  .p-info .joined { color: #94a3b8; font-size: 13px; margin-top: 6px; }
+  .role-badge { font-size: 12px; font-weight: 700; color: #92400e; background: #fef3c7;
+                padding: 3px 10px; border-radius: 999px; }
+  .stats { display: flex; gap: 26px; margin-left: auto; text-align: center; }
+  .stats .num { font-size: 22px; font-weight: 700; color: #1e293b; }
+  .stats .lbl { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+
+  .card { background: rgba(255,255,255,.9); backdrop-filter: blur(12px); border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px rgba(15,23,42,.07); border: 1px solid rgba(255,255,255,.6);
+          margin-bottom: 16px; }
+  .card h2 { font-size: 16px; margin-bottom: 12px; color: #334155; }
+  .row-post { padding: 12px 0; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
+  .row-post:last-child { border-bottom: none; }
+  .row-post a { color: #111827; text-decoration: none; font-weight: 600; font-size: 15px; }
+  .row-post a:hover { color: #2563eb; }
+  .row-post .sub { font-size: 12px; color: #94a3b8; margin-top: 4px; display: flex; gap: 14px; }
+  .pin-badge { font-size: 11px; font-weight: 700; color: #b45309; background: #fef3c7;
+               padding: 1px 7px; border-radius: 6px; margin-right: 6px; }
+  .row-comment { padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #475569; }
+  .row-comment:last-child { border-bottom: none; }
+  .row-comment .from { font-size: 12px; color: #94a3b8; margin-bottom: 3px; }
+  .row-comment a { color: #2563eb; text-decoration: none; }
+  .row-comment a:hover { text-decoration: underline; }
+  .empty-tip { color: #94a3b8; text-align: center; padding: 22px 0; font-size: 14px; }
+
+  #toast { position: fixed; bottom: 24px; left: 50%;
+           transform: translateX(-50%) translateY(80px);
+           background: #0f172a; color: #fff; padding: 10px 20px; border-radius: 8px;
+           font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 90; }
+  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #toast.err { background: #dc2626; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="inner">
+    <a href="/" class="brand"><span class="logo">📋</span><b>论坛</b></a>
+    <div class="nav-right" id="navRight"></div>
+  </div>
+</nav>
+
+<div class="container">
+  <a href="javascript:history.back()" class="back">← 返回</a>
+  <div id="profile"></div>
+  <div class="card">
+    <h2>TA 的帖子</h2>
+    <div id="posts"></div>
+  </div>
+  <div class="card">
+    <h2>TA 的评论</h2>
+    <div id="comments"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+  import { auth, api, escapeHtml, renderNav, initAnimatedBackground, initMusicPlayer } from './common.js';
+
+  const userId = new URLSearchParams(location.search).get('id');
+
+  function toast(msg, isErr = false) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = isErr ? 'show err' : 'show';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => (el.className = ''), 2400);
+  }
+  window.toast = toast;
+  window.logout = function () { auth.clear(); renderNav(); location.reload(); };
+
+  async function load() {
+    if (!userId) {
+      document.getElementById('profile').innerHTML = '<div class="card">无效的用户 ID</div>';
+      return;
+    }
+    try {
+      const data = await api(`/api/users/${userId}/profile`);
+      const u = data.user;
+      const initial = (u.nickname || u.username || '?')[0].toUpperCase();
+      document.getElementById('profile').innerHTML = `
+        <div class="profile">
+          <div class="big-avatar">${escapeHtml(initial)}</div>
+          <div class="p-info">
+            <h1>${escapeHtml(u.nickname)}
+              ${u.role === 'admin' ? '<span class="role-badge">🛡 管理员</span>' : ''}
+            </h1>
+            <div class="uname">@${escapeHtml(u.username)}</div>
+            <div class="joined">加入于 ${u.created_at}</div>
+          </div>
+          <div class="stats">
+            <div><div class="num">${data.stats.posts}</div><div class="lbl">帖子</div></div>
+            <div><div class="num">${data.stats.comments}</div><div class="lbl">评论</div></div>
+            <div><div class="num">${data.stats.likes}</div><div class="lbl">获赞</div></div>
+          </div>
+        </div>`;
+
+      const pBox = document.getElementById('posts');
+      pBox.innerHTML = data.posts.length ? data.posts.map(p => `
+        <div class="row-post" onclick="location.href='/post.html?id=${p.id}'">
+          ${p.pinned ? '<span class="pin-badge">📌</span>' : ''}
+          <a href="/post.html?id=${p.id}">${escapeHtml(p.title)}</a>
+          <div class="sub">
+            <span>❤️ ${p.upvotes}</span><span>💬 ${p.comment_count}</span>
+            <span>👁 ${p.views}</span><span>${p.created_at}</span>
+          </div>
+        </div>`).join('')
+        : '<div class="empty-tip">还没有发过帖子</div>';
+
+      const cBox = document.getElementById('comments');
+      cBox.innerHTML = data.comments.length ? data.comments.map(c => `
+        <div class="row-comment">
+          <div class="from">评论了 <a href="/post.html?id=${c.post_id}">${escapeHtml(c.post_title)}</a> · ${c.created_at} · ❤️ ${c.upvotes}</div>
+          <div>${escapeHtml(c.content.slice(0, 100))}</div>
+        </div>`).join('')
+        : '<div class="empty-tip">还没有发过评论</div>';
+    } catch (e) {
+      document.getElementById('profile').innerHTML = `<div class="card">加载失败：${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  initAnimatedBackground();
+  initMusicPlayer({ tracks: [{ name: 'Follow', url: '/music/01.mp3' }, { name: 'Solaris', url: '/music/02.mp3' }] });
+  renderNav();
+  load();
+</script>
+</body>
+</html>

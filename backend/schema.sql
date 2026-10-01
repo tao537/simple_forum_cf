@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS posts (
   author_id   INTEGER NOT NULL,
   images      TEXT    NOT NULL DEFAULT '[]',
   views       INTEGER NOT NULL DEFAULT 0,
+  is_pinned   INTEGER NOT NULL DEFAULT 0,
+  is_featured INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
   FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
@@ -39,5 +41,16 @@ CREATE TABLE IF NOT EXISTS notifications (
   content     TEXT    NOT NULL,
   is_read     INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- ==================== 评论点赞 ====================
+CREATE TABLE IF NOT EXISTS comment_likes (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  comment_id INTEGER NOT NULL,
+  user_id    INTEGER NOT NULL,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE(comment_id, user_id),
+  FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

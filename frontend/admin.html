@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>管理后台</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+          color: #1f2937; min-height: 100vh; }
+  nav { background: rgba(255,255,255,.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 1px 3px rgba(15,23,42,.06); position: sticky; top: 0; z-index: 30; }
+  nav .inner { max-width: 860px; margin: 0 auto; padding: 12px 16px;
+               display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0f172a; }
+  .brand .logo { width: 34px; height: 34px; border-radius: 10px; font-size: 18px;
+                 display: flex; align-items: center; justify-content: center;
+                 background: linear-gradient(135deg,#3b82f6,#2563eb); color: #fff; }
+  .brand b { font-size: 18px; }
+  .nav-right { display: flex; align-items: center; gap: 10px; }
+  .user-chip { display: flex; align-items: center; gap: 8px; font-size: 14px;
+               color: #334155; background: #f1f5f9; padding: 6px 12px; border-radius: 999px;
+               text-decoration: none; }
+  .user-chip:hover { background: #e2e8f0; }
+  .user-chip .avatar { width: 24px; height: 24px; border-radius: 50%;
+                       background: #3b82f6; color: #fff; font-size: 12px;
+                       display: flex; align-items: center; justify-content: center; }
+  .link { color: #3b82f6; text-decoration: none; font-size: 14px; font-weight: 500; }
+  .link:hover { text-decoration: underline; }
+  .logout { color: #94a3b8; font-size: 13px; cursor: pointer; }
+  .logout:hover { color: #ef4444; }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 0 16px 40px; }
+  .top { margin: 18px 0 14px; }
+  .top h1 { font-size: 20px; }
+  .top p { font-size: 13px; color: #94a3b8; margin-top: 6px; }
+
+  .card { background: rgba(255,255,255,.9); backdrop-filter: blur(12px); border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px rgba(15,23,42,.07); border: 1px solid rgba(255,255,255,.6);
+          margin-bottom: 16px; }
+  .card h2 { font-size: 16px; margin-bottom: 14px; color: #334155; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #f1f5f9; }
+  th { color: #94a3b8; font-weight: 600; font-size: 12px; }
+  tr:last-child td { border-bottom: none; }
+  .role-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+  .role-admin { color: #92400e; background: #fef3c7; }
+  .role-user { color: #2563eb; background: #eff6ff; }
+  .btn { padding: 6px 12px; border: none; border-radius: 8px; cursor: pointer;
+         font-size: 12px; font-weight: 600; transition: .15s; }
+  .btn-ghost { background: #fff; color: #334155; border: 1px solid #e2e8f0; }
+  .btn-ghost:hover { background: #f8fafc; }
+  .btn-danger { background: #ef4444; color: #fff; }
+  .btn-danger:hover { background: #dc2626; }
+  .btn-warn { background: #f59e0b; color: #fff; }
+  .btn-warn:hover { background: #d97706; }
+
+  .empty { text-align: center; color: #94a3b8; padding: 40px 20px; }
+  .tip-box { background: rgba(239,246,255,.92); backdrop-filter: blur(8px); border: 1px solid #bfdbfe; border-radius: 10px;
+             padding: 14px 16px; font-size: 13px; color: #1e40af; line-height: 1.8; margin-bottom: 16px; }
+
+  #toast { position: fixed; bottom: 24px; left: 50%;
+           transform: translateX(-50%) translateY(80px);
+           background: #0f172a; color: #fff; padding: 10px 20px; border-radius: 8px;
+           font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 90; }
+  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #toast.err { background: #dc2626; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="inner">
+    <a href="/" class="brand"><span class="logo">📋</span><b>论坛</b></a>
+    <div class="nav-right" id="navRight"></div>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="top">
+    <h1>⚙️ 管理后台</h1>
+    <p>仅管理员可见。这里可以置顶帖子、删除违规内容、任命管理员。</p>
+  </div>
+
+  <div class="tip-box">
+    <b>管理员使用指南</b><br />
+    1️⃣ 第一个注册的用户自动成为管理员（当前：<span id="whoami">—</span>）。<br />
+    2️⃣ 在帖子详情页可「📌 置顶 / 取消置顶」重要帖子、「删除」任意帖子或评论。<br />
+    3️⃣ 在下表把任意用户设为 / 取消「管理员」角色。<br />
+    4️⃣ 支持批量删除违规账号，高效清理社区环境。
+  </div>
+
+  <div class="card">
+    <h2>用户管理</h2>
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+      <label style="font-size: 13px; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" id="selectAll" onchange="toggleAll(this)"> 全选用户
+      </label>
+      <button class="btn btn-danger" onclick="batchDelete()">批量删除选中</button>
+    </div>
+    <table>
+      <thead><tr><th style="width: 30px"></th><th>ID</th><th>用户名</th><th>昵称</th><th>角色</th><th>注册时间</th><th>操作</th></tr></thead>
+      <tbody id="userRows"></tbody>
+    </table>
+    <div class="empty" id="userEmpty" style="display:none">加载中…</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+  import { auth, api, escapeHtml, renderNav, initAnimatedBackground, initMusicPlayer } from './common.js';
+
+  function toast(msg, isErr = false) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = isErr ? 'show err' : 'show';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => (el.className = ''), 2400);
+  }
+  window.toast = toast;
+  window.logout = function () { auth.clear(); renderNav(); location.reload(); };
+
+  async function load() {
+    if (!auth.isLoggedIn()) { location.href = '/login.html'; return; }
+    const me = auth.getUser();
+    document.getElementById('whoami').textContent = `${me.nickname || me.username}（@${me.username}）`;
+    if (me.role !== 'admin') {
+      document.getElementById('userRows').innerHTML = '';
+      document.getElementById('userEmpty').style.display = '';
+      document.getElementById('userEmpty').textContent = '你不是管理员，无权访问管理后台';
+      return;
+    }
+    try {
+      const data = await api('/api/users');
+      const rows = document.getElementById('userRows');
+      rows.innerHTML = data.users.map(u => `
+        <tr>
+          <td><input type="checkbox" class="user-checkbox" value="${u.id}" ${u.id === me.id ? 'disabled' : ''}></td>
+          <td>${u.id}</td>
+          <td>@${escapeHtml(u.username)}</td>
+          <td>${escapeHtml(u.nickname)}</td>
+          <td><span class="role-badge ${u.role === 'admin' ? 'role-admin' : 'role-user'}">${u.role === 'admin' ? '🛡 管理员' : '普通用户'}</span></td>
+          <td>${u.created_at}</td>
+          <td>
+            ${u.id === me.id
+              ? '<span style="color:#94a3b8;font-size:12px">（自己）</span>'
+              : `<div style="display:flex; gap:5px">
+                    <button class="btn ${u.role === 'admin' ? 'btn-danger' : 'btn-warn'}" onclick="setRole(${u.id},'${u.role === 'admin' ? 'user' : 'admin'}')">${u.role === 'admin' ? '取消管理员' : '设为管理员'}</button>
+                    <button class="btn btn-danger" onclick="deleteUser(${u.id})">删除</button>
+                  </div>`}
+          </td>
+        </tr>`).join('');
+      document.getElementById('userEmpty').style.display = 'none';
+    } catch (e) {
+      document.getElementById('userEmpty').style.display = '';
+      document.getElementById('userEmpty').textContent = e.message;
+    }
+  }
+
+  window.toggleAll = function(master) {
+    document.querySelectorAll('.user-checkbox').forEach(cb => cb.checked = master.checked);
+  };
+
+  window.deleteUser = async function (id) {
+    if (!confirm(`确定要删除该用户账号及其所有内容吗？此操作不可撤销！`)) return;
+    try {
+      await api(`/api/users/${id}`, { method: 'DELETE' });
+      toast('账号已成功删除');
+      load();
+    } catch (e) { toast(e.message, true); }
+  };
+
+  window.batchDelete = async function () {
+    const ids = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => Number(cb.value));
+    if (ids.length === 0) return toast('请先选择要删除的用户', true);
+    if (!confirm(`确定要批量删除这 ${ids.length} 个账号及其所有内容吗？`)) return;
+    try {
+      await api('/api/users/batch-delete', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+      });
+      toast(`已成功删除 ${ids.length} 个账号`);
+      load();
+    } catch (e) { toast(e.message, true); }
+  };
+
+  window.setRole = async function (id, role) {
+    const label = role === 'admin' ? '设为管理员' : '取消管理员';
+    if (!confirm(`确定将该用户${label}吗？`)) return;
+    try {
+      await api(`/api/users/${id}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role }),
+      });
+      toast('操作成功');
+      load();
+    } catch (e) { toast(e.message, true); }
+  };
+
+  initAnimatedBackground();
+  initMusicPlayer({ tracks: [{ name: 'Follow', url: '/music/01.mp3' }, { name: 'Solaris', url: '/music/02.mp3' }] });
+  renderNav();
+  load();
+</script>
+</body>
+</html>
