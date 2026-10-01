@@ -620,4 +620,37 @@ app.put('/api/notifications/:id/read', async (c) => {
   return c.json({ ok: true });
 });
 
+// ==================== 修改密码 ====================
+app.put('/api/users/password', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+
+  const { oldPassword, newPassword } = await c.req.json();
+  if (!oldPassword || !newPassword) {
+    return c.json({ message: '原密码和新密码不能为空' }, 400);
+  }
+  if (newPassword.length < 6) {
+    return c.json({ message: '新密码长度至少 6 位' }, 400);
+  }
+
+  const db = c.env.DB;
+  const user = await db
+    .prepare('SELECT id, password_hash FROM users WHERE id = ?')
+    .bind(payload.id)
+    .first<{ id: number; password_hash: string }>();
+
+  if (!user) return c.json({ message: '用户不存在' }, 404);
+
+  const ok = await verifyPassword(oldPassword, user.password_hash);
+  if (!ok) return c.json({ message: '原密码错误' }, 401);
+
+  const hash = await hashPassword(newPassword);
+  await db
+    .prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+    .bind(hash, payload.id)
+    .run();
+
+  return c.json({ ok: true });
+});
+
 export default app;
