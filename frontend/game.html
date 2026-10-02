@@ -130,6 +130,8 @@
   .gate p { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
   .gate input { width: 100%; padding: 12px 14px; border: 1px solid #ddd6fe; border-radius: 12px;
                 font-size: 15px; text-align: center; outline: none; letter-spacing: 2px; }
+  /* type=text + text-security：手机端可切中文键盘，字符仍显示为圆点（隐藏密码内容） */
+  #gate-pw { -webkit-text-security: disc; }
   .gate input:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,.15); }
   .gate .btn { width: 100%; margin-top: 14px; padding: 12px; font-size: 15px; }
   .gate .err { color: #dc2626; font-size: 13px; min-height: 18px; margin-top: 10px; }
@@ -219,7 +221,7 @@
     <div class="em">🔐</div>
     <h2>进入游戏站</h2>
     <p>本站为独立游戏分享社区<br/>请输入访问密码进入（与苦海论坛账号互不相通）</p>
-    <input id="gate-pw" type="password" placeholder="访问密码" autocomplete="off" />
+    <input id="gate-pw" type="text" placeholder="访问密码" autocomplete="off" autocapitalize="off" spellcheck="false" />
     <button class="btn btn-primary" id="gate-btn" onclick="submitGate()">进入</button>
     <div class="err" id="gate-err"></div>
     <a class="back" href="/forum.html">← 返回苦海论坛</a>
