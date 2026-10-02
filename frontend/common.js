@@ -49,7 +49,18 @@ export async function api(url, opts = {}) {
   if (opts.body && !(opts.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
-  const res = await fetch(fullUrl, { ...opts, headers });
+  // 15 秒超时：接口异常时明确报错，而不是页面无限"加载中"
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  let res;
+  try {
+    res = await fetch(fullUrl, { ...opts, headers, signal: controller.signal });
+  } catch (e) {
+    clearTimeout(timer);
+    if (controller.signal.aborted) throw new Error('请求超时，请稍后重试');
+    throw e;
+  }
+  clearTimeout(timer);
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);

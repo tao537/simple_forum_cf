@@ -38,3 +38,16 @@ CREATE TABLE IF NOT EXISTS site_settings (
   updated_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 INSERT OR IGNORE INTO site_settings (id, data) VALUES (1, '{}');
+
+-- ============================================================
+-- users 表补列（安全加固后的代码依赖 email/role/is_banned/avatar）
+-- 线上旧库若缺这些列，登录/注册/管理后台会 500（no such column）。
+-- ⚠️ 执行前先 PRAGMA table_info(users) 确认缺哪些列，缺哪列补哪列；
+--    已存在的列不要再补（SQLite ADD COLUMN 没有 IF NOT EXISTS）。
+--    补完 role 后，把真正的管理员账号设为 admin：
+--    UPDATE users SET role='admin' WHERE username='你的管理员用户名';
+-- ============================================================
+ALTER TABLE users ADD COLUMN email TEXT;
+ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user';
+ALTER TABLE users ADD COLUMN is_banned INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN avatar TEXT NOT NULL DEFAULT '';
