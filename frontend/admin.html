@@ -134,14 +134,18 @@
 <div class="container">
   <div class="top">
     <h1>管理后台</h1>
-    <p>数据概览、帖子管理、用户管理与界面显示设置。</p>
+    <p>数据概览、帖子/用户管理、分类、游戏站、站点文案、界面设置与数据导出。</p>
   </div>
 
   <div class="admin-tabs">
     <button class="active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 数据概览</button>
     <button data-tab="posts" onclick="switchTab('posts')">📝 帖子管理</button>
     <button data-tab="users" onclick="switchTab('users')">👥 用户管理</button>
+    <button data-tab="categories" onclick="switchTab('categories')">📂 分类管理</button>
+    <button data-tab="game" onclick="switchTab('game')">🎮 游戏站</button>
+    <button data-tab="content" onclick="switchTab('content')">📝 站点文案</button>
     <button data-tab="settings" onclick="switchTab('settings')">🎨 界面设置</button>
+    <button data-tab="export" onclick="switchTab('export')">📤 数据导出</button>
   </div>
 
   <!-- ============ 数据概览 ============ -->
@@ -176,9 +180,17 @@
         <select id="postCat"><option value="">全部分类</option></select>
         <button class="btn btn-primary" onclick="loadPosts(1)">筛选</button>
       </div>
+      <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <label style="font-size:13px;color:#64748b;display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="postSelectAll" onchange="toggleAllPosts(this)"> 全选
+        </label>
+        <button class="btn btn-warn" onclick="batchPosts('pin')">批量置顶</button>
+        <button class="btn btn-warn" onclick="batchPosts('feature')">批量精选</button>
+        <button class="btn btn-danger" onclick="batchPosts('delete')">批量删除</button>
+      </div>
       <table>
         <thead><tr>
-          <th>ID</th><th>标题</th><th>分类</th><th>作者</th>
+          <th style="width:30px"></th><th>ID</th><th>标题</th><th>分类</th><th>作者</th>
           <th>👁</th><th>❤️</th><th>💬</th><th>状态</th><th>操作</th>
         </tr></thead>
         <tbody id="postRows"></tbody>
@@ -197,6 +209,10 @@
   <!-- ============ 用户管理 ============ -->
   <div class="tab-panel" id="panel-users">
     <div class="card">
+      <div class="filter-bar">
+        <input id="userKw" type="text" placeholder="搜索用户名 / 昵称 / 邮箱…" />
+        <button class="btn btn-primary" onclick="loadUsers()">搜索</button>
+      </div>
       <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <label style="font-size:13px;color:#64748b;display:flex;align-items:center;gap:6px">
           <input type="checkbox" id="selectAll" onchange="toggleAll(this)"> 全选用户
@@ -204,9 +220,90 @@
         <button class="btn btn-danger" onclick="batchDelete()">批量删除选中</button>
       </div>
       <table>
-        <thead><tr><th style="width:30px"></th><th>ID</th><th>用户名</th><th>昵称</th><th>角色</th><th>注册时间</th><th>操作</th></tr></thead>
+        <thead><tr><th style="width:30px"></th><th>ID</th><th>用户名</th><th>昵称</th><th>角色</th><th>状态</th><th>注册时间</th><th>操作</th></tr></thead>
         <tbody id="userRows"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- ============ 分类管理 ============ -->
+  <div class="tab-panel" id="panel-categories">
+    <div class="card">
+      <h2>论坛分类</h2>
+      <p style="font-size:13px;color:#94a3b8;margin-bottom:16px">增删分类会同步更新论坛首页的分类栏与发帖下拉框。</p>
+      <div id="catList"></div>
+      <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
+        <input id="newCat" type="text" placeholder="新分类名称（≤20 字）" maxlength="20" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:13px;outline:none;flex:1;max-width:280px" />
+        <button class="btn btn-primary" onclick="addCategory()">添加</button>
+        <button class="btn btn-ghost" onclick="resetCategories()">恢复默认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 游戏站管理 ============ -->
+  <div class="tab-panel" id="panel-game">
+    <div class="card">
+      <h2>🎮 游戏站数据</h2>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="ic">📝</div><div class="num" id="g-posts">–</div><div class="lbl">游戏分享</div></div>
+        <div class="stat-card"><div class="ic">💬</div><div class="num" id="g-comments">–</div><div class="lbl">评论</div></div>
+        <div class="stat-card"><div class="ic">❤️</div><div class="num" id="g-likes">–</div><div class="lbl">点赞</div></div>
+        <div class="stat-card"><div class="ic">🔐</div><div class="num" id="g-pw">–</div><div class="lbl">访问密码</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>🔑 修改游戏访问密码</h2>
+      <p style="font-size:13px;color:#94a3b8;margin-bottom:12px">新密码立即生效，游戏站所有在途 token 下次请求将失效。</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="g-new-pw" type="text" placeholder="新访问密码（4-50 位）" maxlength="50" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:13px;outline:none;width:260px" />
+        <button class="btn btn-primary" onclick="saveGamePassword()">保存新密码</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>🎮 游戏分享管理</h2>
+      <div class="filter-bar">
+        <input id="g-post-kw" type="text" placeholder="搜索游戏标题…" />
+        <button class="btn btn-primary" onclick="loadGamePosts(1)">筛选</button>
+      </div>
+      <table>
+        <thead><tr><th>ID</th><th>标题</th><th>作者</th><th>👁</th><th>❤️</th><th>💬</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="gamePostRows"></tbody>
+      </table>
+      <div class="pager" style="display:flex;justify-content:space-between;margin-top:14px;align-items:center;font-size:13px;color:#64748b">
+        <span id="gamePostPagerInfo"></span>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost" onclick="loadGamePosts(gameState.page-1)">上一页</button>
+          <span id="gamePostPageNow"></span>
+          <button class="btn btn-ghost" onclick="loadGamePosts(gameState.page+1)">下一页</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 站点文案 ============ -->
+  <div class="tab-panel" id="panel-content">
+    <div class="card">
+      <h2>📝 站点文案</h2>
+      <div class="opt-group">
+        <label>首页横幅主标题</label>
+        <input id="c-bannerTitle" type="text" maxlength="60" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:14px;outline:none" />
+      </div>
+      <div class="opt-group">
+        <label>首页横幅副标题</label>
+        <input id="c-bannerSubtitle" type="text" maxlength="120" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:14px;outline:none" />
+      </div>
+      <div class="opt-group">
+        <label>公告（显示在论坛横幅下方，留空不显示）</label>
+        <textarea id="c-announcement" maxlength="500" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:14px;outline:none;min-height:80px;font-family:inherit;resize:vertical"></textarea>
+      </div>
+      <div class="opt-group">
+        <label>页脚文字（显示在论坛底部，留空不显示）</label>
+        <textarea id="c-footerText" maxlength="300" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:14px;outline:none;min-height:60px;font-family:inherit;resize:vertical"></textarea>
+      </div>
+      <div class="settings-actions">
+        <button class="btn btn-primary" onclick="saveSiteContent()">💾 保存文案</button>
+        <button class="btn btn-ghost" onclick="resetSiteContent()">恢复默认</button>
+      </div>
     </div>
   </div>
 
@@ -251,13 +348,25 @@
       </div>
     </div>
   </div>
+
+  <!-- ============ 数据导出 ============ -->
+  <div class="tab-panel" id="panel-export">
+    <div class="card">
+      <h2>📤 数据导出</h2>
+      <p style="font-size:13px;color:#94a3b8;margin-bottom:16px">导出为 CSV 文件，可用 Excel / WPS 打开。</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="exportPosts()">📝 导出帖子 CSV</button>
+        <button class="btn btn-primary" onclick="exportUsers()">👥 导出用户 CSV</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="toast"></div>
 
 <script type="module">
   import { auth, api, escapeHtml, renderNav, initAnimatedBackground, initMusicPlayer,
-           loadDisplaySettings, getDisplaySettings } from './common.js';
+           loadDisplaySettings, getDisplaySettings, API_BASE } from './common.js';
 
   let settingsForm = null;
   const postState = { page: 1, size: 20, total: 0 };
@@ -281,6 +390,9 @@
     if (tab === 'dashboard') loadDashboard();
     if (tab === 'posts') loadPosts(1);
     if (tab === 'users') loadUsers();
+    if (tab === 'categories') loadCategories();
+    if (tab === 'game') loadGameAdmin();
+    if (tab === 'content') loadSiteContentForm();
     if (tab === 'settings') initSettingsForm();
   };
 
@@ -331,6 +443,7 @@
       const rows = d.rows || [];
       document.getElementById('postRows').innerHTML = rows.length ? rows.map(p => `
         <tr>
+          <td><input type="checkbox" class="post-checkbox" value="${p.id}"></td>
           <td>${p.id}</td>
           <td><a href="/post.html?id=${p.id}" style="color:#2563eb;text-decoration:none">${escapeHtml(p.title)}</a></td>
           <td>${p.category ? `<span class="cat-tag">${escapeHtml(p.category)}</span>` : '—'}</td>
@@ -343,7 +456,7 @@
             <button class="btn btn-danger" onclick="deletePost(${p.id})">删除</button>
           </div></td>
         </tr>`).join('')
-        : '<tr><td colspan="9" class="empty">没有符合条件的帖子</td></tr>';
+        : '<tr><td colspan="10" class="empty">没有符合条件的帖子</td></tr>';
 
       const totalPages = Math.max(1, Math.ceil(postState.total / postState.size));
       document.getElementById('postPagerInfo').textContent = `共 ${postState.total} 条`;
@@ -367,10 +480,29 @@
     catch (e) { toast(e.message, true); }
   };
 
+  window.toggleAllPosts = function (master) {
+    document.querySelectorAll('.post-checkbox').forEach(cb => (cb.checked = master.checked));
+  };
+  window.batchPosts = async function (action) {
+    const ids = Array.from(document.querySelectorAll('.post-checkbox:checked')).map(cb => Number(cb.value));
+    if (!ids.length) return toast('请先选择帖子', true);
+    const label = action === 'pin' ? '批量置顶' : action === 'feature' ? '批量精选' : '批量删除';
+    if (!confirm(`确定${label}这 ${ids.length} 个帖子吗？`)) return;
+    try {
+      await api('/api/posts/batch', { method: 'POST', body: JSON.stringify({ ids, action }) });
+      toast('操作成功');
+      document.getElementById('postSelectAll').checked = false;
+      loadPosts(postState.page);
+    } catch (e) { toast(e.message, true); }
+  };
+
   // ===== 用户管理 =====
   async function loadUsers() {
     try {
-      const d = await api('/api/users');
+      const kw = document.getElementById('userKw').value.trim();
+      const d = kw
+        ? await api(`/api/users/search?keyword=${encodeURIComponent(kw)}`)
+        : await api('/api/users');
       const me = auth.getUser();
       document.getElementById('userRows').innerHTML = d.users.map(u => `
         <tr>
@@ -379,16 +511,27 @@
           <td>@${escapeHtml(u.username)}</td>
           <td>${escapeHtml(u.nickname)}</td>
           <td><span class="role-badge ${u.role === 'admin' ? 'role-admin' : 'role-user'}">${u.role === 'admin' ? '🛡 管理员' : '普通用户'}</span></td>
+          <td>${u.is_banned ? '<span style="color:#dc2626;font-weight:700">🚫 已封禁</span>' : '<span style="color:#16a34a">正常</span>'}</td>
           <td>${u.created_at}</td>
           <td>${u.id === me.id
             ? '<span style="color:#94a3b8">（自己）</span>'
             : `<div class="row-actions">
+                 <button class="btn ${u.is_banned ? 'btn-ghost' : 'btn-danger'}" onclick="toggleBan(${u.id},${u.is_banned ? 0 : 1})">${u.is_banned ? '解封' : '封禁'}</button>
                  <button class="btn ${u.role === 'admin' ? 'btn-danger' : 'btn-warn'}" onclick="setRole(${u.id},'${u.role === 'admin' ? 'user' : 'admin'}')">${u.role === 'admin' ? '取消管理员' : '设为管理员'}</button>
                  <button class="btn btn-danger" onclick="deleteUser(${u.id})">删除</button>
                </div>`}</td>
         </tr>`).join('');
     } catch (e) { toast(e.message, true); }
   }
+
+  window.toggleBan = async function (id, banned) {
+    if (!confirm(banned ? '确定封禁该账号吗？封禁后立即无法登录与操作。' : '确定解封该账号吗？')) return;
+    try {
+      await api(`/api/users/${id}/ban`, { method: 'POST', body: JSON.stringify({ banned: !!banned }) });
+      toast(banned ? '已封禁' : '已解封');
+      loadUsers();
+    } catch (e) { toast(e.message, true); }
+  };
 
   window.toggleAll = function (master) {
     document.querySelectorAll('.user-checkbox').forEach(cb => (cb.checked = master.checked));
@@ -414,6 +557,178 @@
       toast('操作成功'); loadUsers();
     } catch (e) { toast(e.message, true); }
   };
+
+  // ===== 分类管理 =====
+  let categoriesCache = [];
+  async function loadCategories() {
+    try {
+      const d = await api('/api/admin/categories');
+      categoriesCache = d.categories || [];
+      renderCategories();
+    } catch (e) { toast(e.message, true); }
+  }
+  function renderCategories() {
+    document.getElementById('catList').innerHTML = categoriesCache.length ? categoriesCache.map((c, i) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap">
+        <span style="font-size:13px;color:#94a3b8;width:22px">${i + 1}</span>
+        <span style="font-size:14px;font-weight:600;color:#334155;flex:1">${escapeHtml(c)}</span>
+        ${i > 0 ? `<button class="btn btn-ghost" onclick="moveCategory(${i},-1)">↑</button>` : '<span style="width:52px"></span>'}
+        ${i < categoriesCache.length - 1 ? `<button class="btn btn-ghost" onclick="moveCategory(${i},1)">↓</button>` : '<span style="width:52px"></span>'}
+        <button class="btn btn-danger" onclick="removeCategory(${i})">删除</button>
+      </div>`).join('')
+      : '<div class="empty">暂无分类</div>';
+  }
+  window.addCategory = async function () {
+    const name = document.getElementById('newCat').value.trim();
+    if (!name) return toast('请输入分类名称', true);
+    if (categoriesCache.includes(name)) return toast('该分类已存在', true);
+    categoriesCache.push(name);
+    document.getElementById('newCat').value = '';
+    await saveCategories();
+  };
+  window.removeCategory = async function (i) {
+    if (!confirm(`确定删除分类「${categoriesCache[i]}」吗？`)) return;
+    categoriesCache.splice(i, 1);
+    await saveCategories();
+  };
+  window.moveCategory = async function (i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= categoriesCache.length) return;
+    [categoriesCache[i], categoriesCache[j]] = [categoriesCache[j], categoriesCache[i]];
+    await saveCategories();
+  };
+  window.resetCategories = async function () {
+    if (!confirm('恢复默认分类（壁纸/资源/求助/闲聊）？')) return;
+    categoriesCache = ['壁纸', '资源', '求助', '闲聊'];
+    await saveCategories();
+  };
+  async function saveCategories() {
+    try {
+      await api('/api/admin/categories', { method: 'PUT', body: JSON.stringify({ categories: categoriesCache }) });
+      toast('分类已保存');
+      renderCategories();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  // ===== 游戏站管理 =====
+  const gameState = { page: 1, size: 20, total: 0 };
+  async function loadGameAdmin() {
+    try {
+      const d = await api('/api/admin/game/stats');
+      document.getElementById('g-posts').textContent = d.posts;
+      document.getElementById('g-comments').textContent = d.comments;
+      document.getElementById('g-likes').textContent = d.postLikes + d.commentLikes;
+      document.getElementById('g-pw').textContent = d.passwordSet ? '已设置' : '未设置';
+    } catch (e) { toast(e.message, true); }
+    loadGamePosts(1);
+  }
+  window.saveGamePassword = async function () {
+    const pw = document.getElementById('g-new-pw').value.trim();
+    if (pw.length < 4 || pw.length > 50) return toast('密码长度需 4-50 位', true);
+    if (!confirm('确定修改游戏访问密码？游戏站所有在途访问将立即失效。')) return;
+    try {
+      await api('/api/admin/game/password', { method: 'PUT', body: JSON.stringify({ password: pw }) });
+      document.getElementById('g-new-pw').value = '';
+      toast('游戏密码已更新');
+      loadGameAdmin();
+    } catch (e) { toast(e.message, true); }
+  };
+  async function loadGamePosts(page = 1) {
+    gameState.page = Math.max(1, page);
+    const kw = document.getElementById('g-post-kw').value.trim();
+    const qs = new URLSearchParams({ page: gameState.page, size: gameState.size });
+    if (kw) qs.set('keyword', kw);
+    try {
+      const d = await api(`/api/admin/game/posts?${qs}`);
+      gameState.total = d.total;
+      document.getElementById('gamePostRows').innerHTML = (d.rows || []).length ? d.rows.map(p => `
+        <tr>
+          <td>${p.id}</td>
+          <td><a href="/game-post.html?id=${p.id}" target="_blank" style="color:#7c3aed;text-decoration:none">${escapeHtml(p.title)}</a></td>
+          <td>${escapeHtml(p.author_name)}</td>
+          <td>${p.views}</td><td>${p.upvotes}</td><td>${p.comment_count}</td>
+          <td>${p.pinned ? '<span class="state-ico">📌</span>' : ''}${p.featured ? '<span class="state-ico">⭐</span>' : ''}${(!p.pinned && !p.featured) ? '—' : ''}</td>
+          <td><div class="row-actions">
+            <button class="btn btn-warn" onclick="gamePinPost(${p.id})">${p.pinned ? '取消置顶' : '置顶'}</button>
+            <button class="btn btn-warn" onclick="gameFeaturePost(${p.id})">${p.featured ? '取消精选' : '精选'}</button>
+            <button class="btn btn-danger" onclick="deleteGamePost(${p.id})">删除</button>
+          </div></td>
+        </tr>`).join('')
+        : '<tr><td colspan="8" class="empty">没有游戏分享</td></tr>';
+      const totalPages = Math.max(1, Math.ceil(gameState.total / gameState.size));
+      document.getElementById('gamePostPagerInfo').textContent = `共 ${gameState.total} 条`;
+      document.getElementById('gamePostPageNow').textContent = `${gameState.page} / ${totalPages}`;
+    } catch (e) { toast(e.message, true); }
+  }
+  window.gamePinPost = async function (id) {
+    try { await api(`/api/admin/game/posts/${id}/pin`, { method: 'POST' }); loadGamePosts(gameState.page); }
+    catch (e) { toast(e.message, true); }
+  };
+  window.gameFeaturePost = async function (id) {
+    try { await api(`/api/admin/game/posts/${id}/feature`, { method: 'POST' }); loadGamePosts(gameState.page); }
+    catch (e) { toast(e.message, true); }
+  };
+  window.deleteGamePost = async function (id) {
+    if (!confirm('确定删除该游戏分享及其评论吗？')) return;
+    try { await api(`/api/admin/game/posts/${id}`, { method: 'DELETE' }); toast('已删除'); loadGameAdmin(); }
+    catch (e) { toast(e.message, true); }
+  };
+
+  // ===== 站点文案 =====
+  async function loadSiteContentForm() {
+    try {
+      const d = await api('/api/admin/site-content');
+      const c = d.content || {};
+      document.getElementById('c-bannerTitle').value = c.bannerTitle || '';
+      document.getElementById('c-bannerSubtitle').value = c.bannerSubtitle || '';
+      document.getElementById('c-announcement').value = c.announcement || '';
+      document.getElementById('c-footerText').value = c.footerText || '';
+    } catch (e) { toast(e.message, true); }
+  }
+  window.saveSiteContent = async function () {
+    const content = {
+      bannerTitle: document.getElementById('c-bannerTitle').value.trim(),
+      bannerSubtitle: document.getElementById('c-bannerSubtitle').value.trim(),
+      announcement: document.getElementById('c-announcement').value.trim(),
+      footerText: document.getElementById('c-footerText').value.trim(),
+    };
+    try {
+      await api('/api/admin/site-content', { method: 'PUT', body: JSON.stringify({ content }) });
+      toast('文案已保存，论坛首页已生效');
+    } catch (e) { toast(e.message, true); }
+  };
+  window.resetSiteContent = function () {
+    document.getElementById('c-bannerTitle').value = '金榜题名 · 高考必胜';
+    document.getElementById('c-bannerSubtitle').value = '苦海无涯，学海作舟 —— 乾坤未定，你我皆是黑马';
+    document.getElementById('c-announcement').value = '';
+    document.getElementById('c-footerText').value = '';
+    toast('已恢复默认，点击「保存文案」生效');
+  };
+
+  // ===== 数据导出 =====
+  async function downloadCsv(path, filename) {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        headers: { Authorization: `Bearer ${auth.getToken()}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast('导出成功');
+    } catch (e) { toast(e.message, true); }
+  }
+  window.exportPosts = function () { downloadCsv('/api/admin/export/posts', 'posts.csv'); };
+  window.exportUsers = function () { downloadCsv('/api/admin/export/users', 'users.csv'); };
 
   // ===== 界面设置 =====
   async function initSettingsForm() {

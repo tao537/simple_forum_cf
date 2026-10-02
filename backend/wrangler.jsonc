@@ -12,6 +12,11 @@
       "binding": "DB",
       "database_name": "forum-db",
       "database_id": "c71a2c00-f5ba-49f8-90bd-8fe0d8a26b39"
+    },
+    {
+      "binding": "GAME_DB",
+      "database_name": "game-db",
+      "database_id": "PENDING_GAME_DB_ID"
     }
   ],
   // ============================================================

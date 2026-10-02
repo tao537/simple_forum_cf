@@ -3,40 +3,32 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>娱乐游戏</title>
+<title>娱乐游戏 · 二次元游戏分享站</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --g: #8b5cf6;
-    --g2: #7c3aed;
-  }
+  :root { --g: #8b5cf6; --g2: #7c3aed; }
   body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
          color: #1f2937; min-height: 100vh; }
-  nav { background: rgba(255,255,255,.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-        box-shadow: 0 1px 3px rgba(15,23,42,.06); position: sticky; top: 0; z-index: 30; }
+  nav { background: rgba(23,16,50,.78); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+        box-shadow: 0 1px 3px rgba(15,23,42,.15); position: sticky; top: 0; z-index: 30; }
   nav .inner { max-width: 1080px; margin: 0 auto; padding: 12px 16px;
                display: flex; align-items: center; justify-content: space-between; }
-  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0f172a; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #f5f3ff; }
   .brand .logo { width: 34px; height: 34px; border-radius: 10px; font-size: 18px;
                  display: flex; align-items: center; justify-content: center;
                  background: linear-gradient(135deg,#8b5cf6,#7c3aed); color: #fff; }
   .brand b { font-size: 18px; }
   .nav-right { display: flex; align-items: center; gap: 10px; }
-  .user-chip { display: flex; align-items: center; gap: 8px; font-size: 14px;
-               color: #334155; background: rgba(241,245,249,.9); padding: 6px 12px;
-               border-radius: 999px; text-decoration: none; }
-  .user-chip .avatar { width: 24px; height: 24px; border-radius: 50%;
-                       background: #8b5cf6; color: #fff; font-size: 12px;
-                       display: flex; align-items: center; justify-content: center; }
-  .link { color: #7c3aed; text-decoration: none; font-size: 14px; font-weight: 500; }
-  .link:hover { text-decoration: underline; }
-  .logout { color: #94a3b8; font-size: 13px; cursor: pointer; }
+  .link { color: #c4b5fd; text-decoration: none; font-size: 14px; font-weight: 500; }
+  .link:hover { text-decoration: underline; color: #ddd6fe; }
+  .guest-chip { display: flex; align-items: center; gap: 8px; font-size: 13px;
+                color: #e9d5ff; background: rgba(139,92,246,.18); padding: 5px 12px;
+                border-radius: 999px; }
+  .guest-chip .avatar { width: 24px; height: 24px; border-radius: 50%;
+                        background: #8b5cf6; color: #fff; font-size: 12px;
+                        display: flex; align-items: center; justify-content: center; }
+  .logout { color: #a78bfa; font-size: 13px; cursor: pointer; }
   .logout:hover { color: #ef4444; }
-  .bell { position: relative; font-size: 18px; text-decoration: none; }
-  .bell-count { position: absolute; top: -6px; right: -10px; min-width: 18px; height: 18px;
-                padding: 0 4px; border-radius: 999px; background: #ef4444; color: #fff;
-                font-size: 11px; font-weight: 700; display: none; align-items: center;
-                justify-content: center; }
 
   .container { max-width: 1080px; margin: 0 auto; padding: 0 16px 48px; }
 
@@ -75,7 +67,7 @@
 
   /* 游戏卡片网格 */
   .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
-  .game-card { background: rgba(255,255,255,.9); border-radius: 16px; overflow: hidden;
+  .game-card { background: rgba(255,255,255,.92); border-radius: 16px; overflow: hidden;
                cursor: pointer; border: 1px solid rgba(255,255,255,.6);
                box-shadow: 0 2px 10px rgba(15,23,42,.08); transition: .2s; }
   .game-card:hover { transform: translateY(-4px); box-shadow: 0 14px 32px rgba(124,58,237,.22); }
@@ -90,6 +82,7 @@
   .gbody { padding: 12px 14px 14px; }
   .gbody h3 { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 8px;
               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gbody .gauthor { font-size: 12px; color: #a78bfa; margin-bottom: 6px; }
   .gmeta { display: flex; gap: 12px; font-size: 12px; color: #94a3b8; }
   .gmeta span { display: inline-flex; align-items: center; gap: 3px; }
 
@@ -124,6 +117,25 @@
     font-size: 12px; line-height: 20px; text-align: center; }
   .hint { font-size: 12px; color: #94a3b8; margin-top: 6px; }
 
+  /* 密码门禁层 */
+  .gate { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center;
+          justify-content: center; padding: 20px;
+          background: radial-gradient(ellipse at 50% 30%, rgba(109,40,217,.75), rgba(15,10,35,.97)),
+                      url('/wallpapers/game-anime.jpg') center / cover; }
+  .gate .card { width: 100%; max-width: 380px; background: rgba(255,255,255,.94);
+                border-radius: 20px; padding: 32px 28px; text-align: center;
+                box-shadow: 0 24px 70px rgba(0,0,0,.45); }
+  .gate .em { font-size: 44px; }
+  .gate h2 { font-size: 20px; margin: 12px 0 6px; color: #312e81; }
+  .gate p { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
+  .gate input { width: 100%; padding: 12px 14px; border: 1px solid #ddd6fe; border-radius: 12px;
+                font-size: 15px; text-align: center; outline: none; letter-spacing: 2px; }
+  .gate input:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,.15); }
+  .gate .btn { width: 100%; margin-top: 14px; padding: 12px; font-size: 15px; }
+  .gate .err { color: #dc2626; font-size: 13px; min-height: 18px; margin-top: 10px; }
+  .gate .back { display: inline-block; margin-top: 14px; color: #a78bfa; font-size: 13px;
+                text-decoration: none; }
+
   #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
            background: #0f172a; color: #fff; padding: 10px 20px; border-radius: 8px;
            font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 60; }
@@ -140,10 +152,10 @@
   </div>
 </nav>
 
-<div class="container">
+<div class="container" id="main">
   <div class="hero">
     <h1>发现与分享好游戏</h1>
-    <p>把你喜欢的游戏、封面截图和资源分享给大家，一起交流游玩心得</p>
+    <p>二次元游戏分享站 —— 把你喜欢的游戏、封面截图和资源分享给大家</p>
     <button class="btn btn-primary" onclick="openShare()">🎮 分享游戏</button>
   </div>
 
@@ -177,6 +189,10 @@
   <div class="modal">
     <h2>分享游戏</h2>
     <div class="field">
+      <label>你的昵称 *（游戏站内显示，不涉及苦海账号）</label>
+      <input id="f-nick" type="text" placeholder="例如：肝帝小明" maxlength="20" />
+    </div>
+    <div class="field">
       <label>游戏名称 *</label>
       <input id="f-title" type="text" placeholder="游戏的名字" maxlength="100" />
     </div>
@@ -197,18 +213,30 @@
   </div>
 </div>
 
+<!-- 统一访问密码门禁 -->
+<div class="gate" id="gate">
+  <div class="card">
+    <div class="em">🔐</div>
+    <h2>进入游戏站</h2>
+    <p>本站为独立游戏分享社区<br/>请输入访问密码进入（与苦海论坛账号互不相通）</p>
+    <input id="gate-pw" type="password" placeholder="访问密码" autocomplete="off" />
+    <button class="btn btn-primary" id="gate-btn" onclick="submitGate()">进入</button>
+    <div class="err" id="gate-err"></div>
+    <a class="back" href="/forum.html">← 返回苦海论坛</a>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script type="module">
-  import { auth, api, escapeHtml, parseImages, renderNav,
-           initAnimatedBackground, initMusicPlayer, processImageForUpload } from './common.js';
+  import { gameAuth, gameApi, escapeHtml, parseImages, initAnimatedBackground,
+           initMusicPlayer, processImageForUpload } from './common.js';
 
-  const API = '/api/posts';
-  const CATEGORY = '游戏';
+  const API = '/api/game/posts';
   const state = { page: 1, size: 12, total: 0, sort: 'new' };
   let pendingImages = [];
 
-  initAnimatedBackground();
+  initAnimatedBackground({ images: ['/wallpapers/game-anime.jpg'] });
   initMusicPlayer({
     tracks: [
       { name: 'Follow', url: '/music/01.mp3' },
@@ -224,7 +252,63 @@
     el._t = setTimeout(() => (el.className = ''), 2400);
   }
   window.toast = toast;
-  window.logout = function () { auth.clear(); location.reload(); };
+
+  function renderNav() {
+    const box = document.getElementById('navRight');
+    const nick = gameAuth.nickname() || '游客';
+    const initial = (nick[0] || '?').toUpperCase();
+    box.innerHTML = `
+      <a class="link" href="/forum.html">⌬ 苦海论坛</a>
+      <span class="guest-chip"><span class="avatar">${escapeHtml(initial)}</span>${escapeHtml(nick)}</span>
+      <span class="logout" onclick="exitGame()">退出</span>`;
+  }
+  window.exitGame = function () { gameAuth.clear(); location.reload(); };
+
+  // ===== 密码门禁 =====
+  window.submitGate = async function () {
+    const btn = document.getElementById('gate-btn');
+    const err = document.getElementById('gate-err');
+    const pw = document.getElementById('gate-pw').value.trim();
+    if (!pw) { err.textContent = '请输入访问密码'; return; }
+    btn.disabled = true;
+    err.textContent = '';
+    try {
+      const data = await gameApi('/api/game/enter', { method: 'POST', body: JSON.stringify({ password: pw }) });
+      gameAuth.setToken(data.token);
+      document.getElementById('gate').style.display = 'none';
+      toast('欢迎进入游戏站 🎮');
+      renderNav();
+      load(1);
+    } catch (e) {
+      err.textContent = e.message;
+      btn.disabled = false;
+    }
+  };
+
+  // 校验已有 token；失效则重新弹密码门禁
+  async function ensureEntered() {
+    if (!gameAuth.isEntered()) return false;
+    try {
+      await gameApi('/api/game/me');
+      return true;
+    } catch {
+      gameAuth.clear();
+      return false;
+    }
+  }
+
+  // 未进入时隐藏主内容，只显示门禁
+  if (!gameAuth.isEntered()) {
+    document.getElementById('main').style.display = 'none';
+    document.getElementById('gate-pw').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitGate();
+    });
+  } else {
+    ensureEntered().then((ok) => {
+      if (ok) { document.getElementById('gate').style.display = 'none'; renderNav(); load(1); }
+      else { document.getElementById('main').style.display = 'none'; }
+    });
+  }
 
   window.setSort = function (s) {
     state.sort = s;
@@ -236,16 +320,18 @@
   async function load(page = 1) {
     state.page = Math.max(1, page);
     const keyword = document.getElementById('kw').value.trim();
-    const qs = new URLSearchParams({
-      page: state.page, size: state.size, sort: state.sort, category: CATEGORY,
-    });
+    const qs = new URLSearchParams({ page: state.page, size: state.size, sort: state.sort });
     if (keyword) qs.set('keyword', keyword);
     try {
-      const data = await api(`${API}?${qs}`);
+      const data = await gameApi(`${API}?${qs}`);
       state.total = data.total;
       render(data.rows);
       renderPager();
-    } catch (e) { toast(e.message, true); }
+    } catch (e) {
+      if (e.message.includes('访问密码') || e.message.includes('401')) {
+        gameAuth.clear(); location.reload();
+      } else toast(e.message, true);
+    }
   }
   window.load = load;
 
@@ -261,13 +347,14 @@
       const imgs = parseImages(g.images);
       const cover = imgs[0];
       return `
-        <div class="game-card" onclick="location.href='/post.html?id=${g.id}'">
+        <div class="game-card" onclick="location.href='/game-post.html?id=${g.id}'">
           <div class="cover">
             ${cover ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy" />` : `<span class="ph">🎮</span>`}
-            <span class="tag">游戏</span>
+            <span class="tag">${g.pinned ? '📌 ' : ''}${g.featured ? '⭐ ' : ''}游戏</span>
           </div>
           <div class="gbody">
             <h3>${escapeHtml(g.title)}</h3>
+            <div class="gauthor">👤 ${escapeHtml(g.author_name)}</div>
             <div class="gmeta">
               <span>❤️ ${g.upvotes}</span>
               <span>💬 ${g.comment_count}</span>
@@ -288,7 +375,7 @@
 
   // 弹窗
   window.openShare = function () {
-    if (!auth.isLoggedIn()) { toast('请先登录', true); location.href = '/login.html'; return; }
+    document.getElementById('f-nick').value = gameAuth.nickname();
     document.getElementById('f-title').value = '';
     document.getElementById('f-content').value = '';
     pendingImages = [];
@@ -319,7 +406,7 @@
         const processed = await processImageForUpload(f);
         const fd = new FormData();
         fd.append('file', processed);
-        const data = await api(`${API}/upload`, { method: 'POST', body: fd });
+        const data = await gameApi(`${API}/upload`, { method: 'POST', body: fd });
         pendingImages.push(data.url);
       } catch (err) { toast(err.message, true); }
     }
@@ -328,20 +415,24 @@
   });
 
   window.submitGame = async function () {
+    const nickname = document.getElementById('f-nick').value.trim();
+    if (!nickname) return toast('请填写你的昵称', true);
+    gameAuth.setNickname(nickname);
     const payload = {
       title: document.getElementById('f-title').value.trim(),
       content: document.getElementById('f-content').value.trim(),
-      category: CATEGORY,
+      nickname,
+      visitorId: gameAuth.visitorId(),
       images: pendingImages,
     };
     if (!payload.title || !payload.content) return toast('游戏名称和介绍必填', true);
     const btn = document.getElementById('pubBtn');
     btn.disabled = true;
     try {
-      const post = await api(API, { method: 'POST', body: JSON.stringify(payload) });
+      const post = await gameApi(API, { method: 'POST', body: JSON.stringify(payload) });
       toast('发布成功');
       closeModal();
-      location.href = `/post.html?id=${post.id}`;
+      location.href = `/game-post.html?id=${post.id}`;
     } catch (e) { toast(e.message, true); }
     btn.disabled = false;
   };
@@ -352,9 +443,6 @@
   document.getElementById('overlay').addEventListener('click', e => {
     if (e.target.id === 'overlay') closeModal();
   });
-
-  renderNav('navRight', { site: 'game' });
-  load(1);
 </script>
 </body>
 </html>

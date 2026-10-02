@@ -4,6 +4,7 @@ import { sign, verify } from 'hono/jwt';
 
 type Bindings = {
   DB: D1Database;
+  GAME_DB: D1Database;
   JWT_SECRET: string;
   // 图片上传（R2），可选。未配置时上传接口返回 501 提示。
   IMG_BUCKET?: any;
@@ -1013,6 +1014,720 @@ app.put('/api/users/password', async (c) => {
   const hash = await hashPassword(newPassword);
   await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(hash, payload.id).run();
   return c.json({ ok: true });
+});
+
+// ================================================================
+//  娱乐游戏站（独立 D1 库 game-db，与苦海论坛完全隔离）
+//  进入方式：统一访问密码 → 服务端签发 scope=game 的短期 token
+//  站内无账号体系，发帖/评论使用访客昵称，点赞按访客标识去重
+// ================================================================
+const DEFAULT_GAME_PASSWORD = '利益or节操'; // 首次进入自动初始化，管理后台可改
+const GAME_TOKEN_TTL = 12 * 3600; // 游戏 token 12 小时
+
+async function issueGameToken(c: any) {
+  const now = Math.floor(Date.now() / 1000);
+  return await sign(
+    { scope: 'game', iat: now, exp: now + GAME_TOKEN_TTL },
+    c.env.JWT_SECRET,
+    'HS256'
+  );
+}
+
+// 校验游戏访问 token（只认 scope=game，与论坛 token 隔离）
+async function getGameAuth(c: any): Promise<boolean> {
+  const token = c.req.header('Authorization')?.replace('Bearer ', '');
+  if (!token) return false;
+  try {
+    const p = await verify(token, c.env.JWT_SECRET, 'HS256');
+    return p?.scope === 'game';
+  } catch {
+    return false;
+  }
+}
+
+const VISITOR_RE = /^v[a-z0-9]{12,40}$/;
+
+async function getGameSettings(db: D1Database): Promise<any> {
+  const row = await db.prepare('SELECT data FROM site_settings WHERE id = 1').first<{ data: string }>();
+  try { return JSON.parse(row?.data || '{}'); } catch { return {}; }
+}
+
+async function saveGameSettings(db: D1Database, data: any) {
+  await db
+    .prepare("UPDATE site_settings SET data = ?, updated_at = datetime('now','localtime') WHERE id = 1")
+    .bind(JSON.stringify(data))
+    .run();
+}
+
+// 进入游戏站（统一访问密码）
+app.post('/api/game/enter', async (c) => {
+  const { password } = await c.req.json();
+  if (typeof password !== 'string' || !password) {
+    return c.json({ message: '请输入访问密码' }, 400);
+  }
+  const db = c.env.GAME_DB;
+  const settings = await getGameSettings(db);
+  const hash = settings.gamePasswordHash;
+
+  if (!hash) {
+    // 首次：默认密码校验通过后自动落库，后续管理后台可修改
+    if (password !== DEFAULT_GAME_PASSWORD) {
+      return c.json({ message: '访问密码错误' }, 401);
+    }
+    const newHash = await hashPassword(DEFAULT_GAME_PASSWORD);
+    settings.gamePasswordHash = newHash;
+    await saveGameSettings(db, settings);
+  } else {
+    const ok = await verifyPassword(password, hash);
+    if (!ok) return c.json({ message: '访问密码错误' }, 401);
+  }
+
+  const token = await issueGameToken(c);
+  return c.json({ token, expiresIn: GAME_TOKEN_TTL });
+});
+
+// 游戏 token 有效性检查
+app.get('/api/game/me', async (c) => {
+  const ok = await getGameAuth(c);
+  if (!ok) return c.json({ message: '未进入游戏站' }, 401);
+  return c.json({ ok: true });
+});
+
+// ==================== 游戏帖子 ====================
+app.get('/api/game/posts', async (c) => {
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+
+  const db = c.env.GAME_DB;
+  const page = Math.max(1, Number(c.req.query('page')) || 1);
+  const size = Math.min(Number(c.req.query('size')) || 12, 100);
+  const offset = (page - 1) * size;
+  const keyword = (c.req.query('keyword') || '').trim();
+  const sort = c.req.query('sort') || 'new';
+
+  const where: string[] = [];
+  const binds: any[] = [];
+  if (keyword) {
+    where.push('(p.title LIKE ? OR p.content LIKE ?)');
+    const kw = `%${keyword}%`;
+    binds.push(kw, kw);
+  }
+  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+  let order = 'p.id DESC';
+  if (sort === 'hot') order = '(upvotes + comment_count + p.views) DESC, p.id DESC';
+  else if (sort === 'top') order = 'upvotes DESC, p.id DESC';
+
+  const { results } = await db
+    .prepare(
+      `SELECT p.id, p.title, p.content, p.images, p.views,
+              p.is_pinned AS pinned, p.is_featured AS featured,
+              p.author_name, substr(p.content, 1, 140) AS summary,
+              (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS upvotes,
+              (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
+              p.created_at, p.updated_at
+       FROM posts p
+       ${whereSql}
+       ORDER BY ${order} LIMIT ? OFFSET ?`
+    )
+    .bind(...binds, size, offset)
+    .all();
+
+  const total = await db
+    .prepare(`SELECT COUNT(*) AS n FROM posts p ${whereSql}`)
+    .bind(...binds)
+    .first<{ n: number }>();
+
+  return c.json({ rows: results, page, size, total: total?.n ?? 0 });
+});
+
+app.get('/api/game/posts/featured', async (c) => {
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  const { results } = await c.env.GAME_DB
+    .prepare(
+      `SELECT p.id, p.title, substr(p.content, 1, 120) AS summary, p.author_name,
+              (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS upvotes,
+              (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
+       FROM posts p WHERE p.is_featured = 1 ORDER BY p.id DESC LIMIT 6`
+    )
+    .all();
+  return c.json({ rows: results });
+});
+
+// 游戏图片上传（与论坛共用 R2 逻辑；未配置 R2 时返回 501）
+app.post('/api/game/posts/upload', async (c) => {
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+
+  const bucket = c.env.IMG_BUCKET;
+  if (!bucket) {
+    return c.json({ message: '图片存储未配置（需要 R2 bucket），请先按说明启用' }, 501);
+  }
+
+  const fd = await c.req.formData();
+  const file = fd.get('file');
+  if (!file || typeof file === 'string') return c.json({ message: '请选择图片文件' }, 400);
+
+  const buf = await file.arrayBuffer();
+  const ext = (file.name?.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'jpg';
+  const key = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+
+  await bucket.put(key, buf, { httpMetadata: { contentType: file.type || 'image/jpeg' } });
+
+  const origin = new URL(c.req.url).origin;
+  return c.json({ url: `${origin}/img/${key}` }, 201);
+});
+
+// 游戏发帖
+app.post('/api/game/posts', async (c) => {
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+
+  const { title, content, nickname, visitorId, images } = await c.req.json();
+  if (!title || !content) return c.json({ message: '标题和内容不能为空' }, 400);
+  const nick = String(nickname || '').trim().slice(0, 20) || '匿名玩家';
+  const vid = typeof visitorId === 'string' && VISITOR_RE.test(visitorId) ? visitorId : '';
+  const safeImages = sanitizeImages(images);
+
+  const result = await c.env.GAME_DB
+    .prepare('INSERT INTO posts (title, content, author_name, author_visitor, images) VALUES (?, ?, ?, ?, ?)')
+    .bind(title, content, nick, vid, JSON.stringify(safeImages))
+    .run();
+
+  return c.json({ id: result.meta.last_row_id, title, content }, 201);
+});
+
+// 游戏帖子详情
+app.get('/api/game/posts/:id', async (c) => {
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+
+  const id = Number(c.req.param('id'));
+  if (!Number.isInteger(id) || id <= 0) return c.json({ message: '帖子不存在' }, 404);
+  const db = c.env.GAME_DB;
+  const visitorId = String(c.req.query('visitorId') || '');
+
+  const post = await db
+    .prepare(
+      `SELECT p.*, p.is_pinned AS pinned, p.is_featured AS featured,
+              (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS upvotes
+       FROM posts p WHERE p.id = ?`
+    )
+    .bind(id)
+    .first<any>();
+
+  if (!post) return c.json({ message: '帖子不存在' }, 404);
+
+  post.liked = VISITOR_RE.test(visitorId)
+    ? !!(await db.prepare('SELECT id FROM post_likes WHERE post_id = ? AND visitor_id = ?').bind(id, visitorId).first())
+    : false;
+
+  const { results: comments } = await db
+    .prepare(
+      `SELECT c.id, c.post_id, c.author_name, c.author_visitor, c.content, c.created_at,
+              (SELECT COUNT(*) FROM comment_likes cl WHERE cl.comment_id = c.id) AS upvotes
+       FROM comments c WHERE c.post_id = ? ORDER BY c.id ASC`
+    )
+    .bind(id)
+    .all();
+
+  const crows = comments as any[];
+  if (VISITOR_RE.test(visitorId) && crows.length) {
+    const cids = crows.map((x) => x.id);
+    const ph = cids.map(() => '?').join(',');
+    const { results: likes } = await db
+      .prepare(`SELECT comment_id FROM comment_likes WHERE visitor_id = ? AND comment_id IN (${ph})`)
+      .bind(visitorId, ...cids)
+      .all();
+    const set = new Set((likes as any[]).map((l) => l.comment_id));
+    crows.forEach((x) => (x.liked = set.has(x.id)));
+  } else {
+    crows.forEach((x) => (x.liked = false));
+  }
+  post.comments = crows;
+
+  await db.prepare('UPDATE posts SET views = views + 1 WHERE id = ?').bind(id).run();
+  return c.json(post);
+});
+
+// 游戏帖子点赞
+app.post('/api/game/posts/:id/like', async (c) => {
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+
+  const id = Number(c.req.param('id'));
+  const { visitorId } = await c.req.json();
+  if (!VISITOR_RE.test(String(visitorId || ''))) return c.json({ message: '缺少访客标识' }, 400);
+
+  const db = c.env.GAME_DB;
+  const post = await db.prepare('SELECT id FROM posts WHERE id = ?').bind(id).first<{ id: number }>();
+  if (!post) return c.json({ message: '帖子不存在' }, 404);
+
+  const liked = await db
+    .prepare('SELECT id FROM post_likes WHERE post_id = ? AND visitor_id = ?')
+    .bind(id, visitorId)
+    .first<{ id: number }>();
+
+  if (liked) {
+    await db.prepare('DELETE FROM post_likes WHERE post_id = ? AND visitor_id = ?').bind(id, visitorId).run();
+  } else {
+    await db.prepare('INSERT INTO post_likes (post_id, visitor_id) VALUES (?, ?)').bind(id, visitorId).run();
+  }
+
+  const total = await db.prepare('SELECT COUNT(*) AS n FROM post_likes WHERE post_id = ?').bind(id).first<{ n: number }>();
+  return c.json({ liked: !liked, upvotes: total?.n ?? 0 });
+});
+
+// 游戏评论
+app.post('/api/game/posts/:id/comments', async (c) => {
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+
+  const postId = Number(c.req.param('id'));
+  const { content, nickname, visitorId } = await c.req.json();
+  if (!content) return c.json({ message: '评论内容不能为空' }, 400);
+  const nick = String(nickname || '').trim().slice(0, 20) || '匿名玩家';
+  const vid = typeof visitorId === 'string' && VISITOR_RE.test(visitorId) ? visitorId : '';
+
+  const db = c.env.GAME_DB;
+  const post = await db.prepare('SELECT id FROM posts WHERE id = ?').bind(postId).first<{ id: number }>();
+  if (!post) return c.json({ message: '帖子不存在' }, 404);
+
+  const result = await db
+    .prepare('INSERT INTO comments (post_id, author_name, author_visitor, content) VALUES (?, ?, ?, ?)')
+    .bind(postId, nick, vid, content)
+    .run();
+
+  return c.json({ id: result.meta.last_row_id, content }, 201);
+});
+
+// 游戏评论点赞
+app.post('/api/game/posts/:postId/comments/:commentId/like', async (c) => {
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+
+  const postId = Number(c.req.param('postId'));
+  const commentId = Number(c.req.param('commentId'));
+  const { visitorId } = await c.req.json();
+  if (!VISITOR_RE.test(String(visitorId || ''))) return c.json({ message: '缺少访客标识' }, 400);
+
+  const db = c.env.GAME_DB;
+  const comment = await db
+    .prepare('SELECT id FROM comments WHERE id = ? AND post_id = ?')
+    .bind(commentId, postId)
+    .first<{ id: number }>();
+  if (!comment) return c.json({ message: '评论不存在' }, 404);
+
+  const liked = await db
+    .prepare('SELECT id FROM comment_likes WHERE comment_id = ? AND visitor_id = ?')
+    .bind(commentId, visitorId)
+    .first<{ id: number }>();
+
+  if (liked) {
+    await db.prepare('DELETE FROM comment_likes WHERE comment_id = ? AND visitor_id = ?').bind(commentId, visitorId).run();
+  } else {
+    await db.prepare('INSERT INTO comment_likes (comment_id, visitor_id) VALUES (?, ?)').bind(commentId, visitorId).run();
+  }
+
+  const total = await db.prepare('SELECT COUNT(*) AS n FROM comment_likes WHERE comment_id = ?').bind(commentId).first<{ n: number }>();
+  return c.json({ liked: !liked, upvotes: total?.n ?? 0 });
+});
+
+// 游戏帖子编辑/删除（作者访客标识或管理员）
+app.put('/api/game/posts/:id', async (c) => {
+  const adminPayload = await getAuth(c);
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+
+  const id = Number(c.req.param('id'));
+  const db = c.env.GAME_DB;
+  const { title, content, nickname, visitorId, images } = await c.req.json();
+  if (!title || !content) return c.json({ message: '标题和内容不能为空' }, 400);
+
+  const post = await db.prepare('SELECT id, author_visitor FROM posts WHERE id = ?').bind(id).first<{ id: number; author_visitor: string }>();
+  if (!post) return c.json({ message: '帖子不存在' }, 404);
+
+  const isAuthor = typeof visitorId === 'string' && post.author_visitor && post.author_visitor === visitorId;
+  const isAdminUser = !!adminPayload && (await isAdmin(c, adminPayload.id));
+  if (!isAuthor && !isAdminUser) return c.json({ message: '无权修改' }, 403);
+
+  const safeImages = sanitizeImages(images);
+  await db
+    .prepare("UPDATE posts SET title = ?, content = ?, images = ?, updated_at = datetime('now','localtime') WHERE id = ?")
+    .bind(title, content, JSON.stringify(safeImages), id)
+    .run();
+
+  return c.json({ ok: true });
+});
+
+app.delete('/api/game/posts/:id', async (c) => {
+  const adminPayload = await getAuth(c);
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+
+  const id = Number(c.req.param('id'));
+  const db = c.env.GAME_DB;
+  const body = await c.req.json().catch(() => ({}));
+  const visitorId = String(body?.visitorId || '');
+
+  const post = await db.prepare('SELECT id, author_visitor FROM posts WHERE id = ?').bind(id).first<{ id: number; author_visitor: string }>();
+  if (!post) return c.json({ message: '帖子不存在' }, 404);
+
+  const isAuthor = !!post.author_visitor && post.author_visitor === visitorId;
+  const isAdminUser = !!adminPayload && (await isAdmin(c, adminPayload.id));
+  if (!isAuthor && !isAdminUser) return c.json({ message: '无权删除' }, 403);
+
+  await db.prepare('DELETE FROM posts WHERE id = ?').bind(id).run();
+  return c.json({ ok: true });
+});
+
+app.post('/api/game/posts/:id/pin', async (c) => {
+  const adminPayload = await getAuth(c);
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!adminPayload || !(await isAdmin(c, adminPayload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const id = Number(c.req.param('id'));
+  const result = await c.env.GAME_DB
+    .prepare('UPDATE posts SET is_pinned = CASE is_pinned WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
+    .bind(id)
+    .run();
+  if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
+  const row = await c.env.GAME_DB.prepare('SELECT is_pinned FROM posts WHERE id = ?').bind(id).first<{ is_pinned: number }>();
+  return c.json({ pinned: !!row?.is_pinned });
+});
+
+app.post('/api/game/posts/:id/feature', async (c) => {
+  const adminPayload = await getAuth(c);
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!adminPayload || !(await isAdmin(c, adminPayload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const id = Number(c.req.param('id'));
+  const result = await c.env.GAME_DB
+    .prepare('UPDATE posts SET is_featured = CASE is_featured WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
+    .bind(id)
+    .run();
+  if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
+  const row = await c.env.GAME_DB.prepare('SELECT is_featured FROM posts WHERE id = ?').bind(id).first<{ is_featured: number }>();
+  return c.json({ featured: !!row?.is_featured });
+});
+
+app.delete('/api/game/comments/:id', async (c) => {
+  const adminPayload = await getAuth(c);
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+
+  const id = Number(c.req.param('id'));
+  const db = c.env.GAME_DB;
+  const body = await c.req.json().catch(() => ({}));
+  const visitorId = String(body?.visitorId || '');
+
+  const comment = await db.prepare('SELECT id, author_visitor FROM comments WHERE id = ?').bind(id).first<{ id: number; author_visitor: string }>();
+  if (!comment) return c.json({ message: '评论不存在' }, 404);
+
+  const isAuthor = !!comment.author_visitor && comment.author_visitor === visitorId;
+  const isAdminUser = !!adminPayload && (await isAdmin(c, adminPayload.id));
+  if (!isAuthor && !isAdminUser) return c.json({ message: '无权删除' }, 403);
+
+  await db.prepare('DELETE FROM comments WHERE id = ?').bind(id).run();
+  return c.json({ ok: true });
+});
+
+// ================================================================
+//  管理后台增强接口（论坛管理员身份，走主库 DB）
+// ================================================================
+
+// ===== 分类管理（存主库 site_settings.data.categories）=====
+const DEFAULT_CATEGORIES = ['壁纸', '资源', '求助', '闲聊'];
+
+app.get('/api/admin/categories', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const settings = await getSettings(c.env.DB);
+  return c.json({ categories: Array.isArray(settings.categories) ? settings.categories : DEFAULT_CATEGORIES });
+});
+
+app.put('/api/admin/categories', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const { categories } = await c.req.json();
+  const list = Array.isArray(categories)
+    ? categories.map((x: any) => String(x || '').trim().slice(0, 20)).filter(Boolean).slice(0, 30)
+    : [];
+  const settings = await getSettings(c.env.DB);
+  settings.categories = list;
+  await c.env.DB
+    .prepare("UPDATE site_settings SET data = ?, updated_at = datetime('now','localtime') WHERE id = 1")
+    .bind(JSON.stringify(settings))
+    .run();
+  return c.json({ ok: true, categories: list });
+});
+
+// ===== 站点文案管理（banner 标语 / 公告 / 页脚）=====
+const DEFAULT_SITE_CONTENT = {
+  bannerTitle: '金榜题名 · 高考必胜',
+  bannerSubtitle: '苦海无涯，学海作舟 —— 乾坤未定，你我皆是黑马',
+  announcement: '',
+  footerText: '',
+};
+
+app.get('/api/admin/site-content', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const settings = await getSettings(c.env.DB);
+  return c.json({ content: { ...DEFAULT_SITE_CONTENT, ...(settings.siteContent || {}) } });
+});
+
+app.put('/api/admin/site-content', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const { content } = await c.req.json();
+  const merged = { ...DEFAULT_SITE_CONTENT, ...(content || {}) };
+  merged.bannerTitle = String(merged.bannerTitle || '').slice(0, 60);
+  merged.bannerSubtitle = String(merged.bannerSubtitle || '').slice(0, 120);
+  merged.announcement = String(merged.announcement || '').slice(0, 500);
+  merged.footerText = String(merged.footerText || '').slice(0, 300);
+
+  const settings = await getSettings(c.env.DB);
+  settings.siteContent = merged;
+  await c.env.DB
+    .prepare("UPDATE site_settings SET data = ?, updated_at = datetime('now','localtime') WHERE id = 1")
+    .bind(JSON.stringify(settings))
+    .run();
+  return c.json({ ok: true, content: merged });
+});
+
+// 公开读取站点文案 + 分类（前端渲染 banner / 公告 / 页脚 / 分类）
+app.get('/api/site-content', async (c) => {
+  const settings = await getSettings(c.env.DB);
+  return c.json({
+    content: { ...DEFAULT_SITE_CONTENT, ...(settings.siteContent || {}) },
+    categories: Array.isArray(settings.categories) ? settings.categories : DEFAULT_CATEGORIES,
+  });
+});
+
+// ===== 游戏站管理 =====
+app.get('/api/admin/game/stats', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const db = c.env.GAME_DB;
+  const count = async (sql: string): Promise<number> =>
+    (await db.prepare(sql).first<{ n: number }>())?.n ?? 0;
+
+  const posts = await count('SELECT COUNT(*) AS n FROM posts');
+  const comments = await count('SELECT COUNT(*) AS n FROM comments');
+  const postLikes = await count('SELECT COUNT(*) AS n FROM post_likes');
+  const commentLikes = await count('SELECT COUNT(*) AS n FROM comment_likes');
+  const newPostsToday = await count("SELECT COUNT(*) AS n FROM posts WHERE date(created_at) = date('now','localtime')");
+
+  const settings = await getGameSettings(db);
+  return c.json({
+    posts, comments, postLikes, commentLikes, newPostsToday,
+    passwordSet: !!settings.gamePasswordHash,
+  });
+});
+
+app.get('/api/admin/game/posts', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const db = c.env.GAME_DB;
+  const page = Math.max(1, Number(c.req.query('page')) || 1);
+  const size = Math.min(Number(c.req.query('size')) || 20, 100);
+  const offset = (page - 1) * size;
+  const keyword = (c.req.query('keyword') || '').trim();
+
+  const where: string[] = [];
+  const binds: any[] = [];
+  if (keyword) { where.push('(title LIKE ? OR content LIKE ?)'); const kw = `%${keyword}%`; binds.push(kw, kw); }
+  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+  const { results } = await db
+    .prepare(
+      `SELECT id, title, author_name, views,
+              (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS upvotes,
+              (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
+              is_pinned AS pinned, is_featured AS featured, created_at
+       FROM posts p ${whereSql} ORDER BY id DESC LIMIT ? OFFSET ?`
+    )
+    .bind(...binds, size, offset)
+    .all();
+
+  const total = await db
+    .prepare(`SELECT COUNT(*) AS n FROM posts p ${whereSql}`)
+    .bind(...binds)
+    .first<{ n: number }>();
+
+  return c.json({ rows: results, page, size, total: total?.n ?? 0 });
+});
+
+app.delete('/api/admin/game/posts/:id', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const id = Number(c.req.param('id'));
+  const result = await c.env.GAME_DB.prepare('DELETE FROM posts WHERE id = ?').bind(id).run();
+  if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
+  return c.json({ ok: true });
+});
+
+// 管理后台专用：游戏帖置顶/精选（仅需论坛管理员身份，不依赖游戏 token）
+app.post('/api/admin/game/posts/:id/pin', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const id = Number(c.req.param('id'));
+  const result = await c.env.GAME_DB
+    .prepare('UPDATE posts SET is_pinned = CASE is_pinned WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
+    .bind(id)
+    .run();
+  if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
+  const row = await c.env.GAME_DB.prepare('SELECT is_pinned FROM posts WHERE id = ?').bind(id).first<{ is_pinned: number }>();
+  return c.json({ pinned: !!row?.is_pinned });
+});
+
+app.post('/api/admin/game/posts/:id/feature', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const id = Number(c.req.param('id'));
+  const result = await c.env.GAME_DB
+    .prepare('UPDATE posts SET is_featured = CASE is_featured WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
+    .bind(id)
+    .run();
+  if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
+  const row = await c.env.GAME_DB.prepare('SELECT is_featured FROM posts WHERE id = ?').bind(id).first<{ is_featured: number }>();
+  return c.json({ featured: !!row?.is_featured });
+});
+
+// 游戏密码管理
+app.put('/api/admin/game/password', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const { password } = await c.req.json();
+  if (typeof password !== 'string' || password.length < 4 || password.length > 50) {
+    return c.json({ message: '访问密码长度需 4-50 位' }, 400);
+  }
+
+  const db = c.env.GAME_DB;
+  const settings = await getGameSettings(db);
+  settings.gamePasswordHash = await hashPassword(password);
+  await saveGameSettings(db, settings);
+  return c.json({ ok: true });
+});
+
+// ===== 帖子批量操作 =====
+app.post('/api/posts/batch', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const { ids, action } = await c.req.json();
+  const list = Array.isArray(ids) ? ids.map((v) => Number(v)).filter((v) => Number.isInteger(v)) : [];
+  if (!list.length) return c.json({ message: '请选择帖子' }, 400);
+
+  const ph = list.map(() => '?').join(',');
+  let sql = '';
+  if (action === 'pin') sql = `UPDATE posts SET is_pinned = 1 WHERE id IN (${ph})`;
+  else if (action === 'unpin') sql = `UPDATE posts SET is_pinned = 0 WHERE id IN (${ph})`;
+  else if (action === 'feature') sql = `UPDATE posts SET is_featured = 1 WHERE id IN (${ph})`;
+  else if (action === 'unfeature') sql = `UPDATE posts SET is_featured = 0 WHERE id IN (${ph})`;
+  else if (action === 'delete') sql = `DELETE FROM posts WHERE id IN (${ph})`;
+  else return c.json({ message: '不支持的批量操作' }, 400);
+
+  const result = await c.env.DB.prepare(sql).bind(...list).run();
+  return c.json({ ok: true, affected: result.meta.changes ?? 0 });
+});
+
+// ===== 用户管理增强：搜索 / 封禁 =====
+app.get('/api/users/search', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const keyword = (c.req.query('keyword') || '').trim();
+  const kw = `%${keyword}%`;
+  const { results } = await c.env.DB
+    .prepare(
+      'SELECT id, username, nickname, email, role, is_banned, created_at FROM users WHERE username LIKE ? OR nickname LIKE ? OR email LIKE ? ORDER BY id ASC LIMIT 50'
+    )
+    .bind(kw, kw, kw)
+    .all();
+  return c.json({ users: results });
+});
+
+app.post('/api/users/:id/ban', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const id = Number(c.req.param('id'));
+  if (id === payload.id) return c.json({ message: '不能封禁自己' }, 400);
+
+  const { banned } = await c.req.json();
+  const target = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(id).first<{ id: number }>();
+  if (!target) return c.json({ message: '用户不存在' }, 404);
+
+  await c.env.DB.prepare('UPDATE users SET is_banned = ? WHERE id = ?').bind(banned ? 1 : 0, id).run();
+  return c.json({ ok: true, banned: !!banned });
+});
+
+// ===== 数据导出（CSV）=====
+function toCsv(headers: string[], rows: any[], pick: (r: any) => any[]) {
+  const esc = (v: any) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [headers.join(','), ...rows.map((r) => pick(r).map(esc).join(','))].join('\n');
+}
+
+app.get('/api/admin/export/posts', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const { results } = await c.env.DB
+    .prepare(
+      `SELECT p.id, p.title, p.category, p.views, p.is_pinned, p.is_featured,
+              u.username AS author, p.created_at, p.updated_at
+       FROM posts p LEFT JOIN users u ON u.id = p.author_id ORDER BY p.id ASC`
+    )
+    .all();
+
+  const csv = toCsv(
+    ['ID', '标题', '分类', '作者', '浏览', '置顶', '精选', '创建时间', '更新时间'],
+    results as any[],
+    (r) => [r.id, r.title, r.category, r.author, r.views, r.is_pinned, r.is_featured, r.created_at, r.updated_at]
+  );
+  return c.body(csv, 200, {
+    'Content-Type': 'text/csv; charset=utf-8',
+    'Content-Disposition': 'attachment; filename="posts.csv"',
+  });
+});
+
+app.get('/api/admin/export/users', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const { results } = await c.env.DB
+    .prepare('SELECT id, username, nickname, email, role, is_banned, created_at FROM users ORDER BY id ASC')
+    .all();
+
+  const csv = toCsv(
+    ['ID', '用户名', '昵称', '邮箱', '角色', '封禁', '注册时间'],
+    results as any[],
+    (r) => [r.id, r.username, r.nickname, r.email, r.role, r.is_banned, r.created_at]
+  );
+  return c.body(csv, 200, {
+    'Content-Type': 'text/csv; charset=utf-8',
+    'Content-Disposition': 'attachment; filename="users.csv"',
+  });
 });
 
 export default app;

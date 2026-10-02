@@ -25,7 +25,7 @@ export const auth = {
 
 // ===== 后端地址配置 =====
 // 线上 API（后端 Worker，独立子域名，国内可访问）
-const API_BASE = 'https://api.kuhai.de5.net';
+export const API_BASE = 'https://api.kuhai.de5.net';
 // 本地 API（Linux 上 npx wrangler dev 的默认端口是 8787）
 const LOCAL_API_BASE = 'http://localhost:8787';
 // 本地前端调试时是否调用本地后端：true = 本地前端→本地后端；false = 本地前端→线上
@@ -66,6 +66,48 @@ export function parseImages(images) {
     const arr = typeof images === 'string' ? JSON.parse(images || '[]') : (images || []);
     return Array.isArray(arr) ? arr.filter(Boolean) : [];
   } catch { return []; }
+}
+
+// ================================================================
+//  娱乐游戏站（与苦海论坛账号完全隔离）
+//  进入：统一访问密码 → 服务端签发 scope=game 的 token
+//  站内无账号，发帖/评论用访客昵称，点赞用本地访客标识
+// ================================================================
+const GAME_TOKEN_KEY = 'game_token';
+const GAME_NICK_KEY = 'game_nick';
+const GAME_VISITOR_KEY = 'game_visitor';
+
+export const gameAuth = {
+  getToken() { return localStorage.getItem(GAME_TOKEN_KEY) || ''; },
+  isEntered() { return !!this.getToken(); },
+  setToken(t) { localStorage.setItem(GAME_TOKEN_KEY, t); },
+  clear() { localStorage.removeItem(GAME_TOKEN_KEY); },
+  nickname() { return localStorage.getItem(GAME_NICK_KEY) || ''; },
+  setNickname(n) { localStorage.setItem(GAME_NICK_KEY, String(n || '').slice(0, 20)); },
+  visitorId() {
+    let v = localStorage.getItem(GAME_VISITOR_KEY);
+    if (!v) {
+      v = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(GAME_VISITOR_KEY, v);
+    }
+    return v;
+  },
+};
+
+// 游戏站请求封装：自动附带游戏 token（与论坛 api() 完全独立）
+export async function gameApi(url, opts = {}) {
+  const baseUrl = resolveBaseUrl();
+  const fullUrl = `${baseUrl}${url}`;
+  const headers = { ...(opts.headers || {}) };
+  const token = gameAuth.getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (opts.body && !(opts.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const res = await fetch(fullUrl, { ...opts, headers });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+  return data;
 }
 
 // ==================== 界面显示设置（管理员后台可配置）====================
