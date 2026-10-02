@@ -170,6 +170,15 @@
         </table>
       </div>
     </div>
+    <div class="card">
+      <h2>🔑 修改我的密码</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="my-old-pw" type="password" placeholder="原密码" autocomplete="current-password" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:13px;outline:none;width:200px" />
+        <input id="my-new-pw" type="password" placeholder="新密码（至少 8 位）" autocomplete="new-password" maxlength="50" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:13px;outline:none;width:220px" />
+        <button class="btn btn-primary" onclick="saveMyPassword()">保存新密码</button>
+      </div>
+      <p id="my-pw-msg" style="font-size:13px;color:#64748b;margin-top:8px;min-height:16px"></p>
+    </div>
   </div>
 
   <!-- ============ 帖子管理 ============ -->
@@ -428,6 +437,26 @@
         </tr>`).join('') || '<tr><td colspan="4" class="empty">暂无</td></tr>';
     } catch (e) { toast(e.message, true); }
   }
+
+  // ===== 修改我的密码 =====
+  window.saveMyPassword = async function () {
+    const oldPw = document.getElementById('my-old-pw').value;
+    const newPw = document.getElementById('my-new-pw').value;
+    const msg = document.getElementById('my-pw-msg');
+    msg.style.color = '#64748b';
+    if (!oldPw || !newPw) { msg.textContent = '请填写原密码和新密码'; return; }
+    if (newPw.length < 8) { msg.textContent = '新密码至少 8 位'; return; }
+    try {
+      await api('/api/users/password', { method: 'PUT', body: JSON.stringify({ oldPassword: oldPw, newPassword: newPw }) });
+      document.getElementById('my-old-pw').value = '';
+      document.getElementById('my-new-pw').value = '';
+      msg.style.color = '#16a34a';
+      msg.textContent = '✅ 密码已修改，下次登录请使用新密码';
+    } catch (e) {
+      msg.style.color = '#dc2626';
+      msg.textContent = e.message;
+    }
+  };
 
   // ===== 帖子管理 =====
   async function loadPosts(page = 1) {
