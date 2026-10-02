@@ -3,507 +3,238 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>论坛</title>
+<title>苦海 · 入口</title>
 <style>
+  :root {
+    --bg: #060b16;
+    --paper: #f2ecdc;
+    --ink: #0a1120;
+    --font-xing: 'STXingkai', '华文行楷', 'KaiTi', '楷体', 'SimSun', serif;
+    --font-song: 'KaiTi', 'STKaiti', 'SimSun', '宋体', serif;
+    --font-cn: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-         color: #1f2937; min-height: 100vh; }
-  .container { max-width: 860px; margin: 0 auto; padding: 0 16px 40px; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font-song);
+    background: var(--bg);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .shell { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
 
-  /* 顶部导航（磨砂） */
-  nav { background: rgba(255,255,255,.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-        box-shadow: 0 1px 3px rgba(15,23,42,.06); position: sticky; top: 0; z-index: 30; }
-  nav .inner { max-width: 860px; margin: 0 auto; padding: 12px 16px;
-               display: flex; align-items: center; justify-content: space-between; }
-  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0f172a; }
-  .brand .logo { width: 34px; height: 34px; border-radius: 10px; font-size: 18px;
-                 display: flex; align-items: center; justify-content: center;
-                 background: linear-gradient(135deg,#3b82f6,#2563eb); color: #fff; }
-  .brand b { font-size: 18px; }
-  .nav-right { display: flex; align-items: center; gap: 10px; }
-  .user-chip { display: flex; align-items: center; gap: 8px; font-size: 14px;
-               color: #334155; background: rgba(241,245,249,.9); padding: 6px 12px; border-radius: 999px;
-               text-decoration: none; }
-  .user-chip:hover { background: #e2e8f0; }
-  .user-chip .avatar { width: 24px; height: 24px; border-radius: 50%;
-                       background: #3b82f6; color: #fff; font-size: 12px;
-                       display: flex; align-items: center; justify-content: center; }
-  .link { color: #2563eb; text-decoration: none; font-size: 14px; font-weight: 500; }
-  .link:hover { text-decoration: underline; }
-  .logout { color: #94a3b8; font-size: 13px; cursor: pointer; }
-  .logout:hover { color: #ef4444; }
-  .bell { position: relative; font-size: 18px; text-decoration: none; }
-  .bell-count { position: absolute; top: -6px; right: -10px; min-width: 18px; height: 18px;
-                padding: 0 4px; border-radius: 999px; background: #ef4444; color: #fff;
-                font-size: 11px; font-weight: 700; display: none; align-items: center;
-                justify-content: center; }
+  /* ===== 顶栏 ===== */
+  .top-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 18px;
+    border-bottom: 1px solid rgba(242,236,220,.14);
+    font-size: 12.5px; letter-spacing: 2px; color: var(--paper);
+    flex-wrap: wrap;
+  }
+  .top-bar .brand-zh { display: inline-flex; align-items: baseline; gap: 9px; }
+  .top-bar .brand-zh .sym { color: #9fd8d0; }
+  .top-bar .brand-zh b { font-weight: 700; font-size: 14.5px; letter-spacing: 4px; }
+  .top-bar .divider { color: rgba(242,236,220,.25); }
+  .top-bar .sub { color: rgba(242,236,220,.55); font-size: 11px; letter-spacing: 3px; }
+  .top-bar .year { margin-left: auto; color: rgba(242,236,220,.55); font-size: 11px; letter-spacing: 2px; }
 
-  /* 横幅：壁纸背景（多图轮播） */
-  .banner { position: relative; height: 210px; border-radius: 18px; overflow: hidden;
-            margin-top: 18px; box-shadow: 0 10px 30px rgba(15,23,42,.18); }
-  .banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .banner .mask { position: absolute; inset: 0;
-                  background: linear-gradient(90deg, rgba(15,23,42,.75) 0%, rgba(15,23,42,.3) 55%, rgba(15,23,42,.06) 100%); }
-  .banner .text { position: absolute; left: 28px; bottom: 24px; color: #fff; }
-  .banner h2 { font-size: 26px; margin-bottom: 6px; text-shadow: 0 2px 8px rgba(0,0,0,.35); }
-  .banner p { font-size: 13px; opacity: .94; text-shadow: 0 1px 4px rgba(0,0,0,.35); }
-  .banner .tabs-dots { position: absolute; right: 18px; bottom: 18px; display: flex; gap: 6px; }
-  .banner .tabs-dots span { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.5);
-                            transition: .3s; }
-  .banner .tabs-dots span.on { background: #fff; width: 18px; border-radius: 4px; }
+  /* ===== 左右分屏 ===== */
+  .split { flex: 1; display: flex; min-height: 0; }
+  .entry {
+    position: relative;
+    flex: 1 1 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 18px 10px;
+    text-align: center;
+    text-decoration: none;
+    overflow: hidden;
+  }
+  .entry + .entry { border-left: 1px solid rgba(242,236,220,.12); }
 
-  /* 精选推荐区 */
-  .featured-section { margin-top: 16px; }
-  .section-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700;
-                   color: #1e293b; margin-bottom: 12px; }
-  .section-title .chip { font-size: 11px; font-weight: 600; color: #b45309; background: rgba(254,243,199,.95);
-                         padding: 2px 9px; border-radius: 999px; }
-  .featured-scroll { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
-  .fcard { background: rgba(255,255,255,.86); backdrop-filter: blur(12px); border-radius: 14px;
-           padding: 14px 16px; cursor: pointer; transition: .18s; border: 1px solid rgba(255,255,255,.6);
-           box-shadow: 0 2px 10px rgba(15,23,42,.07); }
-  .fcard:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(15,23,42,.13); }
-  .fcard .ft { font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 6px;
-               display: flex; gap: 6px; align-items: center; }
-  .fcard .fs { font-size: 12px; color: #64748b; line-height: 1.5; margin-bottom: 8px;
-               display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .fcard .fm { font-size: 11px; color: #94a3b8; display: flex; gap: 12px; }
-  .star-badge { font-size: 11px; font-weight: 700; color: #b45309; background: #fef3c7;
-                padding: 2px 8px; border-radius: 6px; flex-shrink: 0; }
+  /* ---- 左：苦海论坛 · 水墨海景（仙鹤云气） ---- */
+  .entry.forum { background: url('/wallpapers/kuhai-sea-v2.jpg') center 32% / cover no-repeat; }
+  .entry.forum::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(180deg, rgba(6,11,22,.50) 0%, rgba(6,11,22,.16) 42%, rgba(6,11,22,.78) 100%);
+  }
+  .entry.forum::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    opacity: 0; transition: opacity .35s;
+    background: radial-gradient(400px 300px at 50% 42%, rgba(190,225,215,.20), transparent 72%);
+  }
+  .entry.forum:hover::after { opacity: 1; }
 
-  /* 工具栏 */
-  .catbar { display: flex; gap: 8px; margin: 14px 0 6px; flex-wrap: wrap; }
-  .catbar button { border: 1px solid rgba(226,232,240,.8); background: rgba(255,255,255,.85);
-                   padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
-                   color: #64748b; cursor: pointer; transition: .15s; backdrop-filter: blur(6px); }
-  .catbar button:hover { border-color: #93c5fd; color: #2563eb; }
-  .catbar button.active { background: linear-gradient(135deg,#3b82f6,#2563eb); border-color: transparent; color: #fff; }
+  /* ---- 右：娱乐游戏 · 二次元星空 ---- */
+  .entry.game { background: url('/wallpapers/game-anime.jpg') center 38% / cover no-repeat; }
+  .entry.game::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(180deg, rgba(10,9,26,.55) 0%, rgba(10,9,26,.18) 45%, rgba(10,9,26,.80) 100%);
+  }
+  .entry.game::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    opacity: 0; transition: opacity .35s;
+    background: radial-gradient(400px 300px at 50% 42%, rgba(167,139,250,.25), transparent 72%);
+  }
+  .entry.game:hover::after { opacity: 1; }
 
-  .toolbar { display: flex; align-items: center; gap: 10px; margin: 12px 0 16px; flex-wrap: wrap; }
-  .tabs { display: flex; background: rgba(255,255,255,.85); border-radius: 10px; padding: 4px;
-          box-shadow: 0 1px 3px rgba(15,23,42,.05); backdrop-filter: blur(6px); }
-  .tabs button { border: none; background: transparent; padding: 8px 16px; cursor: pointer;
-                 border-radius: 8px; font-size: 14px; font-weight: 600; color: #64748b;
-                 transition: .15s; }
-  .tabs button.active { background: #eff6ff; color: #2563eb; }
-  .searchbox { display: flex; flex: 1; min-width: 200px; gap: 8px; }
-  .searchbox input { flex: 1; padding: 10px 14px; border: 1px solid rgba(226,232,240,.8);
-                     border-radius: 10px; font-size: 14px; outline: none; background: rgba(255,255,255,.88); }
-  .searchbox input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+  /* ---- 内容区（自带暗色底，保证文字清晰） ---- */
+  .inner {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px;
+    width: 100%; max-width: 86%;
+    padding: 20px 12px;
+    border-radius: 14px;
+    background: rgba(5, 10, 20, .52);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .entry .tag {
+    font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: 2px;
+    color: rgba(255,255,255,.75);
+    border: 1px solid rgba(255,255,255,.22);
+    padding: 2px 9px; border-radius: 999px;
+  }
+  .entry .ico { font-size: 34px; line-height: 1; }
+  .entry h1 { font-weight: 700; }
+  .entry .desc { font-size: 11px; line-height: 1.8; color: rgba(255,255,255,.82); letter-spacing: .5px; }
+  .entry .go {
+    margin-top: 2px;
+    padding: 9px 22px; border-radius: 999px;
+    font-size: 12px; font-weight: 700; letter-spacing: 2px;
+    transition: .2s;
+  }
 
-  .btn { padding: 9px 16px; border: none; border-radius: 10px; cursor: pointer;
-         font-size: 14px; font-weight: 600; transition: .15s; white-space: nowrap; }
-  .btn-primary { background: linear-gradient(135deg,#3b82f6,#2563eb); color: #fff; }
-  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(37,99,235,.35); }
-  .btn-ghost { background: rgba(255,255,255,.9); color: #334155; border: 1px solid #e2e8f0; }
-  .btn-ghost:hover { background: #f8fafc; }
-  .btn-sm { padding: 4px 9px; font-size: 12px; border-radius: 8px; }
+  /* 左侧：行楷大字、飘逸 */
+  .entry.forum h1 {
+    font-family: var(--font-xing);
+    font-size: 30px; letter-spacing: 6px;
+    color: var(--paper);
+    text-shadow: 0 2px 16px rgba(0,0,0,.6);
+  }
+  .entry.forum .ico { color: rgba(242,236,220,.92); text-shadow: 0 2px 14px rgba(0,0,0,.5); }
+  .entry.forum .verse {
+    font-family: var(--font-xing);
+    font-size: 15px; letter-spacing: 5px;
+    color: #e6f3ee;
+    text-shadow: 0 1px 10px rgba(0,0,0,.65);
+  }
+  .entry.forum .verse .dot { color: rgba(230,243,238,.45); padding: 0 3px; }
+  .entry.forum .go { color: var(--paper); background: rgba(8,14,24,.55); border: 1px solid rgba(242,236,220,.65); }
+  .entry.forum:hover .go { background: var(--paper); color: #18242f; box-shadow: 0 0 22px rgba(242,236,220,.4); }
+  .entry.forum .seal {
+    position: absolute; right: 12px; bottom: 12px; z-index: 2;
+    font-family: var(--font-xing);
+    font-size: 12px; letter-spacing: 3px; font-weight: 700;
+    color: #efb6ad;
+    border: 2px solid rgba(192,57,43,.85);
+    padding: 3px 7px 3px 10px;
+    background: rgba(5,10,20,.35);
+    transform: rotate(-3deg);
+    border-radius: 3px;
+  }
 
-  /* 帖子卡片（磨砂玻璃） */
-  .post { background: rgba(255,255,255,.86); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-          border-radius: 14px; padding: 18px 20px; margin-bottom: 12px;
-          box-shadow: 0 2px 10px rgba(15,23,42,.07); cursor: pointer; transition: .18s;
-          border: 1px solid rgba(255,255,255,.65); }
-  .post:hover { box-shadow: 0 8px 24px rgba(15,23,42,.13); transform: translateY(-2px);
-                border-color: rgba(191,219,254,.9); }
-  .post.pinned { background: linear-gradient(180deg, rgba(255,251,235,.94), rgba(255,255,255,.86)); border-color: rgba(253,230,138,.9); }
-  .post.featured { border-color: rgba(251,191,36,.55); }
-  .post-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; color: #111827;
-                display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .post-title:hover { color: #2563eb; }
-  .pin-badge { font-size: 11px; font-weight: 700; color: #b45309; background: #fef3c7;
-               padding: 2px 8px; border-radius: 6px; flex-shrink: 0; }
-  .hot-badge { font-size: 11px; font-weight: 700; color: #dc2626; background: #fee2e2;
-               padding: 2px 8px; border-radius: 6px; flex-shrink: 0; }
-  .star-badge { font-size: 11px; font-weight: 700; color: #b45309; background: #fef3c7;
-                padding: 2px 8px; border-radius: 6px; flex-shrink: 0; }
-  .cat-badge { font-size: 11px; font-weight: 600; color: #2563eb; background: #eff6ff;
-               padding: 2px 8px; border-radius: 6px; flex-shrink: 0; }
-  .post-summary { font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 10px;
-                  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-                  overflow: hidden; }
-  .thumbs { display: flex; gap: 6px; margin-bottom: 10px; }
-  .thumbs img { width: 74px; height: 74px; object-fit: cover; border-radius: 8px;
-                border: 1px solid #f1f5f9; }
-  .post-meta { display: flex; gap: 16px; font-size: 12px; color: #94a3b8;
-               align-items: center; flex-wrap: wrap; }
-  .post-meta span { display: inline-flex; align-items: center; gap: 4px; }
-  .like { cursor: pointer; user-select: none; transition: .15s; color: #94a3b8;
-          font-weight: 600; display: inline-flex; align-items: center; gap: 3px; }
-  .like.liked { color: #dc2626; }
-  .like:hover { color: #dc2626; }
-  .tag-me { color: #2563eb; background: #eff6ff; padding: 1px 7px; border-radius: 6px;
-            font-size: 11px; }
+  /* 右侧：二次元 */
+  .entry.game h1 {
+    font-family: var(--font-cn);
+    font-size: 24px; letter-spacing: 3px; font-weight: 800;
+    background: linear-gradient(135deg, #7dd3fc, #c4b5fd 55%, #f0abfc);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 2px 10px rgba(125,211,252,.35));
+  }
+  .entry.game .ico { color: #f0abfc; filter: drop-shadow(0 0 12px rgba(240,171,252,.6)); }
+  .entry.game .desc b { color: #fde68a; }
+  .entry.game .go {
+    font-family: var(--font-cn);
+    color: #1b1030;
+    background: linear-gradient(135deg, #7dd3fc, #c4b5fd 55%, #f0abfc);
+    box-shadow: 0 4px 18px rgba(167,139,250,.45);
+  }
+  .entry.game:hover .go { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(240,171,252,.6); }
 
-  .empty { text-align: center; padding: 70px 20px; color: #94a3b8;
-           background: rgba(255,255,255,.85); border-radius: 14px; }
-  .pager { display: flex; justify-content: space-between; align-items: center;
-           margin-top: 16px; font-size: 14px; color: #64748b; }
-  .pager .pages { display: flex; gap: 6px; align-items: center; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
 
-  /* 发帖弹窗 */
-  .overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55);
-             display: none; align-items: center; justify-content: center; z-index: 50;
-             padding: 20px; backdrop-filter: blur(4px); }
-  .overlay.show { display: flex; }
-  .modal { background: rgba(255,255,255,.97); border-radius: 16px; width: 100%; max-width: 600px;
-           padding: 26px; box-shadow: 0 24px 70px rgba(15,23,42,.3);
-           max-height: 90vh; overflow-y: auto; }
-  .modal h2 { font-size: 18px; margin-bottom: 18px; }
-  .field { margin-bottom: 14px; }
-  .field label { display: block; font-size: 13px; color: #64748b; margin-bottom: 6px; }
-  .field input[type=text], .field textarea, .field select { width: 100%; padding: 11px 12px;
-    border: 1px solid #e2e8f0; border-radius: 10px; font-size: 14px; outline: none;
-    font-family: inherit; resize: vertical; background: #fff; }
-  .field input:focus, .field textarea:focus, .field select:focus { border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
-  .field textarea { min-height: 150px; }
-  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
-  .upload-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .upload-preview { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-  .upload-preview .u { position: relative; }
-  .upload-preview img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; }
-  .upload-preview .u .rm { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px;
-    background: #dc2626; color: #fff; border-radius: 50%; border: none; cursor: pointer;
-    font-size: 12px; line-height: 20px; text-align: center; }
-  .hint { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+  /* ===== 底栏 ===== */
+  .bottom-bar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 18px;
+    border-top: 1px solid rgba(242,236,220,.12);
+    font-size: 11px; letter-spacing: 2px;
+    color: rgba(242,236,220,.55);
+    flex-wrap: wrap;
+  }
+  .bottom-bar .motto { color: rgba(242,236,220,.82); font-family: var(--font-song); }
+  .bottom-bar .copy { margin-left: auto; letter-spacing: 1px; color: rgba(242,236,220,.4); }
 
-  #toast { position: fixed; bottom: 24px; left: 50%;
-           transform: translateX(-50%) translateY(80px);
-           background: #0f172a; color: #fff; padding: 10px 20px; border-radius: 8px;
-           font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 60; }
-  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
-  #toast.err { background: #dc2626; }
+  /* ===== 手机优先：基础样式已按 390px 设计 ===== */
+  /* 桌面放大 */
+  @media (min-width: 1080px) {
+    .entry { padding: 36px 26px; }
+    .inner { gap: 16px; padding: 34px 30px; max-width: 78%; border-radius: 18px; }
+    .entry .tag { font-size: 12px; padding: 4px 14px; letter-spacing: 3px; }
+    .entry .ico { font-size: 52px; }
+    .entry .desc { font-size: 13.5px; line-height: 2; max-width: 300px; }
+    .entry .go { padding: 12px 34px; font-size: 14px; }
+    .entry.forum h1 { font-size: 42px; letter-spacing: 10px; }
+    .entry.forum .verse { font-size: 18px; letter-spacing: 8px; }
+    .entry.game h1 { font-size: 32px; letter-spacing: 5px; }
+    .entry.forum .seal { right: 26px; bottom: 24px; font-size: 14px; padding: 5px 9px 5px 12px; }
+    .top-bar { padding: 14px 24px; font-size: 13.5px; }
+    .top-bar .brand-zh b { font-size: 15.5px; }
+    .bottom-bar { padding: 12px 24px; font-size: 12px; }
+  }
 </style>
 </head>
 <body>
+<div class="shell">
 
-<nav>
-  <div class="inner">
-    <a href="/" class="brand"><span class="logo">📋</span><b>论坛</b></a>
-    <div class="nav-right" id="navRight"></div>
-  </div>
-</nav>
-
-<div class="container">
-  <div class="banner">
-    <img src="/wallpapers/01_gettyimages-497901028_super_resized.jpg" alt="" />
-    <div class="mask"></div>
-    <div class="text">
-      <h2>欢迎来到论坛</h2>
-      <p>分享、讨论、发现 —— 点击发帖，开始你的第一篇内容</p>
-    </div>
-    <div class="tabs-dots" id="bannerDots"></div>
+  <!-- 顶栏 -->
+  <div class="top-bar">
+    <span class="brand-zh"><span class="sym">⌬</span><b>苦海</b></span>
+    <span class="divider">｜</span>
+    <span class="sub">门户 · 论道 · 游戏</span>
+    <span class="year">丙午年 · 秋</span>
   </div>
 
-  <div class="featured-section" id="featuredSection" style="display:none">
-    <div class="section-title">⭐ 管理员精选 <span class="chip">编辑推荐</span></div>
-    <div class="featured-scroll" id="featuredList"></div>
-  </div>
+  <div class="split">
 
-  <div class="catbar" id="catbar">
-    <button class="active" data-cat="" onclick="setCategory('')">全部</button>
-    <button data-cat="壁纸" onclick="setCategory('壁纸')">🖼 壁纸</button>
-    <button data-cat="资源" onclick="setCategory('资源')">📦 资源</button>
-    <button data-cat="求助" onclick="setCategory('求助')">🙋 求助</button>
-    <button data-cat="闲聊" onclick="setCategory('闲聊')">💬 闲聊</button>
-  </div>
-
-  <div class="toolbar">
-    <div class="tabs">
-      <button id="tab-new" class="active" onclick="setSort('new')">最新</button>
-      <button id="tab-hot" onclick="setSort('hot')">🔥 热门</button>
-      <button id="tab-top" onclick="setSort('top')">👍 最赞</button>
-    </div>
-    <div class="searchbox">
-      <input id="kw" type="text" placeholder="搜索标题或内容…" />
-      <button class="btn btn-ghost" onclick="load(1)">搜索</button>
-    </div>
-    <button class="btn btn-primary" onclick="openCreate()">✏️ 发帖</button>
-  </div>
-
-  <div id="list"></div>
-
-  <div class="pager" id="pager" style="display:none">
-    <span id="pagerInfo"></span>
-    <div class="pages">
-      <button class="btn btn-ghost btn-sm" id="prevBtn" onclick="load(state.page-1)">上一页</button>
-      <span id="pageNow"></span>
-      <button class="btn btn-ghost btn-sm" id="nextBtn" onclick="load(state.page+1)">下一页</button>
-    </div>
-  </div>
-</div>
-
-<div class="overlay" id="overlay">
-  <div class="modal">
-    <h2 id="modalTitle">发布新帖</h2>
-    <div class="field">
-      <label>分类</label>
-      <select id="f-category">
-        <option value="">选择分类（可选）</option>
-        <option value="壁纸">🖼 壁纸</option>
-        <option value="资源">📦 资源</option>
-        <option value="求助">🙋 求助</option>
-        <option value="闲聊">💬 闲聊</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>标题 *</label>
-      <input id="f-title" type="text" placeholder="一句话说清主题" maxlength="100" />
-    </div>
-    <div class="field">
-      <label>内容 *</label>
-      <textarea id="f-content" placeholder="详细说说…（可用 @用户名 提及他人）"></textarea>
-    </div>
-    <div class="field">
-      <label>图片（可选，最多 9 张）</label>
-      <div class="upload-row">
-        <input type="file" id="f-file" accept="image/*" multiple />
-        <span class="hint" id="up-hint"></span>
+    <!-- 左：苦海论坛 -->
+    <a class="entry forum" href="/forum.html">
+      <div class="inner">
+        <span class="tag">#01 / FORUM</span>
+        <div class="ico">⌬</div>
+        <h1>苦海论坛</h1>
+        <div class="verse">苦海无涯<span class="dot">·</span>回头是岸</div>
+        <div class="desc">发帖讨论 · 分享资源 · 求助问答 · 评论互动</div>
+        <span class="go">进入苦海 →</span>
       </div>
-      <div class="upload-preview" id="up-preview"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
-      <button class="btn btn-primary" id="pubBtn" onclick="submitPost()">发布</button>
-    </div>
+      <span class="seal">苦海</span>
+    </a>
+
+    <!-- 右：娱乐游戏 -->
+    <a class="entry game" href="/game.html">
+      <div class="inner">
+        <span class="tag">✦ GAME ✦</span>
+        <div class="ico">◈</div>
+        <h1>娱乐游戏</h1>
+        <div class="desc">分享<b>好游戏</b> · 封面<b>截图</b> · 资源<b>下载</b> · 游玩<b>心得</b></div>
+        <span class="go">START 进入 →</span>
+      </div>
+    </a>
+
   </div>
+
+  <!-- 底栏 -->
+  <div class="bottom-bar">
+    <span class="motto">苦海无涯 · 回头是岸</span>
+    <span class="copy">© KUHAI PROJECT</span>
+  </div>
+
 </div>
-
-<div id="toast"></div>
-
-<script type="module">
-  import { auth, api, escapeHtml, parseImages, renderNav, refreshUnread,
-           initAnimatedBackground, initMusicPlayer } from './common.js';
-
-  const API = '/api/posts';
-  const state = { page: 1, size: 10, keyword: '', total: 0, sort: 'new', category: '' };
-  let pendingImages = [];
-
-  // 启动动态背景 + 背景音乐
-  initAnimatedBackground();
-  initMusicPlayer({
-    tracks: [
-      { name: 'Follow', url: '/music/01.mp3' },
-      { name: 'Solaris', url: '/music/02.mp3' },
-    ],
-  });
-
-  // 横幅轮播
-  const BANNERS = [
-    '/wallpapers/01_gettyimages-497901028_super_resized.jpg',
-    '/wallpapers/02_gettyimages-590973341_super_resized.jpg',
-    '/wallpapers/03_gettyimages-623766552_high_resized.jpg',
-    '/wallpapers/04_gettyimages-824846456_super_resized.jpg',
-  ];
-  let bannerIdx = 0;
-  const bannerImg = document.querySelector('.banner img');
-  const dotsBox = document.getElementById('bannerDots');
-  dotsBox.innerHTML = BANNERS.map((_, i) => `<span class="${i === 0 ? 'on' : ''}"></span>`).join('');
-  const dots = [...dotsBox.children];
-  setInterval(() => {
-    bannerIdx = (bannerIdx + 1) % BANNERS.length;
-    bannerImg.src = BANNERS[bannerIdx];
-    bannerImg.style.opacity = 0;
-    setTimeout(() => { bannerImg.style.opacity = 1; }, 60);
-    dots.forEach((d, i) => d.classList.toggle('on', i === bannerIdx));
-  }, 6000);
-
-  function toast(msg, isErr = false) {
-    const el = document.getElementById('toast');
-    el.textContent = msg;
-    el.className = isErr ? 'show err' : 'show';
-    clearTimeout(el._t);
-    el._t = setTimeout(() => (el.className = ''), 2400);
-  }
-  window.toast = toast;
-
-  window.logout = function () {
-    auth.clear();
-    toast('已退出登录');
-    renderNav();
-    load(state.page);
-  };
-
-  window.setSort = function (s) {
-    state.sort = s;
-    ['new','hot','top'].forEach(k =>
-      document.getElementById('tab-' + k).classList.toggle('active', k === s));
-    load(1);
-  };
-
-  window.setCategory = function (c) {
-    state.category = c;
-    [...document.querySelectorAll('#catbar button')].forEach(b =>
-      b.classList.toggle('active', b.dataset.cat === c));
-    load(1);
-  };
-
-  function likePost(e, id) {
-    e.stopPropagation();
-    if (!auth.isLoggedIn()) { toast('请先登录', true); return; }
-    api(`${API}/${id}/like`, { method: 'POST' }).then(data => {
-      const el = document.querySelector(`.like[data-id="${id}"]`);
-      el.classList.toggle('liked', data.liked);
-      el.innerHTML = (data.liked ? '❤️' : '🤍') + ' ' + data.upvotes;
-    }).catch(err => toast(err.message, true));
-  }
-  window.likePost = likePost;
-
-  // 加载精选
-  async function loadFeatured() {
-    try {
-      const data = await api(`${API}/featured`);
-      const box = document.getElementById('featuredSection');
-      if (!data.rows?.length) { box.style.display = 'none'; return; }
-      box.style.display = '';
-      document.getElementById('featuredList').innerHTML = data.rows.map(p => `
-        <div class="fcard" onclick="location.href='/post.html?id=${p.id}'">
-          <div class="ft"><span class="star-badge">⭐ 精选</span>${escapeHtml(p.title)}</div>
-          <div class="fs">${escapeHtml(p.summary || '')}</div>
-          <div class="fm">
-            <span>👤 ${escapeHtml(p.author_name)}</span>
-            <span>❤️ ${p.upvotes}</span>
-            <span>💬 ${p.comment_count}</span>
-          </div>
-        </div>`).join('');
-    } catch { /* 静默 */ }
-  }
-
-  async function load(page = 1) {
-    state.page = Math.max(1, page);
-    state.keyword = document.getElementById('kw').value.trim();
-    const qs = new URLSearchParams({ page: state.page, size: state.size, keyword: state.keyword, sort: state.sort });
-    if (state.category) qs.set('category', state.category);
-    try {
-      const data = await api(`${API}?${qs}`);
-      state.total = data.total;
-      render(data.rows);
-      renderPager();
-      refreshUnread();
-    } catch (e) { toast(e.message, true); }
-  }
-  window.load = load;
-
-  function render(rows) {
-    const box = document.getElementById('list');
-    if (!rows.length) {
-      box.innerHTML = `<div class="empty">还没有帖子，点击「发帖」发第一条吧 ✨</div>`;
-      document.getElementById('pager').style.display = 'none';
-      return;
-    }
-    document.getElementById('pager').style.display = 'flex';
-    box.innerHTML = rows.map(p => {
-      const imgs = parseImages(p.images);
-      const hot = p.upvotes >= 3 || p.comment_count >= 5;
-      const me = auth.isLoggedIn() && auth.getUser().id === p.author_id;
-      const cls = [p.pinned ? 'pinned' : '', p.featured ? 'featured' : ''].filter(Boolean).join(' ');
-      return `
-        <div class="post ${cls}" onclick="location.href='/post.html?id=${p.id}'">
-          <div class="post-title">
-            ${p.pinned ? '<span class="pin-badge">📌 置顶</span>' : ''}
-            ${p.featured ? '<span class="star-badge">⭐ 精选</span>' : ''}
-            ${hot ? '<span class="hot-badge">🔥 热门</span>' : ''}
-            ${p.category ? `<span class="cat-badge">${escapeHtml(p.category)}</span>` : ''}
-            ${escapeHtml(p.title)}${me ? '<span class="tag-me">我</span>' : ''}
-          </div>
-          <div class="post-summary">${escapeHtml(p.summary || '')}</div>
-          ${imgs.length ? `<div class="thumbs">${imgs.slice(0,4).map(i => `<img src="${i}" alt="" loading="lazy" />`).join('')}</div>` : ''}
-          <div class="post-meta">
-            <span>👤 ${escapeHtml(p.author_name)}</span>
-            <span class="like ${p.liked ? 'liked' : ''}" data-id="${p.id}" onclick="likePost(event,${p.id})">
-              ${p.liked ? '❤️' : '🤍'} ${p.upvotes}
-            </span>
-            <span>💬 ${p.comment_count}</span>
-            <span>👁 ${p.views}</span>
-            <span>🕒 ${p.created_at}</span>
-          </div>
-        </div>`;
-    }).join('');
-  }
-
-  function renderPager() {
-    const totalPages = Math.max(1, Math.ceil(state.total / state.size));
-    document.getElementById('pagerInfo').textContent = `共 ${state.total} 条`;
-    document.getElementById('pageNow').textContent = `${state.page} / ${totalPages}`;
-    document.getElementById('prevBtn').disabled = state.page <= 1;
-    document.getElementById('nextBtn').disabled = state.page >= totalPages;
-  }
-
-  // 发帖弹窗
-  window.openCreate = function () {
-    if (!auth.isLoggedIn()) { toast('请先登录', true); return; }
-    ['f-title', 'f-content'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('f-category').value = '';
-    pendingImages = [];
-    renderPending();
-    document.getElementById('overlay').classList.add('show');
-    document.getElementById('f-title').focus();
-  };
-  window.closeModal = function () { document.getElementById('overlay').classList.remove('show'); };
-
-  function renderPending() {
-    const box = document.getElementById('up-preview');
-    document.getElementById('up-hint').textContent = pendingImages.length
-      ? `已选 ${pendingImages.length} 张` : '';
-    box.innerHTML = pendingImages.map((u, i) => `
-      <div class="u"><img src="${u}" alt=""><button class="rm" onclick="removePending(${i})">×</button></div>
-    `).join('');
-  }
-  window.removePending = function (i) {
-    pendingImages.splice(i, 1);
-    renderPending();
-  };
-
-  document.getElementById('f-file').addEventListener('change', async (e) => {
-    const files = [...e.target.files];
-    if (!files.length) return;
-    if (!auth.isLoggedIn()) { toast('请先登录', true); return; }
-    if (pendingImages.length + files.length > 9) { toast('最多上传 9 张图片', true); e.target.value=''; return; }
-    document.getElementById('up-hint').textContent = '上传中…';
-    for (const f of files) {
-      if (!f.type.startsWith('image/')) { toast('仅支持图片文件', true); continue; }
-      const fd = new FormData();
-      fd.append('file', f);
-      try {
-        const data = await api(`${API}/upload`, { method: 'POST', body: fd });
-        pendingImages.push(data.url);
-      } catch (err) { toast(err.message, true); }
-    }
-    document.getElementById('up-hint').textContent = '';
-    e.target.value = '';
-    renderPending();
-  });
-
-  window.submitPost = async function () {
-    const payload = {
-      title: document.getElementById('f-title').value.trim(),
-      content: document.getElementById('f-content').value.trim(),
-      category: document.getElementById('f-category').value,
-      images: pendingImages,
-    };
-    if (!payload.title || !payload.content) return toast('标题和内容必填', true);
-    const btn = document.getElementById('pubBtn');
-    btn.disabled = true;
-    try {
-      const post = await api(API, { method: 'POST', body: JSON.stringify(payload) });
-      toast('发布成功');
-      closeModal();
-      location.href = `/post.html?id=${post.id}`;
-    } catch (e) { toast(e.message, true); }
-    btn.disabled = false;
-  };
-
-  document.getElementById('kw').addEventListener('keydown', e => {
-    if (e.key === 'Enter') load(1);
-  });
-  document.getElementById('overlay').addEventListener('click', e => {
-    if (e.target.id === 'overlay') closeModal();
-  });
-
-  renderNav();
-  load(1);
-  loadFeatured();
-</script>
 </body>
 </html>

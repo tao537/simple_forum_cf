@@ -7,9 +7,10 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-          color: #1f2937; min-height: 100vh; }
-  nav { background: rgba(255,255,255,.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 1px 3px rgba(15,23,42,.06); position: sticky; top: 0; z-index: 30; }
-  nav .inner { max-width: 860px; margin: 0 auto; padding: 12px 16px;
+         color: #1f2937; min-height: 100vh; }
+  nav { background: rgba(255,255,255,.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+        box-shadow: 0 1px 3px rgba(15,23,42,.06); position: sticky; top: 0; z-index: 30; }
+  nav .inner { max-width: 1080px; margin: 0 auto; padding: 12px 16px;
                display: flex; align-items: center; justify-content: space-between; }
   .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0f172a; }
   .brand .logo { width: 34px; height: 34px; border-radius: 10px; font-size: 18px;
@@ -18,97 +19,248 @@
   .brand b { font-size: 18px; }
   .nav-right { display: flex; align-items: center; gap: 10px; }
   .user-chip { display: flex; align-items: center; gap: 8px; font-size: 14px;
-               color: #334155; background: #f1f5f9; padding: 6px 12px; border-radius: 999px;
-               text-decoration: none; }
-  .user-chip:hover { background: #e2e8f0; }
+               color: #334155; background: #f1f5f9; padding: 6px 12px;
+               border-radius: 999px; text-decoration: none; }
   .user-chip .avatar { width: 24px; height: 24px; border-radius: 50%;
                        background: #3b82f6; color: #fff; font-size: 12px;
                        display: flex; align-items: center; justify-content: center; }
   .link { color: #3b82f6; text-decoration: none; font-size: 14px; font-weight: 500; }
-  .link:hover { text-decoration: underline; }
   .logout { color: #94a3b8; font-size: 13px; cursor: pointer; }
   .logout:hover { color: #ef4444; }
+  .bell { position: relative; font-size: 18px; text-decoration: none; }
+  .bell-count { position: absolute; top: -6px; right: -10px; min-width: 18px; height: 18px;
+                padding: 0 4px; border-radius: 999px; background: #ef4444; color: #fff;
+                font-size: 11px; font-weight: 700; display: none; align-items: center;
+                justify-content: center; }
 
-  .container { max-width: 860px; margin: 0 auto; padding: 0 16px 40px; }
+  .container { max-width: 1080px; margin: 0 auto; padding: 0 16px 48px; }
   .top { margin: 18px 0 14px; }
-  .top h1 { font-size: 20px; }
+  .top h1 { font-size: 22px; }
   .top p { font-size: 13px; color: #94a3b8; margin-top: 6px; }
 
-  .card { background: rgba(255,255,255,.9); backdrop-filter: blur(12px); border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px rgba(15,23,42,.07); border: 1px solid rgba(255,255,255,.6);
-          margin-bottom: 16px; }
-  .card h2 { font-size: 16px; margin-bottom: 14px; color: #334155; }
+  /* 标签页 */
+  .admin-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+  .admin-tabs button { border: 1px solid #e2e8f0; background: rgba(255,255,255,.85);
+                       padding: 9px 18px; border-radius: 10px; font-size: 14px; font-weight: 600;
+                       color: #64748b; cursor: pointer; transition: .15s; }
+  .admin-tabs button.active { background: linear-gradient(135deg,#3b82f6,#2563eb);
+                              border-color: transparent; color: #fff; }
+  .tab-panel { display: none; }
+  .tab-panel.show { display: block; }
 
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #f1f5f9; }
-  th { color: #94a3b8; font-weight: 600; font-size: 12px; }
+  .card { background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-radius: 14px;
+          padding: 20px; box-shadow: 0 2px 10px rgba(15,23,42,.07); border: 1px solid rgba(255,255,255,.6);
+          margin-bottom: 16px; }
+  .card h2 { font-size: 16px; margin-bottom: 16px; color: #334155; }
+
+  /* 统计卡片 */
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px;
+               margin-bottom: 16px; }
+  .stat-card { background: rgba(255,255,255,.92); border-radius: 14px; padding: 18px;
+               border: 1px solid rgba(255,255,255,.6); box-shadow: 0 2px 10px rgba(15,23,42,.07); }
+  .stat-card .ic { font-size: 22px; }
+  .stat-card .num { font-size: 28px; font-weight: 800; color: #111827; margin: 6px 0 2px; }
+  .stat-card .lbl { font-size: 12.5px; color: #94a3b8; }
+  .stat-card .sub { font-size: 11.5px; color: #16a34a; margin-top: 4px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  /* 分类分布条 */
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 13px; }
+  .bar-row .name { width: 84px; color: #475569; flex-shrink: 0; }
+  .bar-row .track { flex: 1; height: 18px; background: #f1f5f9; border-radius: 6px; overflow: hidden; }
+  .bar-row .fill { height: 100%; background: linear-gradient(90deg,#3b82f6,#60a5fa); border-radius: 6px; }
+  .bar-row .val { width: 34px; text-align: right; color: #64748b; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  th { color: #94a3b8; font-weight: 600; font-size: 12px; white-space: nowrap; }
   tr:last-child td { border-bottom: none; }
   .role-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
   .role-admin { color: #92400e; background: #fef3c7; }
   .role-user { color: #2563eb; background: #eff6ff; }
-  .btn { padding: 6px 12px; border: none; border-radius: 8px; cursor: pointer;
-         font-size: 12px; font-weight: 600; transition: .15s; }
+  .cat-tag { font-size: 11px; color: #2563eb; background: #eff6ff; padding: 2px 8px; border-radius: 6px; }
+  .state-ico { font-size: 13px; margin-right: 2px; }
+
+  .btn { padding: 6px 11px; border: none; border-radius: 8px; cursor: pointer;
+         font-size: 12px; font-weight: 600; transition: .15s; white-space: nowrap; }
   .btn-ghost { background: #fff; color: #334155; border: 1px solid #e2e8f0; }
   .btn-ghost:hover { background: #f8fafc; }
   .btn-danger { background: #ef4444; color: #fff; }
   .btn-danger:hover { background: #dc2626; }
   .btn-warn { background: #f59e0b; color: #fff; }
   .btn-warn:hover { background: #d97706; }
+  .btn-primary { background: linear-gradient(135deg,#3b82f6,#2563eb); color: #fff; }
+  .btn-primary:hover { box-shadow: 0 4px 12px rgba(37,99,235,.35); }
+  .row-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+
+  .filter-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .filter-bar input, .filter-bar select { padding: 8px 12px; border: 1px solid #e2e8f0;
+                                         border-radius: 9px; font-size: 13px; outline: none; background: #fff; }
+  .filter-bar input:focus, .filter-bar select:focus { border-color: #3b82f6; }
 
   .empty { text-align: center; color: #94a3b8; padding: 40px 20px; }
-  .tip-box { background: rgba(239,246,255,.92); backdrop-filter: blur(8px); border: 1px solid #bfdbfe; border-radius: 10px;
-             padding: 14px 16px; font-size: 13px; color: #1e40af; line-height: 1.8; margin-bottom: 16px; }
 
-  #toast { position: fixed; bottom: 24px; left: 50%;
-           transform: translateX(-50%) translateY(80px);
+  /* 界面设置 */
+  .opt-group { margin-bottom: 22px; }
+  .opt-group > label { display: block; font-size: 13.5px; font-weight: 600; color: #334155; margin-bottom: 10px; }
+  .seg { display: inline-flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 10px; flex-wrap: wrap; }
+  .seg button { border: none; background: transparent; padding: 8px 18px; border-radius: 8px;
+                font-size: 13.5px; font-weight: 600; color: #64748b; cursor: pointer; transition: .15s; }
+  .seg button.active { background: #fff; color: #2563eb; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .slider-row { display: flex; align-items: center; gap: 14px; max-width: 520px; }
+  input[type=range] { flex: 1; accent-color: #2563eb; }
+  .slider-val { width: 56px; text-align: right; font-variant-numeric: tabular-nums; color: #334155; font-weight: 600; }
+  .settings-actions { display: flex; gap: 10px; }
+
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
            background: #0f172a; color: #fff; padding: 10px 20px; border-radius: 8px;
            font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 90; }
   #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
   #toast.err { background: #dc2626; }
+
+  @media (max-width: 820px) { .two-col { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 
 <nav>
   <div class="inner">
-    <a href="/" class="brand"><span class="logo">📋</span><b>论坛</b></a>
+    <a href="/forum.html" class="brand"><span class="logo">⌬</span><b>苦海 · 管理</b></a>
     <div class="nav-right" id="navRight"></div>
   </div>
 </nav>
 
 <div class="container">
   <div class="top">
-    <h1>⚙️ 管理后台</h1>
-    <p>仅管理员可见。这里可以置顶帖子、删除违规内容、任命管理员。</p>
+    <h1>管理后台</h1>
+    <p>数据概览、帖子管理、用户管理与界面显示设置。</p>
   </div>
 
-  <div class="tip-box">
-    <b>管理员使用指南</b><br />
-    1️⃣ 第一个注册的用户自动成为管理员（当前：<span id="whoami">—</span>）。<br />
-    2️⃣ 在帖子详情页可「📌 置顶 / 取消置顶」重要帖子、「删除」任意帖子或评论。<br />
-    3️⃣ 在下表把任意用户设为 / 取消「管理员」角色。<br />
-    4️⃣ 支持批量删除违规账号，高效清理社区环境。
+  <div class="admin-tabs">
+    <button class="active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 数据概览</button>
+    <button data-tab="posts" onclick="switchTab('posts')">📝 帖子管理</button>
+    <button data-tab="users" onclick="switchTab('users')">👥 用户管理</button>
+    <button data-tab="settings" onclick="switchTab('settings')">🎨 界面设置</button>
   </div>
 
-  <div class="card">
-    <h2>用户管理</h2>
-    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-      <label style="font-size: 13px; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-        <input type="checkbox" id="selectAll" onchange="toggleAll(this)"> 全选用户
-      </label>
-      <button class="btn btn-danger" onclick="batchDelete()">批量删除选中</button>
+  <!-- ============ 数据概览 ============ -->
+  <div class="tab-panel show" id="panel-dashboard">
+    <div class="stat-grid" id="statGrid">
+      <div class="stat-card"><div class="ic">👥</div><div class="num" id="st-users">–</div><div class="lbl">用户总数</div><div class="sub" id="st-new-users"></div></div>
+      <div class="stat-card"><div class="ic">📝</div><div class="num" id="st-posts">–</div><div class="lbl">帖子总数</div><div class="sub" id="st-new-posts"></div></div>
+      <div class="stat-card"><div class="ic">💬</div><div class="num" id="st-comments">–</div><div class="lbl">评论总数</div></div>
+      <div class="stat-card"><div class="ic">❤️</div><div class="num" id="st-likes">–</div><div class="lbl">点赞总数</div></div>
+      <div class="stat-card"><div class="ic">🚫</div><div class="num" id="st-banned">–</div><div class="lbl">封禁账号</div></div>
     </div>
-    <table>
-      <thead><tr><th style="width: 30px"></th><th>ID</th><th>用户名</th><th>昵称</th><th>角色</th><th>注册时间</th><th>操作</th></tr></thead>
-      <tbody id="userRows"></tbody>
-    </table>
-    <div class="empty" id="userEmpty" style="display:none">加载中…</div>
+    <div class="two-col">
+      <div class="card">
+        <h2>📂 帖子分类分布</h2>
+        <div id="catBars"><div class="empty">加载中…</div></div>
+      </div>
+      <div class="card">
+        <h2>🔥 热门帖子（按浏览）</h2>
+        <table>
+          <thead><tr><th>标题</th><th>浏览</th><th>赞</th><th>评</th></tr></thead>
+          <tbody id="topPosts"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 帖子管理 ============ -->
+  <div class="tab-panel" id="panel-posts">
+    <div class="card">
+      <div class="filter-bar">
+        <input id="postKw" type="text" placeholder="搜索标题…" />
+        <select id="postCat"><option value="">全部分类</option></select>
+        <button class="btn btn-primary" onclick="loadPosts(1)">筛选</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>ID</th><th>标题</th><th>分类</th><th>作者</th>
+          <th>👁</th><th>❤️</th><th>💬</th><th>状态</th><th>操作</th>
+        </tr></thead>
+        <tbody id="postRows"></tbody>
+      </table>
+      <div class="pager" style="display:flex;justify-content:space-between;margin-top:14px;align-items:center;font-size:13px;color:#64748b">
+        <span id="postPagerInfo"></span>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost" id="postPrev" onclick="loadPosts(postState.page-1)">上一页</button>
+          <span id="postPageNow"></span>
+          <button class="btn btn-ghost" id="postNext" onclick="loadPosts(postState.page+1)">下一页</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 用户管理 ============ -->
+  <div class="tab-panel" id="panel-users">
+    <div class="card">
+      <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <label style="font-size:13px;color:#64748b;display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="selectAll" onchange="toggleAll(this)"> 全选用户
+        </label>
+        <button class="btn btn-danger" onclick="batchDelete()">批量删除选中</button>
+      </div>
+      <table>
+        <thead><tr><th style="width:30px"></th><th>ID</th><th>用户名</th><th>昵称</th><th>角色</th><th>注册时间</th><th>操作</th></tr></thead>
+        <tbody id="userRows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============ 界面设置 ============ -->
+  <div class="tab-panel" id="panel-settings">
+    <div class="card">
+      <div class="opt-group">
+        <label>帖子卡片大小</label>
+        <div class="seg" id="seg-card">
+          <button data-v="large" onclick="setOpt('cardSize','large')">大</button>
+          <button data-v="medium" onclick="setOpt('cardSize','medium')">中</button>
+          <button data-v="small" onclick="setOpt('cardSize','small')">小</button>
+        </div>
+      </div>
+      <div class="opt-group">
+        <label>布局密度</label>
+        <div class="seg" id="seg-density">
+          <button data-v="comfortable" onclick="setOpt('density','comfortable')">舒适</button>
+          <button data-v="compact" onclick="setOpt('density','compact')">紧凑</button>
+        </div>
+      </div>
+      <div class="opt-group">
+        <label>图片最大宽度（上传时缩放）</label>
+        <div class="seg" id="seg-width">
+          <button data-v="640" onclick="setOpt('imageMaxWidth',640)">640</button>
+          <button data-v="1024" onclick="setOpt('imageMaxWidth',1024)">1024</button>
+          <button data-v="1280" onclick="setOpt('imageMaxWidth',1280)">1280</button>
+          <button data-v="1600" onclick="setOpt('imageMaxWidth',1600)">1600</button>
+          <button data-v="1920" onclick="setOpt('imageMaxWidth',1920)">1920</button>
+        </div>
+      </div>
+      <div class="opt-group">
+        <label>图片压缩质量</label>
+        <div class="slider-row">
+          <input id="q-range" type="range" min="0.3" max="1" step="0.05" oninput="onQuality(this.value)" />
+          <span class="slider-val" id="q-val">0.8</span>
+        </div>
+      </div>
+      <div class="settings-actions">
+        <button class="btn btn-primary" onclick="saveSettings()">💾 保存设置</button>
+        <button class="btn btn-ghost" onclick="resetSettings()">恢复默认</button>
+      </div>
+    </div>
   </div>
 </div>
 
 <div id="toast"></div>
 
 <script type="module">
-  import { auth, api, escapeHtml, renderNav, initAnimatedBackground, initMusicPlayer } from './common.js';
+  import { auth, api, escapeHtml, renderNav, initAnimatedBackground, initMusicPlayer,
+           loadDisplaySettings, getDisplaySettings } from './common.js';
+
+  let settingsForm = null;
+  const postState = { page: 1, size: 20, total: 0 };
 
   function toast(msg, isErr = false) {
     const el = document.getElementById('toast');
@@ -118,22 +270,109 @@
     el._t = setTimeout(() => (el.className = ''), 2400);
   }
   window.toast = toast;
-  window.logout = function () { auth.clear(); renderNav(); location.reload(); };
+  window.logout = function () { auth.clear(); location.reload(); };
 
-  async function load() {
-    if (!auth.isLoggedIn()) { location.href = '/login.html'; return; }
-    const me = auth.getUser();
-    document.getElementById('whoami').textContent = `${me.nickname || me.username}（@${me.username}）`;
-    if (me.role !== 'admin') {
-      document.getElementById('userRows').innerHTML = '';
-      document.getElementById('userEmpty').style.display = '';
-      document.getElementById('userEmpty').textContent = '你不是管理员，无权访问管理后台';
-      return;
-    }
+  // ===== 标签页切换 =====
+  window.switchTab = function (tab) {
+    document.querySelectorAll('.admin-tabs button').forEach(b =>
+      b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('.tab-panel').forEach(p =>
+      p.classList.toggle('show', p.id === 'panel-' + tab));
+    if (tab === 'dashboard') loadDashboard();
+    if (tab === 'posts') loadPosts(1);
+    if (tab === 'users') loadUsers();
+    if (tab === 'settings') initSettingsForm();
+  };
+
+  // ===== 数据概览 =====
+  async function loadDashboard() {
     try {
-      const data = await api('/api/users');
-      const rows = document.getElementById('userRows');
-      rows.innerHTML = data.users.map(u => `
+      const d = await api('/api/admin/stats');
+      document.getElementById('st-users').textContent = d.users;
+      document.getElementById('st-posts').textContent = d.posts;
+      document.getElementById('st-comments').textContent = d.comments;
+      document.getElementById('st-likes').textContent = d.postLikes + d.commentLikes;
+      document.getElementById('st-banned').textContent = d.banned;
+      document.getElementById('st-new-users').textContent = d.newUsersToday ? `今日新增 ${d.newUsersToday}` : '';
+      document.getElementById('st-new-posts').textContent = d.newPostsToday ? `今日新增 ${d.newPostsToday}` : '';
+
+      // 分类分布
+      const cats = d.categories || [];
+      const max = Math.max(1, ...cats.map(c => c.count));
+      document.getElementById('catBars').innerHTML = cats.length
+        ? cats.map(c => `
+          <div class="bar-row">
+            <span class="name">${escapeHtml(c.name)}</span>
+            <span class="track"><span class="fill" style="width:${Math.round(c.count / max * 100)}%"></span></span>
+            <span class="val">${c.count}</span>
+          </div>`).join('')
+        : '<div class="empty">暂无帖子</div>';
+
+      // 热门帖子
+      document.getElementById('topPosts').innerHTML = (d.topPosts || []).map(p => `
+        <tr>
+          <td><a href="/post.html?id=${p.id}" style="color:#2563eb;text-decoration:none">${escapeHtml(p.title)}</a></td>
+          <td>${p.views}</td><td>${p.upvotes}</td><td>${p.comment_count}</td>
+        </tr>`).join('') || '<tr><td colspan="4" class="empty">暂无</td></tr>';
+    } catch (e) { toast(e.message, true); }
+  }
+
+  // ===== 帖子管理 =====
+  async function loadPosts(page = 1) {
+    postState.page = Math.max(1, page);
+    const kw = document.getElementById('postKw').value.trim();
+    const cat = document.getElementById('postCat').value;
+    const qs = new URLSearchParams({ page: postState.page, size: postState.size });
+    if (kw) qs.set('keyword', kw);
+    if (cat) qs.set('category', cat);
+    try {
+      const d = await api(`/api/posts?${qs}`);
+      postState.total = d.total;
+      const rows = d.rows || [];
+      document.getElementById('postRows').innerHTML = rows.length ? rows.map(p => `
+        <tr>
+          <td>${p.id}</td>
+          <td><a href="/post.html?id=${p.id}" style="color:#2563eb;text-decoration:none">${escapeHtml(p.title)}</a></td>
+          <td>${p.category ? `<span class="cat-tag">${escapeHtml(p.category)}</span>` : '—'}</td>
+          <td>${escapeHtml(p.author_name)}</td>
+          <td>${p.views}</td><td>${p.upvotes}</td><td>${p.comment_count}</td>
+          <td>${p.pinned ? '<span class="state-ico">📌</span>' : ''}${p.featured ? '<span class="state-ico">⭐</span>' : ''}${(!p.pinned && !p.featured) ? '—' : ''}</td>
+          <td><div class="row-actions">
+            <button class="btn btn-warn" onclick="pinPost(${p.id})">${p.pinned ? '取消置顶' : '置顶'}</button>
+            <button class="btn btn-warn" onclick="featurePost(${p.id})">${p.featured ? '取消精选' : '精选'}</button>
+            <button class="btn btn-danger" onclick="deletePost(${p.id})">删除</button>
+          </div></td>
+        </tr>`).join('')
+        : '<tr><td colspan="9" class="empty">没有符合条件的帖子</td></tr>';
+
+      const totalPages = Math.max(1, Math.ceil(postState.total / postState.size));
+      document.getElementById('postPagerInfo').textContent = `共 ${postState.total} 条`;
+      document.getElementById('postPageNow').textContent = `${postState.page} / ${totalPages}`;
+      document.getElementById('postPrev').disabled = postState.page <= 1;
+      document.getElementById('postNext').disabled = postState.page >= totalPages;
+    } catch (e) { toast(e.message, true); }
+  }
+
+  window.pinPost = async function (id) {
+    try { await api(`/api/posts/${id}/pin`, { method: 'POST' }); loadPosts(postState.page); }
+    catch (e) { toast(e.message, true); }
+  };
+  window.featurePost = async function (id) {
+    try { await api(`/api/posts/${id}/feature`, { method: 'POST' }); loadPosts(postState.page); }
+    catch (e) { toast(e.message, true); }
+  };
+  window.deletePost = async function (id) {
+    if (!confirm('确定删除该帖子及其评论吗？')) return;
+    try { await api(`/api/posts/${id}`, { method: 'DELETE' }); toast('已删除'); loadPosts(postState.page); }
+    catch (e) { toast(e.message, true); }
+  };
+
+  // ===== 用户管理 =====
+  async function loadUsers() {
+    try {
+      const d = await api('/api/users');
+      const me = auth.getUser();
+      document.getElementById('userRows').innerHTML = d.users.map(u => `
         <tr>
           <td><input type="checkbox" class="user-checkbox" value="${u.id}" ${u.id === me.id ? 'disabled' : ''}></td>
           <td>${u.id}</td>
@@ -141,66 +380,104 @@
           <td>${escapeHtml(u.nickname)}</td>
           <td><span class="role-badge ${u.role === 'admin' ? 'role-admin' : 'role-user'}">${u.role === 'admin' ? '🛡 管理员' : '普通用户'}</span></td>
           <td>${u.created_at}</td>
-          <td>
-            ${u.id === me.id
-              ? '<span style="color:#94a3b8;font-size:12px">（自己）</span>'
-              : `<div style="display:flex; gap:5px">
-                    <button class="btn ${u.role === 'admin' ? 'btn-danger' : 'btn-warn'}" onclick="setRole(${u.id},'${u.role === 'admin' ? 'user' : 'admin'}')">${u.role === 'admin' ? '取消管理员' : '设为管理员'}</button>
-                    <button class="btn btn-danger" onclick="deleteUser(${u.id})">删除</button>
-                  </div>`}
-          </td>
+          <td>${u.id === me.id
+            ? '<span style="color:#94a3b8">（自己）</span>'
+            : `<div class="row-actions">
+                 <button class="btn ${u.role === 'admin' ? 'btn-danger' : 'btn-warn'}" onclick="setRole(${u.id},'${u.role === 'admin' ? 'user' : 'admin'}')">${u.role === 'admin' ? '取消管理员' : '设为管理员'}</button>
+                 <button class="btn btn-danger" onclick="deleteUser(${u.id})">删除</button>
+               </div>`}</td>
         </tr>`).join('');
-      document.getElementById('userEmpty').style.display = 'none';
-    } catch (e) {
-      document.getElementById('userEmpty').style.display = '';
-      document.getElementById('userEmpty').textContent = e.message;
-    }
+    } catch (e) { toast(e.message, true); }
   }
 
-  window.toggleAll = function(master) {
-    document.querySelectorAll('.user-checkbox').forEach(cb => cb.checked = master.checked);
+  window.toggleAll = function (master) {
+    document.querySelectorAll('.user-checkbox').forEach(cb => (cb.checked = master.checked));
   };
-
   window.deleteUser = async function (id) {
-    if (!confirm(`确定要删除该用户账号及其所有内容吗？此操作不可撤销！`)) return;
-    try {
-      await api(`/api/users/${id}`, { method: 'DELETE' });
-      toast('账号已成功删除');
-      load();
-    } catch (e) { toast(e.message, true); }
+    if (!confirm('确定删除该用户及其所有内容吗？')) return;
+    try { await api(`/api/users/${id}`, { method: 'DELETE' }); toast('已删除'); loadUsers(); }
+    catch (e) { toast(e.message, true); }
   };
-
   window.batchDelete = async function () {
     const ids = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => Number(cb.value));
-    if (ids.length === 0) return toast('请先选择要删除的用户', true);
-    if (!confirm(`确定要批量删除这 ${ids.length} 个账号及其所有内容吗？`)) return;
+    if (!ids.length) return toast('请先选择用户', true);
+    if (!confirm(`确定批量删除 ${ids.length} 个账号吗？`)) return;
     try {
-      await api('/api/users/batch-delete', {
-        method: 'POST',
-        body: JSON.stringify({ ids }),
-      });
-      toast(`已成功删除 ${ids.length} 个账号`);
-      load();
+      await api('/api/users/batch-delete', { method: 'POST', body: JSON.stringify({ ids }) });
+      toast(`已删除 ${ids.length} 个账号`); loadUsers();
     } catch (e) { toast(e.message, true); }
   };
-
   window.setRole = async function (id, role) {
-    const label = role === 'admin' ? '设为管理员' : '取消管理员';
-    if (!confirm(`确定将该用户${label}吗？`)) return;
+    if (!confirm(`确定将该用户${role === 'admin' ? '设为管理员' : '取消管理员'}吗？`)) return;
     try {
-      await api(`/api/users/${id}/role`, {
-        method: 'PATCH',
-        body: JSON.stringify({ role }),
-      });
-      toast('操作成功');
-      load();
+      await api(`/api/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) });
+      toast('操作成功'); loadUsers();
     } catch (e) { toast(e.message, true); }
   };
 
+  // ===== 界面设置 =====
+  async function initSettingsForm() {
+    await loadDisplaySettings();
+    settingsForm = { ...getDisplaySettings() };
+    syncSeg('seg-card', settingsForm.cardSize);
+    syncSeg('seg-density', settingsForm.density);
+    syncSeg('seg-width', String(settingsForm.imageMaxWidth));
+    document.getElementById('q-range').value = settingsForm.imageQuality;
+    document.getElementById('q-val').textContent = Number(settingsForm.imageQuality).toFixed(2);
+  }
+  function syncSeg(boxId, val) {
+    document.querySelectorAll(`#${boxId} button`).forEach(b =>
+      b.classList.toggle('active', b.dataset.v === String(val)));
+  }
+  window.setOpt = function (key, val) {
+    settingsForm[key] = val;
+    const box = key === 'cardSize' ? 'seg-card' : key === 'density' ? 'seg-density' : 'seg-width';
+    syncSeg(box, val);
+  };
+  window.onQuality = function (v) {
+    settingsForm.imageQuality = Number(v);
+    document.getElementById('q-val').textContent = Number(v).toFixed(2);
+  };
+  window.saveSettings = async function () {
+    try {
+      await api('/api/settings', { method: 'PUT', body: JSON.stringify({ settings: settingsForm }) });
+      toast('设置已保存并应用');
+      await loadDisplaySettings();
+    } catch (e) { toast(e.message, true); }
+  };
+  window.resetSettings = function () {
+    settingsForm = {
+      cardSize: 'large', density: 'comfortable',
+      imageMaxWidth: 1280, imageQuality: 0.8, thumbnailSize: 300,
+    };
+    syncSeg('seg-card', settingsForm.cardSize);
+    syncSeg('seg-density', settingsForm.density);
+    syncSeg('seg-width', String(settingsForm.imageMaxWidth));
+    document.getElementById('q-range').value = settingsForm.imageQuality;
+    document.getElementById('q-val').textContent = settingsForm.imageQuality.toFixed(2);
+    toast('已恢复默认，点击「保存设置」生效');
+  };
+
+  // ===== 启动 =====
   initAnimatedBackground();
   initMusicPlayer({ tracks: [{ name: 'Follow', url: '/music/01.mp3' }, { name: 'Solaris', url: '/music/02.mp3' }] });
   renderNav();
-  load();
+
+  if (!auth.isLoggedIn()) { location.href = '/login.html'; }
+  else if (auth.getUser().role !== 'admin') {
+    document.querySelector('.container').innerHTML = '<div class="card empty">你不是管理员，无权访问管理后台</div>';
+  } else {
+    loadDashboard();
+    // 初始化分类下拉（供帖子管理筛选）
+    api('/api/admin/stats').then(d => {
+      const sel = document.getElementById('postCat');
+      const current = sel.value;
+      const names = (d.categories || []).map(c => c.name).filter(n => n && n !== '未分类');
+      sel.innerHTML = '<option value="">全部分类</option>' +
+        names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+      sel.value = current;
+    }).catch(() => {});
+  }
 </script>
 </body>
 </html>
