@@ -406,7 +406,7 @@
             ${escapeHtml(p.title)}${me ? '<span class="tag-me">我</span>' : ''}
           </div>
           <div class="post-summary">${escapeHtml(p.summary || '')}</div>
-          ${imgs.length ? `<div class="thumbs">${imgs.slice(0,4).map(i => `<img src="${i}" alt="" loading="lazy" />`).join('')}</div>` : ''}
+          ${imgs.length ? `<div class="thumbs">${imgs.slice(0,4).map(i => `<img src="${escapeHtml(i)}" alt="" loading="lazy" />`).join('')}</div>` : ''}
           <div class="post-meta">
             <span>👤 ${escapeHtml(p.author_name)}</span>
             <span class="like ${p.liked ? 'liked' : ''}" data-id="${p.id}" onclick="likePost(event,${p.id})">
@@ -445,7 +445,7 @@
     document.getElementById('up-hint').textContent = pendingImages.length
       ? `已选 ${pendingImages.length} 张` : '';
     box.innerHTML = pendingImages.map((u, i) => `
-      <div class="u"><img src="${u}" alt=""><button class="rm" onclick="removePending(${i})">×</button></div>
+      <div class="u"><img src="${escapeHtml(u)}" alt=""><button class="rm" onclick="removePending(${i})">×</button></div>
     `).join('');
   }
   window.removePending = function (i) {

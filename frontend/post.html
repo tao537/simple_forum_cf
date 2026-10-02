@@ -244,6 +244,12 @@
   }
   window.openImg = openImg;
 
+  // 画廊点击：事件委托（避免把 URL 拼进 onclick）
+  document.getElementById('post').addEventListener('click', (e) => {
+    const img = e.target.closest('.gallery img');
+    if (img && img.dataset.full) openImg(img.dataset.full);
+  });
+
   window.likePost = function () {
     if (!auth.isLoggedIn()) { toast('请先登录', true); return; }
     api(`/api/posts/${postId}/like`, { method: 'POST' }).then(data => {
@@ -307,7 +313,7 @@
     document.getElementById('e-up-hint').textContent = editImages.length
       ? `已选 ${editImages.length} 张` : '';
     box.innerHTML = editImages.map((u, i) => `
-      <div class="u"><img src="${u}" alt=""><button class="rm" onclick="removeEditImage(${i})">×</button></div>
+      <div class="u"><img src="${escapeHtml(u)}" alt=""><button class="rm" onclick="removeEditImage(${i})">×</button></div>
     `).join('');
   }
   window.removeEditImage = function (i) { editImages.splice(i, 1); renderEditPreview(); };
@@ -373,7 +379,7 @@
       const canEdit = isAdmin || (me && p.author_id === me.id);
       const gallery = imgs.length ? `
         <div class="gallery">
-          ${imgs.map(i => `<img src="${i}" alt="" loading="lazy" onclick="openImg('${i}')" />`).join('')}
+          ${imgs.map(i => `<img src="${escapeHtml(i)}" alt="" loading="lazy" data-full="${escapeHtml(i)}" />`).join('')}
         </div>` : '';
       document.getElementById('post').innerHTML = `
         <div class="card">

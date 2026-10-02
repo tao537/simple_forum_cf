@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>404 · 苦海无涯</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'STXingkai', '华文行楷', 'KaiTi', '楷体', 'SimSun', serif;
+    background: url('/wallpapers/kuhai-sea-v2.jpg') center 40% / cover no-repeat, #060b16;
+    color: #f2ecdc;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 24px;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: linear-gradient(180deg, rgba(6,11,22,.55), rgba(6,11,22,.75));
+  }
+  .box { position: relative; z-index: 1; }
+  .code {
+    font-size: 96px; font-weight: 700; letter-spacing: 6px;
+    line-height: 1;
+    text-shadow: 0 4px 30px rgba(0,0,0,.6);
+  }
+  h1 { font-size: 26px; letter-spacing: 8px; margin: 14px 0 10px; font-weight: 700; }
+  p { font-size: 14px; letter-spacing: 3px; color: rgba(242,236,220,.75); margin-bottom: 30px; }
+  .actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  a {
+    text-decoration: none;
+    padding: 11px 28px; border-radius: 999px;
+    font-size: 14px; font-weight: 700; letter-spacing: 3px;
+    transition: .2s;
+  }
+  .primary { background: #f2ecdc; color: #18242f; }
+  .primary:hover { box-shadow: 0 0 24px rgba(242,236,220,.5); }
+  .ghost { color: #f2ecdc; border: 1px solid rgba(242,236,220,.6); background: rgba(8,14,24,.4); }
+  .ghost:hover { background: rgba(242,236,220,.15); }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="code">404</div>
+    <h1>苦海无涯</h1>
+    <p>你所寻的页面，已沉入苦海 —— 回头是岸</p>
+    <div class="actions">
+      <a class="primary" href="/">返回首页</a>
+      <a class="ghost" href="/forum.html">进入苦海论坛</a>
+    </div>
+  </div>
+</body>
+</html>

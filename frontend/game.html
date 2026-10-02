@@ -263,7 +263,7 @@
       return `
         <div class="game-card" onclick="location.href='/post.html?id=${g.id}'">
           <div class="cover">
-            ${cover ? `<img src="${cover}" alt="" loading="lazy" />` : `<span class="ph">🎮</span>`}
+            ${cover ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy" />` : `<span class="ph">🎮</span>`}
             <span class="tag">游戏</span>
           </div>
           <div class="gbody">
@@ -301,7 +301,7 @@
     document.getElementById('up-hint').textContent =
       pendingImages.length ? `已选 ${pendingImages.length} 张` : '';
     document.getElementById('up-preview').innerHTML = pendingImages.map((u, i) =>
-      `<div class="u"><img src="${u}" alt=""><button class="rm" onclick="removePending(${i})">×</button></div>`
+      `<div class="u"><img src="${escapeHtml(u)}" alt=""><button class="rm" onclick="removePending(${i})">×</button></div>`
     ).join('');
   }
   window.removePending = function (i) { pendingImages.splice(i, 1); renderPending(); };

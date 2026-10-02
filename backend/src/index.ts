@@ -17,7 +17,52 @@ type AuthPayload = { id: number; username: string };
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-app.use('*', cors());
+app.use('*', cors({
+  origin: ['https://kuhai.de5.net', 'https://www.kuhai.de5.net', 'https://api.kuhai.de5.net'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 600,
+}));
+
+// ==================== 图片路径白名单（防存储型 XSS）====================
+const IMG_RE = /^(\/img\/|https:\/\/api\.kuhai\.de5\.net\/img\/)[A-Za-z0-9._-]{1,120}$/;
+
+function sanitizeImages(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((u): u is string => typeof u === 'string' && IMG_RE.test(u))
+    .slice(0, 9);
+}
+
+// ==================== 弱口令黑名单 ====================
+const BAD_PASSWORDS = new Set([
+  '123456', '12345678', '123456789', '888888', '666666', '66666666',
+  'admin123', 'password', 'qwerty', '11111111', '00000000',
+]);
+
+function validateCredentials(username: unknown, password: unknown): string | null {
+  const name = String(username ?? '');
+  const pass = String(password ?? '');
+  if (!name || !pass) return '用户名和密码不能为空';
+  if (!/^[\w\u4e00-\u9fa5]{2,20}$/.test(name)) {
+    return '用户名只能为 2-20 位中文、字母、数字或下划线';
+  }
+  if (pass.length < 8) return '密码至少 8 位';
+  if (BAD_PASSWORDS.has(pass.toLowerCase())) return '密码过于简单';
+  return null;
+}
+
+// ==================== JWT 签发（带过期时间）====================
+const TOKEN_TTL_SECONDS = 7 * 24 * 3600;
+
+async function issueToken(c: any, u: { id: number; username: string; role: string }) {
+  const now = Math.floor(Date.now() / 1000);
+  return await sign(
+    { id: u.id, username: u.username, role: u.role, iat: now, exp: now + TOKEN_TTL_SECONDS },
+    c.env.JWT_SECRET,
+    'HS256'
+  );
+}
 
 // ==================== 密码哈希（Web Crypto PBKDF2）====================
 async function hashPassword(password: string): Promise<string> {
@@ -68,7 +113,17 @@ async function getAuth(c: any): Promise<AuthPayload | null> {
   if (!token) return null;
   try {
     const p = await verify(token, c.env.JWT_SECRET, 'HS256');
-    return { id: Number(p.id), username: String(p.username) };
+    const id = Number(p.id);
+    if (!Number.isInteger(id)) return null;
+
+    // 实时校验封禁状态（封禁立即生效）
+    const row = await c.env.DB
+      .prepare('SELECT is_banned FROM users WHERE id = ?')
+      .bind(id)
+      .first<{ is_banned: number }>();
+    if (!row || row.is_banned) return null;
+
+    return { id, username: String(p.username) };
   } catch {
     return null;
   }
@@ -109,9 +164,9 @@ app.get('/', (c) => c.json({ ok: true, service: 'forum-api' }));
 // ==================== 认证 ====================
 const handleRegister = async (c: any) => {
   const { username, email, password, nickname } = await c.req.json();
-  if (!username || !password) {
-    return c.json({ message: '用户名和密码不能为空' }, 400);
-  }
+
+  const credError = validateCredentials(username, password);
+  if (credError) return c.json({ message: credError }, 400);
 
   const finalEmail = email || `${username}@local`;
 
@@ -124,9 +179,8 @@ const handleRegister = async (c: any) => {
   if (exists) return c.json({ message: '用户名或邮箱已被注册' }, 409);
 
   const hash = await hashPassword(password);
-  // 第一个注册的用户自动成为管理员（前端 login.html / admin.html 均提示了此规则）
-  const count = await db.prepare('SELECT COUNT(*) AS n FROM users').first<{ n: number }>();
-  const role = (count?.n ?? 0) === 0 ? 'admin' : 'user';
+  // 新用户一律为普通角色，管理员由数据库手工授予
+  const role = 'user';
 
   const result = await db
     .prepare('INSERT INTO users (username, email, password_hash, nickname, role) VALUES (?, ?, ?, ?, ?)')
@@ -134,7 +188,7 @@ const handleRegister = async (c: any) => {
     .run();
 
   const id = result.meta.last_row_id as number;
-  const token = await sign({ id, username, role }, c.env.JWT_SECRET, 'HS256');
+  const token = await issueToken(c, { id, username, role });
   return c.json({ token, user: { id, username, nickname: nickname || '', role } }, 201);
 };
 
@@ -153,7 +207,7 @@ const handleLogin = async (c: any) => {
   const ok = await verifyPassword(password, user.password_hash);
   if (!ok) return c.json({ message: '用户名或密码错误' }, 401);
 
-  const token = await sign({ id: user.id, username: user.username, role: user.role }, c.env.JWT_SECRET, 'HS256');
+  const token = await issueToken(c, { id: user.id, username: user.username, role: user.role });
   return c.json({
     token,
     user: { id: user.id, username: user.username, nickname: user.nickname, role: user.role },
@@ -290,9 +344,11 @@ app.post('/api/posts', async (c) => {
   const { title, content, category, images } = await c.req.json();
   if (!title || !content) return c.json({ message: '标题和内容不能为空' }, 400);
 
+  const safeImages = sanitizeImages(images);
+
   const result = await c.env.DB
     .prepare('INSERT INTO posts (title, content, category, author_id, images) VALUES (?, ?, ?, ?, ?)')
-    .bind(title, content, category || '', payload.id, JSON.stringify(images ?? []))
+    .bind(title, content, category || '', payload.id, JSON.stringify(safeImages))
     .run();
 
   return c.json({ id: result.meta.last_row_id, title, content }, 201);
@@ -428,13 +484,15 @@ app.put('/api/posts/:id', async (c) => {
   const { title, content, category, images } = await c.req.json();
   if (!title || !content) return c.json({ message: '标题和内容不能为空' }, 400);
 
+  const safeImages = sanitizeImages(images);
+
   await db
     .prepare(
       `UPDATE posts
        SET title = ?, content = ?, category = ?, images = ?, updated_at = datetime('now','localtime')
        WHERE id = ?`
     )
-    .bind(title, content, category || '', JSON.stringify(images ?? []), id)
+    .bind(title, content, category || '', JSON.stringify(safeImages), id)
     .run();
 
   const updated = await db
@@ -935,8 +993,11 @@ app.put('/api/users/password', async (c) => {
   if (!oldPassword || !newPassword) {
     return c.json({ message: '原密码和新密码不能为空' }, 400);
   }
-  if (newPassword.length < 6) {
-    return c.json({ message: '新密码长度至少 6 位' }, 400);
+  if (String(newPassword).length < 8) {
+    return c.json({ message: '新密码长度至少 8 位' }, 400);
+  }
+  if (BAD_PASSWORDS.has(String(newPassword).toLowerCase())) {
+    return c.json({ message: '新密码过于简单' }, 400);
   }
 
   const db = c.env.DB;
