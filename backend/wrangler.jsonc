@@ -16,23 +16,20 @@
     {
       "binding": "GAME_DB",
       "database_name": "game-db",
-      "database_id": "PENDING_GAME_DB_ID"
+      "database_id": "916c3765-4b1c-494b-b7d9-e1b82a6b048b"
     }
   ],
   // ============================================================
-  // 图片上传（可选功能）
-  // 需要发帖/编辑时上传图片，请先在 Cloudflare 控制台 → R2 创建一个
-  // 存储桶（例如 forum-images），再把下面的注释去掉并部署：
-  //   npx wrangler deploy
-  // 去掉注释后若 bucket 尚未创建，部署会报错，请先建好 bucket。
-  // 未配置时，/api/posts/upload 会返回 501 提示，不影响其他功能。
+  // 图片存储（Cloudflare KV，替代 R2 与第三方图床）
+  // 免费额度：1 GB 存储 / 1000 次写每天 / 10 万次读每天 / 单 value 25 MiB
+  // 写入：POST /api/posts/upload 或 /api/game/posts/upload   读取：GET /img/:id
+  // 图片永久保存（不设 expirationTtl），存满再处理
   // ============================================================
-  // "r2_buckets": [
-  //   {
-  //     "binding": "IMG_BUCKET",
-  //     "bucket_name": "forum-images",
-  //     "preview_bucket_name": "forum-images"
-  //   }
-  // ],
+  "kv_namespaces": [
+    {
+      "binding": "IMG_KV",
+      "id": "f677e3ee4a4a4484b2dc5473b8a26b39"
+    }
+  ],
   "vars": {}
 }

@@ -174,21 +174,26 @@ export function getDisplaySettings() {
   return displaySettings || { ...DEFAULT_SETTINGS };
 }
 
-// ==================== 图片上传前压缩（按设置的尺寸/质量）====================
-export async function processImageForUpload(file) {
-  const s = getDisplaySettings();
-  const maxW = Number(s.imageMaxWidth) || 1280;
-  const quality = Number(s.imageQuality) || 0.8;
+// ==================== 图片上传前压缩 ====================
+// 固定参数（不再读后台显示设置）：最长边 1600px、JPEG 质量 0.75
+const UPLOAD_MAX_EDGE = 1600;            // 最长边（宽高取大者）
+const UPLOAD_QUALITY = 0.75;             // JPEG 压缩质量
+const SKIP_COMPRESS_BYTES = 500 * 1024;  // 小于 500KB 的图跳过压缩直传
 
+export async function processImageForUpload(file) {
   // GIF / SVG 不做 canvas 压缩，原样返回
   if (file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
+  // 已经足够小，直接上传
+  if (file.size < SKIP_COMPRESS_BYTES) return file;
 
   try {
     const bitmap = await createImageBitmap(file);
     let { width, height } = bitmap;
-    if (width > maxW) {
-      height = Math.round(height * maxW / width);
-      width = maxW;
+    const longest = Math.max(width, height);          // 按最长边判断
+    if (longest > UPLOAD_MAX_EDGE) {
+      const scale = UPLOAD_MAX_EDGE / longest;        // 竖图/长图同样会被缩
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
     }
     const canvas = document.createElement('canvas');
     canvas.width = width;
@@ -196,9 +201,10 @@ export async function processImageForUpload(file) {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(bitmap, 0, 0, width, height);
     const blob = await new Promise((resolve) =>
-      canvas.toBlob((b) => resolve(b), 'image/jpeg', quality));
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', UPLOAD_QUALITY));
     bitmap.close?.();
-    if (blob) {
+    // 压缩后反而更大则回退原图
+    if (blob && blob.size < file.size) {
       const base = (file.name || 'image').replace(/\.[^.]+$/, '');
       return new File([blob], `${base}.jpg`, { type: 'image/jpeg' });
     }

@@ -6,8 +6,8 @@ type Bindings = {
   DB: D1Database;
   GAME_DB: D1Database;
   JWT_SECRET: string;
-  // 图片上传（R2），可选。未配置时上传接口返回 501 提示。
-  IMG_BUCKET?: any;
+  // 图片存储（Cloudflare KV，免费 1GB，无需绑卡）
+  IMG_KV: KVNamespace;
 };
 
 type Variables = {
@@ -301,40 +301,47 @@ app.get('/api/posts/featured', async (c) => {
   return c.json({ rows: results });
 });
 
-// 图片上传（R2，可选）
+// 图片上传（存 Cloudflare KV，免费 1GB，无需绑卡）
 app.post('/api/posts/upload', async (c) => {
   const payload = await getAuth(c);
   if (!payload) return c.json({ message: '请先登录' }, 401);
 
-  const bucket = c.env.IMG_BUCKET;
-  if (!bucket) {
-    return c.json({ message: '图片存储未配置（需要 R2 bucket），请先按说明启用' }, 501);
-  }
+  const formData = await c.req.formData().catch(() => null);
+  if (!formData) return c.json({ message: '没有文件' }, 400);
+  const file = formData.get('file');
+  if (!file || typeof file === 'string') return c.json({ message: '没有文件' }, 400);
+  if (!file.type.startsWith('image/')) return c.json({ message: '只能上传图片' }, 400);
+  if (file.size > 5 * 1024 * 1024) return c.json({ message: '图片不能超过 5MB' }, 400);
 
-  const fd = await c.req.formData();
-  const file = fd.get('file');
-  if (!file || typeof file === 'string') return c.json({ message: '请选择图片文件' }, 400);
+  // KV 的 value 支持 ArrayBuffer，直接存二进制（比 base64 省约 33% 空间）
+  const bytes = await file.arrayBuffer();
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-  const buf = await file.arrayBuffer();
-  const ext = (file.name?.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'jpg';
-  const key = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+  // 不设 expirationTtl：图片永久保存
+  await c.env.IMG_KV.put(`img:${id}`, bytes, {
+    metadata: { contentType: file.type || 'image/jpeg' },
+  });
 
-  await bucket.put(key, buf, { httpMetadata: { contentType: file.type || 'image/jpeg' } });
-
+  // 返回绝对地址（前端在 kuhai.de5.net，相对路径 /img/... 会打到 Pages 上 404）
   const origin = new URL(c.req.url).origin;
-  return c.json({ url: `${origin}/img/${key}` }, 201);
+  return c.json({ url: `${origin}/img/${id}` });
 });
 
-// 通过 Worker 回读 R2 图片（无需公开 bucket 域名）
-app.get('/img/:key', async (c) => {
-  const bucket = c.env.IMG_BUCKET;
-  if (!bucket) return c.json({ message: 'not found' }, 404);
-  const obj = await bucket.get(c.req.param('key'));
-  if (!obj) return c.json({ message: 'not found' }, 404);
+// 读取 KV 中的图片（前端 <img> 直接引用 /img/:id）
+app.get('/img/:id', async (c) => {
+  const id = c.req.param('id');
+  if (!/^[A-Za-z0-9._-]{1,120}$/.test(id)) return c.json({ message: 'not found' }, 404);
+
+  const { value, metadata } = await c.env.IMG_KV.getWithMetadata<{ contentType?: string }>(
+    `img:${id}`,
+    'arrayBuffer'
+  );
+  if (!value) return c.json({ message: 'not found' }, 404);
+
   const headers = new Headers();
-  headers.set('Content-Type', obj.httpMetadata?.contentType || 'application/octet-stream');
+  headers.set('Content-Type', metadata?.contentType || 'image/jpeg');
   headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-  return new Response(obj.body as any, { headers });
+  return new Response(value, { headers });
 });
 
 // 发帖
@@ -1157,23 +1164,22 @@ app.get('/api/game/posts/featured', async (c) => {
 app.post('/api/game/posts/upload', async (c) => {
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
-  const bucket = c.env.IMG_BUCKET;
-  if (!bucket) {
-    return c.json({ message: '图片存储未配置（需要 R2 bucket），请先按说明启用' }, 501);
-  }
+  const formData = await c.req.formData().catch(() => null);
+  if (!formData) return c.json({ message: '没有文件' }, 400);
+  const file = formData.get('file');
+  if (!file || typeof file === 'string') return c.json({ message: '没有文件' }, 400);
+  if (!file.type.startsWith('image/')) return c.json({ message: '只能上传图片' }, 400);
+  if (file.size > 5 * 1024 * 1024) return c.json({ message: '图片不能超过 5MB' }, 400);
 
-  const fd = await c.req.formData();
-  const file = fd.get('file');
-  if (!file || typeof file === 'string') return c.json({ message: '请选择图片文件' }, 400);
-
-  const buf = await file.arrayBuffer();
-  const ext = (file.name?.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'jpg';
-  const key = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
-
-  await bucket.put(key, buf, { httpMetadata: { contentType: file.type || 'image/jpeg' } });
+  // KV 直接存二进制 ArrayBuffer，不设 expirationTtl（永久保存）
+  const bytes = await file.arrayBuffer();
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  await c.env.IMG_KV.put(`img:${id}`, bytes, {
+    metadata: { contentType: file.type || 'image/jpeg' },
+  });
 
   const origin = new URL(c.req.url).origin;
-  return c.json({ url: `${origin}/img/${key}` }, 201);
+  return c.json({ url: `${origin}/img/${id}` });
 });
 
 // 游戏发帖
