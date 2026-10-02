@@ -14,5 +14,20 @@
       "database_id": "c71a2c00-f5ba-49f8-90bd-8fe0d8a26b39"
     }
   ],
+  // ============================================================
+  // 图片上传（可选功能）
+  // 需要发帖/编辑时上传图片，请先在 Cloudflare 控制台 → R2 创建一个
+  // 存储桶（例如 forum-images），再把下面的注释去掉并部署：
+  //   npx wrangler deploy
+  // 去掉注释后若 bucket 尚未创建，部署会报错，请先建好 bucket。
+  // 未配置时，/api/posts/upload 会返回 501 提示，不影响其他功能。
+  // ============================================================
+  // "r2_buckets": [
+  //   {
+  //     "binding": "IMG_BUCKET",
+  //     "bucket_name": "forum-images",
+  //     "preview_bucket_name": "forum-images"
+  //   }
+  // ],
   "vars": {}
 }

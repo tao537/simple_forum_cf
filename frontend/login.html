@@ -3,53 +3,121 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>登录 · 注册 | 论坛</title>
+<title>登录 · 注册 | 论坛 & 游戏</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --accent: #3b82f6;
+    --accent-2: #2563eb;
+  }
   body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
          min-height: 100vh; display: flex; align-items: center; justify-content: center;
-         background: #0f172a; }
-  body::before { content: ''; position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 0; }
-  .card { position: relative; z-index: 1; background: rgba(255,255,255,.94); border-radius: 18px; width: 100%;
-          max-width: 400px; padding: 36px 32px 28px; box-shadow: 0 20px 60px rgba(0,0,0,.4);
-          backdrop-filter: blur(10px); }
-  .brand { text-align: center; margin-bottom: 28px; }
-  .brand .logo { font-size: 30px; }
-  .brand h1 { font-size: 20px; margin-top: 8px; color: #1e293b; }
-  .brand p { font-size: 13px; color: #94a3b8; margin-top: 4px; }
-  .tabs { display: flex; background: #f1f5f9; border-radius: 10px; padding: 4px;
-          margin-bottom: 22px; }
-  .tabs button { flex: 1; padding: 9px 0; border: none; background: transparent;
-                 border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600;
-                 color: #64748b; transition: .15s; }
-  .tabs button.active { background: #fff; color: #2563eb; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+         background: #0f172a; padding: 24px; }
+  body::before { content: ''; position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 0; }
+
+  /* ============ 视图 1：站点选择 ============ */
+  .wrap { position: relative; z-index: 1; width: 100%; max-width: 900px; }
+  .choose-head { text-align: center; color: #fff; margin-bottom: 28px; }
+  .choose-head h1 { font-size: 26px; margin-bottom: 8px; }
+  .choose-head p { font-size: 14px; color: #cbd5e1; }
+  .choose { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .site-card { position: relative; border-radius: 22px; padding: 44px 30px; cursor: pointer;
+               text-align: center; color: #fff; overflow: hidden;
+               border: 1px solid rgba(255,255,255,.14);
+               background: rgba(255,255,255,.07); backdrop-filter: blur(12px);
+               transition: transform .25s, box-shadow .25s, border-color .25s; }
+  .site-card:hover { transform: translateY(-6px); }
+  .site-card .ico { font-size: 60px; margin-bottom: 18px; }
+  .site-card h2 { font-size: 22px; margin-bottom: 10px; }
+  .site-card p { font-size: 13.5px; color: #cbd5e1; line-height: 1.7; margin-bottom: 24px; }
+  .site-card .go { display: inline-block; padding: 11px 28px; border-radius: 999px;
+                   font-size: 14px; font-weight: 700; color: #fff; }
+  .site-card.forum:hover { box-shadow: 0 20px 50px rgba(37,99,235,.45); border-color: rgba(96,165,250,.7); }
+  .site-card.forum .go { background: linear-gradient(135deg,#3b82f6,#2563eb); }
+  .site-card.game:hover { box-shadow: 0 20px 50px rgba(139,92,246,.45); border-color: rgba(196,181,253,.7); }
+  .site-card.game .go { background: linear-gradient(135deg,#8b5cf6,#7c3aed); }
+  .site-card .glow { position: absolute; width: 260px; height: 260px; border-radius: 50%;
+                     filter: blur(80px); opacity: .35; top: -80px; left: 50%; transform: translateX(-50%); }
+  .site-card.forum .glow { background: #3b82f6; }
+  .site-card.game .glow { background: #8b5cf6; }
+
+  /* ============ 视图 2：登录/注册表单 ============ */
+  .auth-view { display: none; }
+  .auth-view.show { display: block; }
+  .choose-view.hide { display: none; }
+  .card { position: relative; z-index: 1; background: rgba(255,255,255,.95); border-radius: 18px;
+          width: 100%; max-width: 410px; margin: 0 auto; padding: 26px 30px 26px;
+          box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+  .back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 13px;
+               color: #64748b; text-decoration: none; margin-bottom: 14px; cursor: pointer; }
+  .back-link:hover { color: var(--accent); }
+  .brand { text-align: center; margin-bottom: 20px; }
+  .brand .logo { font-size: 34px; }
+  .brand h1 { font-size: 20px; margin-top: 6px; color: #1e293b; }
+  .brand p { font-size: 12.5px; color: #94a3b8; margin-top: 4px; }
+  .tabs { display: flex; background: #f1f5f9; border-radius: 10px; padding: 4px; margin-bottom: 20px; }
+  .tabs button { flex: 1; padding: 9px 0; border: none; background: transparent; cursor: pointer;
+                 border-radius: 8px; font-size: 14px; font-weight: 600; color: #64748b; transition: .15s; }
+  .tabs button.active { background: #fff; color: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 13px; color: #475569; margin-bottom: 6px; }
   .field input { width: 100%; padding: 11px 14px; border: 1px solid #e2e8f0;
                  border-radius: 10px; font-size: 14px; outline: none; transition: .15s; }
-  .field input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
+  .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
   .hint { font-size: 12px; color: #94a3b8; }
   .submit { width: 100%; padding: 12px; border: none; border-radius: 10px;
-            background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff;
             font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 6px; transition: .2s; }
-  .submit:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(37,99,235,.35); }
+  .submit:hover { transform: translateY(-1px); }
   .submit:disabled { opacity: .6; cursor: not-allowed; transform: none; }
-  .back { display: block; text-align: center; margin-top: 18px; color: #64748b;
-          text-decoration: none; font-size: 13px; }
-  .back:hover { color: #2563eb; }
+  .share-note { text-align: center; font-size: 11.5px; color: #94a3b8; margin-top: 14px; }
+
   #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
            background: #0f172a; color: #fff; padding: 10px 20px; border-radius: 8px;
            font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 20; }
   #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
   #toast.err { background: #dc2626; }
+
+  @media (max-width: 720px) {
+    .choose { grid-template-columns: 1fr; }
+    .site-card { padding: 34px 24px; }
+  }
 </style>
 </head>
 <body>
+
+<!-- ============ 视图 1：站点选择 ============ -->
+<div class="wrap choose-view" id="chooseView">
+  <div class="choose-head">
+    <h1>欢迎，请选择要进入的站点</h1>
+    <p>同一账号可在论坛与游戏分享板块通用</p>
+  </div>
+  <div class="choose">
+    <div class="site-card forum" onclick="chooseSite('forum')">
+      <div class="glow"></div>
+      <div class="ico">📋</div>
+      <h2>论坛</h2>
+      <p>发帖讨论、分享资源、求助问答、<br />评论互动与消息通知</p>
+      <span class="go">进入论坛 →</span>
+    </div>
+    <div class="site-card game" onclick="chooseSite('game')">
+      <div class="glow"></div>
+      <div class="ico">🎮</div>
+      <h2>游戏分享</h2>
+      <p>分享好玩的游戏、封面与截图、<br />游戏资源与游玩心得</p>
+      <span class="go">进入游戏 →</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 视图 2：登录 / 注册 ============ -->
+<div class="wrap auth-view" id="authView">
   <div class="card">
+    <span class="back-link" onclick="backToChoose()">← 重新选择站点</span>
     <div class="brand">
-      <div class="logo">📋</div>
-      <h1>论坛</h1>
-      <p>登录后即可发帖、评论、点赞</p>
+      <div class="logo" id="brandLogo">📋</div>
+      <h1 id="brandTitle">论坛</h1>
+      <p id="brandSub">登录后即可发帖、评论、点赞</p>
     </div>
     <div class="tabs">
       <button id="tab-login" class="active" onclick="switchTab('login')">登录</button>
@@ -85,15 +153,15 @@
       <div class="hint" style="margin-top:10px">💡 第一个注册的用户会自动成为管理员</div>
     </div>
 
-    <a href="/" class="back">← 返回论坛首页</a>
+    <div class="share-note">登录后将进入「<span id="targetName">论坛</span>」</div>
   </div>
+</div>
 
 <div id="toast"></div>
 
 <script type="module">
   import { auth, api, initAnimatedBackground, initMusicPlayer } from './common.js';
 
-  // 动态背景 + 背景音乐
   initAnimatedBackground();
   initMusicPlayer({
     tracks: [
@@ -101,6 +169,14 @@
       { name: 'Solaris', url: '/music/02.mp3' },
     ],
   });
+
+  const SITES = {
+    forum: { name: '论坛', logo: '📋', sub: '登录后即可发帖、评论、点赞', home: '/',
+             accent: '#3b82f6', accent2: '#2563eb' },
+    game:  { name: '游戏分享', logo: '🎮', sub: '登录后即可分享游戏与资源', home: '/game.html',
+             accent: '#8b5cf6', accent2: '#7c3aed' },
+  };
+  let target = 'forum';
 
   function toast(msg, isErr = false) {
     const el = document.getElementById('toast');
@@ -111,14 +187,35 @@
   }
   window.toast = toast;
 
+  // 选择站点：已登录直接进入，未登录进入对应表单
+  window.chooseSite = function (site) {
+    target = site;
+    const cfg = SITES[site];
+    if (auth.isLoggedIn()) { location.href = cfg.home; return; }
+
+    document.documentElement.style.setProperty('--accent', cfg.accent);
+    document.documentElement.style.setProperty('--accent-2', cfg.accent2);
+    document.getElementById('brandLogo').textContent = cfg.logo;
+    document.getElementById('brandTitle').textContent = cfg.name;
+    document.getElementById('brandSub').textContent = cfg.sub;
+    document.getElementById('targetName').textContent = cfg.name;
+    switchTab('login');
+
+    document.getElementById('chooseView').classList.add('hide');
+    document.getElementById('authView').classList.add('show');
+  };
+
+  window.backToChoose = function () {
+    document.getElementById('authView').classList.remove('show');
+    document.getElementById('chooseView').classList.remove('hide');
+  };
+
   window.switchTab = function (tab) {
     document.getElementById('tab-login').classList.toggle('active', tab === 'login');
     document.getElementById('tab-register').classList.toggle('active', tab === 'register');
     document.getElementById('form-login').style.display = tab === 'login' ? '' : 'none';
     document.getElementById('form-register').style.display = tab === 'register' ? '' : 'none';
   };
-
-  if (auth.isLoggedIn()) location.href = '/';
 
   window.doLogin = async function () {
     const username = document.getElementById('l-username').value.trim();
@@ -131,7 +228,7 @@
       });
       auth.set(data.token, data.user);
       toast('登录成功');
-      setTimeout(() => (location.href = '/'), 400);
+      setTimeout(() => (location.href = SITES[target].home), 400);
     } catch (e) { toast(e.message, true); }
   };
 
@@ -147,7 +244,7 @@
       });
       auth.set(data.token, data.user);
       toast('注册成功');
-      setTimeout(() => (location.href = '/'), 400);
+      setTimeout(() => (location.href = SITES[target].home), 400);
     } catch (e) { toast(e.message, true); }
   };
 

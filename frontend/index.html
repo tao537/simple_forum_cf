@@ -274,7 +274,7 @@
 
 <script type="module">
   import { auth, api, escapeHtml, parseImages, renderNav, refreshUnread,
-           initAnimatedBackground, initMusicPlayer } from './common.js';
+           initAnimatedBackground, initMusicPlayer, processImageForUpload } from './common.js';
 
   const API = '/api/posts';
   const state = { page: 1, size: 10, keyword: '', total: 0, sort: 'new', category: '' };
@@ -463,9 +463,10 @@
     document.getElementById('up-hint').textContent = '上传中…';
     for (const f of files) {
       if (!f.type.startsWith('image/')) { toast('仅支持图片文件', true); continue; }
-      const fd = new FormData();
-      fd.append('file', f);
       try {
+        const processed = await processImageForUpload(f);
+        const fd = new FormData();
+        fd.append('file', processed);
         const data = await api(`${API}/upload`, { method: 'POST', body: fd });
         pendingImages.push(data.url);
       } catch (err) { toast(err.message, true); }

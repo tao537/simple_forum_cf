@@ -23,11 +23,24 @@ export const auth = {
   },
 };
 
+// ===== 后端地址配置 =====
+// 线上 API（后端 Worker，独立子域名，国内可访问）
+const API_BASE = 'https://api.kuhai.de5.net';
+// 本地 API（Linux 上 npx wrangler dev 的默认端口是 8787）
+const LOCAL_API_BASE = 'http://localhost:8787';
+// 本地前端调试时是否调用本地后端：true = 本地前端→本地后端；false = 本地前端→线上
+const USE_LOCAL_API = false;
+
+function resolveBaseUrl() {
+  if (window.location.protocol === 'file:') return LOCAL_API_BASE;
+  const localHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  if (localHost && USE_LOCAL_API) return LOCAL_API_BASE;
+  return API_BASE;
+}
+
 // 统一的请求封装：自动附带 token
 export async function api(url, opts = {}) {
-  // 如果是通过文件直接打开 (file://)，则补全后端服务器地址
-  const API_BASE = 'https://forum-api.tao537.workers.dev';
-  const baseUrl = window.location.protocol === 'file:' ? 'http://localhost:3000' : API_BASE;
+  const baseUrl = resolveBaseUrl();
   const fullUrl = `${baseUrl}${url}`;
 
   const headers = { ...(opts.headers || {}) };
@@ -55,6 +68,102 @@ export function parseImages(images) {
   } catch { return []; }
 }
 
+// ==================== 界面显示设置（管理员后台可配置）====================
+const SETTINGS_KEY = 'forum_settings';
+const DEFAULT_SETTINGS = {
+  cardSize: 'large',        // large | medium | small
+  density: 'comfortable',   // comfortable | compact
+  imageMaxWidth: 1280,      // 图片最大宽度 px
+  imageQuality: 0.8,        // 压缩质量
+  thumbnailSize: 300,       // 缩略图尺寸
+};
+let displaySettings = null;
+
+function injectSettingsStyle() {
+  if (document.getElementById('settingsStyle')) return;
+  const style = document.createElement('style');
+  style.id = 'settingsStyle';
+  style.textContent = `
+    /* 帖子卡片大小 */
+    body[data-card-size="small"] .post { padding: 11px 14px; }
+    body[data-card-size="small"] .post-title { font-size: 14.5px; margin-bottom: 5px; }
+    body[data-card-size="small"] .post-summary { -webkit-line-clamp: 1 !important; font-size: 13px; margin-bottom: 7px; }
+    body[data-card-size="small"] .thumbs img { width: 54px; height: 54px; }
+    body[data-card-size="small"] .post-meta { font-size: 11.5px; gap: 12px; }
+    body[data-card-size="medium"] .post { padding: 15px 17px; }
+    body[data-card-size="medium"] .post-title { font-size: 16px; }
+    body[data-card-size="large"] .post { padding: 18px 20px; }
+    /* 布局密度 */
+    body[data-density="compact"] .post { margin-bottom: 8px; }
+    body[data-density="compact"] .post-summary { margin-bottom: 6px; }
+    body[data-density="compact"] .post-meta { gap: 12px; }
+    body[data-density="compact"] .post-title { margin-bottom: 5px; }
+    /* 游戏卡片大小（游戏板块） */
+    body[data-card-size="small"] .game-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+    body[data-card-size="medium"] .game-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+    body[data-card-size="large"] .game-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  `;
+  document.head.appendChild(style);
+}
+
+function applyDisplaySettings(s) {
+  const settings = { ...DEFAULT_SETTINGS, ...s };
+  injectSettingsStyle();
+  document.body.dataset.cardSize = settings.cardSize;
+  document.body.dataset.density = settings.density;
+  return settings;
+}
+
+// 加载并应用显示设置：先用本地缓存立即应用，再拉取后端更新
+export async function loadDisplaySettings() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+    if (cached) applyDisplaySettings(cached);
+  } catch { /* 无缓存 */ }
+  try {
+    const data = await api('/api/settings');
+    displaySettings = applyDisplaySettings(data.settings);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(displaySettings));
+  } catch { /* 拉取失败则沿用缓存/默认 */ }
+  return displaySettings;
+}
+
+export function getDisplaySettings() {
+  return displaySettings || { ...DEFAULT_SETTINGS };
+}
+
+// ==================== 图片上传前压缩（按设置的尺寸/质量）====================
+export async function processImageForUpload(file) {
+  const s = getDisplaySettings();
+  const maxW = Number(s.imageMaxWidth) || 1280;
+  const quality = Number(s.imageQuality) || 0.8;
+
+  // GIF / SVG 不做 canvas 压缩，原样返回
+  if (file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    let { width, height } = bitmap;
+    if (width > maxW) {
+      height = Math.round(height * maxW / width);
+      width = maxW;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    const blob = await new Promise((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', quality));
+    bitmap.close?.();
+    if (blob) {
+      const base = (file.name || 'image').replace(/\.[^.]+$/, '');
+      return new File([blob], `${base}.jpg`, { type: 'image/jpeg' });
+    }
+  } catch { /* 压缩失败则回退原图 */ }
+  return file;
+}
+
 // 渲染带 @提及 高亮的文本（先转义，再高亮 @用户名）
 export function renderMentions(text) {
   let html = escapeHtml(text);
@@ -64,9 +173,17 @@ export function renderMentions(text) {
 
 // 统一导航栏渲染：登录态 + 通知铃铛
 export function renderNav(elId = 'navRight', opts = {}) {
+  // 首次渲染时自动加载并应用全站显示设置
+  if (!window.__settingsBooted) { window.__settingsBooted = true; loadDisplaySettings(); }
+
+  // 论坛 / 游戏 跨站点切换链接
+  const cross = opts.site === 'game'
+    ? `<a class="link" href="/">📋 论坛</a>`
+    : `<a class="link" href="/game.html">🎮 游戏</a>`;
+
   const box = document.getElementById(elId);
   if (!auth.isLoggedIn()) {
-    box.innerHTML = `<a class="link" href="/login.html">登录 / 注册</a>`;
+    box.innerHTML = `${cross}<a class="link" href="/login.html">登录 / 注册</a>`;
     return;
   }
   const u = auth.getUser();
@@ -78,6 +195,7 @@ export function renderNav(elId = 'navRight', opts = {}) {
   const admin = u.role === 'admin'
     ? `<a class="link" href="/admin.html">⚙️ 管理</a>` : '';
   box.innerHTML = `
+    ${cross}
     ${bell}
     ${admin}
     <a class="user-chip" href="/user.html?id=${u.id}">

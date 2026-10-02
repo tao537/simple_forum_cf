@@ -212,7 +212,7 @@
 
 <script type="module">
   import { auth, api, escapeHtml, parseImages, renderNav, renderMentions, refreshUnread,
-           initAnimatedBackground, initMusicPlayer } from './common.js';
+           initAnimatedBackground, initMusicPlayer, processImageForUpload } from './common.js';
 
   const postId = new URLSearchParams(location.search).get('id');
   let currentPost = null;
@@ -319,9 +319,10 @@
     document.getElementById('e-up-hint').textContent = '上传中…';
     for (const f of files) {
       if (!f.type.startsWith('image/')) continue;
-      const fd = new FormData();
-      fd.append('file', f);
       try {
+        const processed = await processImageForUpload(f);
+        const fd = new FormData();
+        fd.append('file', processed);
         const data = await api('/api/posts/upload', { method: 'POST', body: fd });
         editImages.push(data.url);
       } catch (err) { toast(err.message, true); }

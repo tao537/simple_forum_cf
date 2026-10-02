@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>游戏分享</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --g: #8b5cf6;
+    --g2: #7c3aed;
+  }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+         color: #1f2937; min-height: 100vh; }
+  nav { background: rgba(255,255,255,.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+        box-shadow: 0 1px 3px rgba(15,23,42,.06); position: sticky; top: 0; z-index: 30; }
+  nav .inner { max-width: 1080px; margin: 0 auto; padding: 12px 16px;
+               display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0f172a; }
+  .brand .logo { width: 34px; height: 34px; border-radius: 10px; font-size: 18px;
+                 display: flex; align-items: center; justify-content: center;
+                 background: linear-gradient(135deg,#8b5cf6,#7c3aed); color: #fff; }
+  .brand b { font-size: 18px; }
+  .nav-right { display: flex; align-items: center; gap: 10px; }
+  .user-chip { display: flex; align-items: center; gap: 8px; font-size: 14px;
+               color: #334155; background: rgba(241,245,249,.9); padding: 6px 12px;
+               border-radius: 999px; text-decoration: none; }
+  .user-chip .avatar { width: 24px; height: 24px; border-radius: 50%;
+                       background: #8b5cf6; color: #fff; font-size: 12px;
+                       display: flex; align-items: center; justify-content: center; }
+  .link { color: #7c3aed; text-decoration: none; font-size: 14px; font-weight: 500; }
+  .link:hover { text-decoration: underline; }
+  .logout { color: #94a3b8; font-size: 13px; cursor: pointer; }
+  .logout:hover { color: #ef4444; }
+  .bell { position: relative; font-size: 18px; text-decoration: none; }
+  .bell-count { position: absolute; top: -6px; right: -10px; min-width: 18px; height: 18px;
+                padding: 0 4px; border-radius: 999px; background: #ef4444; color: #fff;
+                font-size: 11px; font-weight: 700; display: none; align-items: center;
+                justify-content: center; }
+
+  .container { max-width: 1080px; margin: 0 auto; padding: 0 16px 48px; }
+
+  /* Hero */
+  .hero { position: relative; border-radius: 20px; overflow: hidden; margin-top: 18px;
+          padding: 40px 34px; color: #fff;
+          background: linear-gradient(120deg, #4c1d95 0%, #6d28d9 45%, #7c3aed 100%);
+          box-shadow: 0 14px 40px rgba(124,58,237,.35); }
+  .hero::after { content: '🎮'; position: absolute; right: 26px; bottom: -30px;
+                 font-size: 170px; opacity: .18; }
+  .hero h1 { font-size: 28px; margin-bottom: 8px; }
+  .hero p { font-size: 14px; opacity: .92; margin-bottom: 20px; }
+  .hero .btn { position: relative; z-index: 2; }
+
+  /* 工具栏 */
+  .toolbar { display: flex; align-items: center; gap: 10px; margin: 22px 0 18px; flex-wrap: wrap; }
+  .tabs { display: flex; background: rgba(255,255,255,.85); border-radius: 10px; padding: 4px;
+          box-shadow: 0 1px 3px rgba(15,23,42,.05); }
+  .tabs button { border: none; background: transparent; padding: 8px 16px; cursor: pointer;
+                 border-radius: 8px; font-size: 14px; font-weight: 600; color: #64748b; transition: .15s; }
+  .tabs button.active { background: #f3e8ff; color: #7c3aed; }
+  .searchbox { display: flex; flex: 1; min-width: 200px; gap: 8px; }
+  .searchbox input { flex: 1; padding: 10px 14px; border: 1px solid rgba(226,232,240,.8);
+                     border-radius: 10px; font-size: 14px; outline: none; background: rgba(255,255,255,.9); }
+  .searchbox input:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,.15); }
+
+  .btn { padding: 9px 16px; border: none; border-radius: 10px; cursor: pointer;
+         font-size: 14px; font-weight: 600; transition: .15s; white-space: nowrap; }
+  .btn-primary { background: linear-gradient(135deg,#8b5cf6,#7c3aed); color: #fff; }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(124,58,237,.4); }
+  .btn-ghost { background: rgba(255,255,255,.9); color: #334155; border: 1px solid #e2e8f0; }
+  .btn-ghost:hover { background: #f8fafc; }
+  .btn-sm { padding: 4px 9px; font-size: 12px; border-radius: 8px; }
+  .btn-danger { background: #ef4444; color: #fff; }
+  .btn-danger:hover { background: #dc2626; }
+
+  /* 游戏卡片网格 */
+  .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
+  .game-card { background: rgba(255,255,255,.9); border-radius: 16px; overflow: hidden;
+               cursor: pointer; border: 1px solid rgba(255,255,255,.6);
+               box-shadow: 0 2px 10px rgba(15,23,42,.08); transition: .2s; }
+  .game-card:hover { transform: translateY(-4px); box-shadow: 0 14px 32px rgba(124,58,237,.22); }
+  .cover { position: relative; aspect-ratio: 3/4; background: linear-gradient(135deg,#7c3aed,#a855f7);
+           overflow: hidden; }
+  .cover img { width: 100%; height: 100%; object-fit: cover; }
+  .cover .ph { position: absolute; inset: 0; display: flex; align-items: center;
+               justify-content: center; font-size: 56px; opacity: .5; }
+  .cover .tag { position: absolute; top: 8px; left: 8px; font-size: 11px; font-weight: 700;
+                padding: 3px 9px; border-radius: 999px; background: rgba(15,23,42,.6);
+                color: #fff; backdrop-filter: blur(4px); }
+  .gbody { padding: 12px 14px 14px; }
+  .gbody h3 { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 8px;
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gmeta { display: flex; gap: 12px; font-size: 12px; color: #94a3b8; }
+  .gmeta span { display: inline-flex; align-items: center; gap: 3px; }
+
+  .empty { text-align: center; padding: 70px 20px; color: #94a3b8;
+           background: rgba(255,255,255,.85); border-radius: 16px; grid-column: 1 / -1; }
+  .pager { display: flex; justify-content: space-between; align-items: center;
+           margin-top: 22px; font-size: 14px; color: #64748b; }
+  .pager .pages { display: flex; gap: 6px; align-items: center; }
+
+  /* 发帖弹窗 */
+  .overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); display: none;
+             align-items: center; justify-content: center; z-index: 50; padding: 20px; backdrop-filter: blur(4px); }
+  .overlay.show { display: flex; }
+  .modal { background: rgba(255,255,255,.98); border-radius: 16px; width: 100%; max-width: 600px;
+           padding: 26px; box-shadow: 0 24px 70px rgba(15,23,42,.3);
+           max-height: 90vh; overflow-y: auto; }
+  .modal h2 { font-size: 18px; margin-bottom: 18px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; color: #64748b; margin-bottom: 6px; }
+  .field input[type=text], .field textarea { width: 100%; padding: 11px 12px;
+    border: 1px solid #e2e8f0; border-radius: 10px; font-size: 14px; outline: none;
+    font-family: inherit; resize: vertical; background: #fff; }
+  .field input:focus, .field textarea:focus { border-color: #8b5cf6;
+    box-shadow: 0 0 0 3px rgba(139,92,246,.12); }
+  .field textarea { min-height: 140px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .upload-preview { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .upload-preview .u { position: relative; }
+  .upload-preview img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; }
+  .upload-preview .u .rm { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px;
+    background: #dc2626; color: #fff; border-radius: 50%; border: none; cursor: pointer;
+    font-size: 12px; line-height: 20px; text-align: center; }
+  .hint { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+           background: #0f172a; color: #fff; padding: 10px 20px; border-radius: 8px;
+           font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 60; }
+  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #toast.err { background: #dc2626; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="inner">
+    <a href="/game.html" class="brand"><span class="logo">🎮</span><b>游戏分享</b></a>
+    <div class="nav-right" id="navRight"></div>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="hero">
+    <h1>发现与分享好游戏</h1>
+    <p>把你喜欢的游戏、封面截图和资源分享给大家，一起交流游玩心得</p>
+    <button class="btn btn-primary" onclick="openShare()">🎮 分享游戏</button>
+  </div>
+
+  <div class="toolbar">
+    <div class="tabs">
+      <button id="tab-new" class="active" onclick="setSort('new')">最新</button>
+      <button id="tab-hot" onclick="setSort('hot')">🔥 热门</button>
+      <button id="tab-top" onclick="setSort('top')">👍 最赞</button>
+    </div>
+    <div class="searchbox">
+      <input id="kw" type="text" placeholder="搜索游戏名称或介绍…" />
+      <button class="btn btn-ghost" onclick="load(1)">搜索</button>
+    </div>
+    <button class="btn btn-primary" onclick="openShare()">分享游戏</button>
+  </div>
+
+  <div class="game-grid" id="grid"></div>
+
+  <div class="pager" id="pager" style="display:none">
+    <span id="pagerInfo"></span>
+    <div class="pages">
+      <button class="btn btn-ghost btn-sm" onclick="load(state.page-1)">上一页</button>
+      <span id="pageNow"></span>
+      <button class="btn btn-ghost btn-sm" onclick="load(state.page+1)">下一页</button>
+    </div>
+  </div>
+</div>
+
+<!-- 分享游戏弹窗 -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2>分享游戏</h2>
+    <div class="field">
+      <label>游戏名称 *</label>
+      <input id="f-title" type="text" placeholder="游戏的名字" maxlength="100" />
+    </div>
+    <div class="field">
+      <label>游戏介绍 *</label>
+      <textarea id="f-content" placeholder="游戏玩法、亮点、配置要求、资源/下载方式等"></textarea>
+    </div>
+    <div class="field">
+      <label>封面 / 截图（可选，最多 9 张，第一张作为封面）</label>
+      <input type="file" id="f-file" accept="image/*" multiple />
+      <div class="upload-preview" id="up-preview"></div>
+      <div class="hint" id="up-hint"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" id="pubBtn" onclick="submitGame()">发布</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+  import { auth, api, escapeHtml, parseImages, renderNav,
+           initAnimatedBackground, initMusicPlayer, processImageForUpload } from './common.js';
+
+  const API = '/api/posts';
+  const CATEGORY = '游戏';
+  const state = { page: 1, size: 12, total: 0, sort: 'new' };
+  let pendingImages = [];
+
+  initAnimatedBackground();
+  initMusicPlayer({
+    tracks: [
+      { name: 'Follow', url: '/music/01.mp3' },
+      { name: 'Solaris', url: '/music/02.mp3' },
+    ],
+  });
+
+  function toast(msg, isErr = false) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = isErr ? 'show err' : 'show';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => (el.className = ''), 2400);
+  }
+  window.toast = toast;
+  window.logout = function () { auth.clear(); location.reload(); };
+
+  window.setSort = function (s) {
+    state.sort = s;
+    ['new','hot','top'].forEach(k =>
+      document.getElementById('tab-' + k).classList.toggle('active', k === s));
+    load(1);
+  };
+
+  async function load(page = 1) {
+    state.page = Math.max(1, page);
+    const keyword = document.getElementById('kw').value.trim();
+    const qs = new URLSearchParams({
+      page: state.page, size: state.size, sort: state.sort, category: CATEGORY,
+    });
+    if (keyword) qs.set('keyword', keyword);
+    try {
+      const data = await api(`${API}?${qs}`);
+      state.total = data.total;
+      render(data.rows);
+      renderPager();
+    } catch (e) { toast(e.message, true); }
+  }
+  window.load = load;
+
+  function render(rows) {
+    const grid = document.getElementById('grid');
+    if (!rows.length) {
+      grid.innerHTML = `<div class="empty">还没有游戏分享，点击「分享游戏」上传第一个吧 🎮</div>`;
+      document.getElementById('pager').style.display = 'none';
+      return;
+    }
+    document.getElementById('pager').style.display = 'flex';
+    grid.innerHTML = rows.map(g => {
+      const imgs = parseImages(g.images);
+      const cover = imgs[0];
+      return `
+        <div class="game-card" onclick="location.href='/post.html?id=${g.id}'">
+          <div class="cover">
+            ${cover ? `<img src="${cover}" alt="" loading="lazy" />` : `<span class="ph">🎮</span>`}
+            <span class="tag">游戏</span>
+          </div>
+          <div class="gbody">
+            <h3>${escapeHtml(g.title)}</h3>
+            <div class="gmeta">
+              <span>❤️ ${g.upvotes}</span>
+              <span>💬 ${g.comment_count}</span>
+              <span>👁 ${g.views}</span>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderPager() {
+    const totalPages = Math.max(1, Math.ceil(state.total / state.size));
+    document.getElementById('pagerInfo').textContent = `共 ${state.total} 个游戏`;
+    document.getElementById('pageNow').textContent = `${state.page} / ${totalPages}`;
+    document.querySelector('#pager .pages button:nth-child(1)').disabled = state.page <= 1;
+    document.querySelector('#pager .pages button:nth-child(3)').disabled = state.page >= totalPages;
+  }
+
+  // 弹窗
+  window.openShare = function () {
+    if (!auth.isLoggedIn()) { toast('请先登录', true); location.href = '/login.html'; return; }
+    document.getElementById('f-title').value = '';
+    document.getElementById('f-content').value = '';
+    pendingImages = [];
+    renderPending();
+    document.getElementById('overlay').classList.add('show');
+  };
+  window.closeModal = function () { document.getElementById('overlay').classList.remove('show'); };
+
+  function renderPending() {
+    document.getElementById('up-hint').textContent =
+      pendingImages.length ? `已选 ${pendingImages.length} 张` : '';
+    document.getElementById('up-preview').innerHTML = pendingImages.map((u, i) =>
+      `<div class="u"><img src="${u}" alt=""><button class="rm" onclick="removePending(${i})">×</button></div>`
+    ).join('');
+  }
+  window.removePending = function (i) { pendingImages.splice(i, 1); renderPending(); };
+
+  document.getElementById('f-file').addEventListener('change', async (e) => {
+    const files = [...e.target.files];
+    if (!files.length) return;
+    if (pendingImages.length + files.length > 9) {
+      toast('最多上传 9 张', true); e.target.value = ''; return;
+    }
+    document.getElementById('up-hint').textContent = '处理并上传中…';
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) { toast('仅支持图片', true); continue; }
+      try {
+        const processed = await processImageForUpload(f);
+        const fd = new FormData();
+        fd.append('file', processed);
+        const data = await api(`${API}/upload`, { method: 'POST', body: fd });
+        pendingImages.push(data.url);
+      } catch (err) { toast(err.message, true); }
+    }
+    e.target.value = '';
+    renderPending();
+  });
+
+  window.submitGame = async function () {
+    const payload = {
+      title: document.getElementById('f-title').value.trim(),
+      content: document.getElementById('f-content').value.trim(),
+      category: CATEGORY,
+      images: pendingImages,
+    };
+    if (!payload.title || !payload.content) return toast('游戏名称和介绍必填', true);
+    const btn = document.getElementById('pubBtn');
+    btn.disabled = true;
+    try {
+      const post = await api(API, { method: 'POST', body: JSON.stringify(payload) });
+      toast('发布成功');
+      closeModal();
+      location.href = `/post.html?id=${post.id}`;
+    } catch (e) { toast(e.message, true); }
+    btn.disabled = false;
+  };
+
+  document.getElementById('kw').addEventListener('keydown', e => {
+    if (e.key === 'Enter') load(1);
+  });
+  document.getElementById('overlay').addEventListener('click', e => {
+    if (e.target.id === 'overlay') closeModal();
+  });
+
+  renderNav('navRight', { site: 'game' });
+  load(1);
+</script>
+</body>
+</html>
