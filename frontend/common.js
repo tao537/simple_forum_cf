@@ -183,7 +183,8 @@ export function renderNav(elId = 'navRight', opts = {}) {
 
   const box = document.getElementById(elId);
   if (!auth.isLoggedIn()) {
-    box.innerHTML = `${cross}<a class="link" href="/login.html">登录 / 注册</a>`;
+    const here = encodeURIComponent(location.pathname + location.search);
+    box.innerHTML = `${cross}<a class="link" href="/login.html?redirect=${here}">登录 / 注册</a>`;
     return;
   }
   const u = auth.getUser();
