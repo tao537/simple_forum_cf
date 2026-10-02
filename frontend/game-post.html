@@ -131,8 +131,12 @@
   .gate p { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
   .gate input { width: 100%; padding: 12px 14px; border: 1px solid #ddd6fe; border-radius: 12px;
                 font-size: 15px; text-align: center; outline: none; letter-spacing: 2px; }
-  /* type=text + text-security：可切中文键盘，字符仍显示为圆点 */
-  #gate-pw { -webkit-text-security: disc; }
+  /* 密码框默认明文（保证中文输入法可启动）；点眼睛后才圆点隐藏 */
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 46px; }
+  .pw-toggle { position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+               background: none; border: none; font-size: 17px; cursor: pointer; padding: 4px; line-height: 1; }
+  #gate-pw.hide { -webkit-text-security: disc; }
   .gate input:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,.15); }
   .gate .btn { width: 100%; margin-top: 14px; padding: 12px; font-size: 15px; }
   .gate .err { color: #dc2626; font-size: 13px; min-height: 18px; margin-top: 10px; }
@@ -209,7 +213,10 @@
     <div class="em">🔐</div>
     <h2>进入游戏站</h2>
     <p>请输入访问密码进入（与苦海论坛账号互不相通）</p>
-    <input id="gate-pw" type="text" placeholder="访问密码" autocomplete="off" autocapitalize="off" spellcheck="false" />
+    <div class="pw-wrap">
+      <input id="gate-pw" type="text" placeholder="访问密码" autocomplete="off" autocapitalize="off" spellcheck="false" />
+      <button type="button" class="pw-toggle" id="pw-toggle" onclick="togglePw()">👁</button>
+    </div>
     <button class="btn btn-primary" onclick="submitGate()">进入</button>
     <div class="err" id="gate-err"></div>
     <a class="back" href="/game.html">← 返回游戏站首页</a>
@@ -256,6 +263,14 @@
   window.exitGame = function () { gameAuth.clear(); location.href = '/game.html'; };
 
   // 密码门禁
+  // 眼睛按钮：切换明文/圆点隐藏（默认明文，确保中文输入法可启动）
+  window.togglePw = function () {
+    const input = document.getElementById('gate-pw');
+    const btn = document.getElementById('pw-toggle');
+    input.classList.toggle('hide');
+    btn.textContent = input.classList.contains('hide') ? '🙈' : '👁';
+  };
+
   window.submitGate = async function () {
     const err = document.getElementById('gate-err');
     const pw = document.getElementById('gate-pw').value.trim();
