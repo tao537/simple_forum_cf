@@ -1,0 +1,13 @@
+{
+  "name": "示例游戏：星穹铁道（这里换成真实游戏名）",
+  "panUrl": "https://pan.baidu.com/s/1234567890",
+  "panCode": "abcd",
+  "genre": "回合制 RPG",
+  "platform": "安卓 / PC",
+  "tags": ["二次元", "单机", "回合制"],
+  "notes": "可选：汉化版 / MOD 菜单 / 免登录 / 版本号等给 AI 参考的信息，没有可留空或删除此字段",
+  "screenshots": [
+    "screenshots/game1-1.jpg",
+    "screenshots/game1-2.jpg"
+  ]
+}

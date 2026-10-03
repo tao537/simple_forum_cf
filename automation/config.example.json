@@ -1,0 +1,22 @@
+{
+  "apiBase": "https://api.kuhai.de5.net",
+  "siteBase": "https://kuhai.de5.net",
+  "forumAdmin": {
+    "username": "admin",
+    "password": "填论坛管理员密码（仅用于上传截图到 KV，可留空则无法传截图）"
+  },
+  "game": {
+    "gatePassword": "利益or节操",
+    "adminUsername": "填游戏站管理员账号（首个注册的那个）",
+    "adminPassword": "填游戏站管理员密码"
+  },
+  "ollama": {
+    "baseUrl": "http://localhost:11434",
+    "model": "qwen2.5:7b"
+  },
+  "cloudAi": {
+    "baseUrl": "https://api.deepseek.com/v1",
+    "apiKey": "",
+    "model": "deepseek-chat"
+  }
+}
