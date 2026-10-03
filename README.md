@@ -259,6 +259,20 @@ npx wrangler kv namespace create IMG_KV
 6. **migrate.sql 重复执行报错**
    迁移只需执行一次，重复执行会因列已存在报错，属正常。
 
+7. **`git pull` / `git push` 卡住不动或超时**
+   `github.com:22` 经 Clash 代理不通（`Connection timed out during banner exchange`），
+   而 `~/.gitconfig` 里的 `insteadOf = git@github.com:` 会把 SSH 地址改写成 HTTPS。
+   所以本仓库 remote 固定用别名 `git@github-cline:tao537/simple_forum_cf.git`，
+   `~/.ssh/config` 中 `github-cline` 指向 `ssh.github.com:443` + `ProxyCommand nc -X connect -x 127.0.0.1:7890`。
+   脚本里调用 git 必须配 `timeout` 与 `-o BatchMode=yes`，否则握手失败会一直挂住（看起来像卡死）。
+
+8. **game-account-migrate.sql 报 `duplicate column name`**
+   该文件里的 `ALTER TABLE ... ADD COLUMN` 非幂等（SQLite 不支持 `ADD COLUMN IF NOT EXISTS`），
+   重复执行会让 wrangler 整批回滚并报错。执行前先查结构，例如
+   `pragma_table_info('posts')` 里有没有 `author_user_id`，缺什么补什么。
+   注意 `wrangler d1 execute --json` 的输出**是带缩进的**（`"name": "posts"`，冒号后有空格），
+   解析时必须容忍空白，否则会把"已存在"误判成"缺失"而重复 ALTER。
+
 ---
 
 ## 七、环境约束（务必遵守）
