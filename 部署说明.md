@@ -1,6 +1,8 @@
 # 论坛 + 游戏分享 — 部署说明
 
-基于 **Cloudflare Workers + Hono + D1 + Pages** 的双站点项目：一个论坛、一个游戏分享板块，共用同一套账号与后端。
+基于 **Cloudflare Workers + Hono + D1 + KV + Pages** 的双站点项目：一个论坛、一个游戏分享板块。
+两站**共用同一个 Worker 后端**，但数据互相隔离 —— 论坛用 `forum-db`，游戏站用 `game-db`，
+且**各自有独立的账号体系**（论坛账号不会在游戏站自动登录）。
 
 ---
 
@@ -9,21 +11,27 @@
 ```
 simple_forum_cf/
 ├── backend/                 # 后端 → Cloudflare Workers（API）
-│   ├── src/index.ts         # 所有接口代码
-│   ├── schema.sql           # 完整表结构（新库用）
-│   ├── migrate.sql          # 增量迁移（已有库用）
-│   ├── wrangler.jsonc       # Worker 配置（D1 / R2 绑定）
+│   ├── src/index.ts         # 所有接口代码（论坛 + 游戏站）
+│   ├── schema.sql           # 论坛表结构（新库用）
+│   ├── migrate.sql          # 论坛增量迁移（已有库用）
+│   ├── game-schema.sql      # 游戏站表结构（新库用）
+│   ├── game-account-migrate.sql  # 游戏站账号体系增量迁移（非幂等，先查列再执行）
+│   ├── README.md            # 后端说明
+│   ├── wrangler.jsonc       # Worker 配置（D1×2 / KV 绑定）
 │   ├── package.json
 │   ├── .dev.vars            # 本地开发密钥（JWT_SECRET，勿提交）
 │   └── node_modules/        # 依赖（Linux 版，可直接用于 Linux）
 └── frontend/                # 前端 → Cloudflare Pages（网页）
-    ├── index.html           # 论坛首页
+    ├── index.html           # 站点入口（论坛 / 游戏站二选一）
+    ├── forum.html           # 论坛首页（帖子列表）
     ├── game.html            # 游戏分享板块
-    ├── post.html            # 帖子详情（论坛/游戏共用）
+    ├── post.html            # 论坛帖子详情
+    ├── game-post.html       # 游戏帖子详情
     ├── admin.html           # 管理后台
-    ├── login.html           # 登录/注册（左右双入口）
+    ├── login.html           # 登录 / 注册（左右双入口）
     ├── notifications.html   # 消息通知
     ├── user.html            # 个人主页
+    ├── 404.html             # 自定义 404
     ├── common.js            # 共享脚本（登录态、请求、设置、图片压缩）
     ├── music/               # 背景音乐
     ├── wallpapers/          # 壁纸
@@ -36,8 +44,8 @@ simple_forum_cf/
 |---|---|---|
 | `backend/` | **Cloudflare Workers** | `npx wrangler deploy` |
 | `frontend/` 里的内容 | **Cloudflare Pages** | Git 连接 或 控制台直接上传 |
-| 数据库表 | **Cloudflare D1** | `npx wrangler d1 execute` |
-| 图片（可选） | **Cloudflare R2** | 建桶 + 开启 `wrangler.jsonc` 里的绑定 |
+| 数据库表 | **Cloudflare D1**（`forum-db` 论坛库 / `game-db` 游戏库，双库互相隔离） | `npx wrangler d1 execute` |
+| 图片存储 | **Cloudflare KV**（`IMG_KV`，免费 1 GB／1000 写/天，**无需绑卡**） | `npx wrangler kv namespace create IMG_KV` + 写入 `wrangler.jsonc` |
 
 整体关系（域名规划）：
 
@@ -48,8 +56,9 @@ simple_forum_cf/
             │ fetch 调用
             ▼
 后端 Worker → https://api.kuhai.de5.net
-            ├─ D1（数据库）
-            └─ R2（图片，可选）
+            ├─ D1：forum-db（论坛数据）
+            ├─ D1：game-db（游戏站数据，与论坛完全隔离）
+            └─ KV：IMG_KV（图片，二进制直存，免费 1 GB）
 ```
 
 > 域名 `kuhai.de5.net` 在 DNSHE 注册，NS 已托管到 Cloudflare（walt/sloan.ns.cloudflare.com），
@@ -151,23 +160,53 @@ npx wrangler dev
 
 ---
 
-## 四、图片上传（R2，可选）
+## 四、图片上传（Cloudflare KV）
 
-不配 R2 不影响发帖、评论、点赞、搜索等功能，上传接口会返回 501 提示。
+图片走 **KV 二进制直存**（已从 R2 / 第三方图床迁移过来）：免费、**无需绑卡**，且国内可直连。
 
-1. Cloudflare 控制台 → R2 → 创建存储桶，例如 `forum-images`。
-2. 打开 `backend/wrangler.jsonc`，把 `r2_buckets` 那段注释去掉：
+### 4.1 建命名空间并绑定
+
+```bash
+# 1) 创建命名空间（务必从输出里复制 id —— 本项目曾因手抄错 id 三次部署失败）
+npx wrangler kv namespace create IMG_KV
+```
+
+2. 把 id 填进 `backend/wrangler.jsonc`：
 
    ```jsonc
-   "r2_buckets": [
-     { "binding": "IMG_BUCKET", "bucket_name": "forum-images",
-       "preview_bucket_name": "forum-images" }
+   "kv_namespaces": [
+     { "binding": "IMG_KV", "id": "f677e3ee4a4a4484b2dc54aad6ce0de1" }
    ],
    ```
 
 3. 重新部署：`npx wrangler deploy --minify`。
 
-图片通过 Worker 路由 `/img/<key>` 回读，无需单独配置公开域名。
+### 4.2 接口一览
+
+| 用途 | 方法与路径 | 鉴权 |
+|---|---|---|
+| 论坛上传 | `POST /api/posts/upload` | 论坛 JWT |
+| 游戏站上传 | `POST /api/game/posts/upload` | 游戏站密码（token scope=game） |
+| 读取（`<img src>` 直接引用） | `GET /img/:id` | 无 |
+
+- 表单字段名 `file`，仅接受 `image/*`，**单张 ≤ 5 MB**
+- 存储位置：`IMG_KV` 的 `img:<id>`，**二进制 ArrayBuffer 直存**（比 base64 省约 33% 空间）
+- **不设 `expirationTtl` → 图片永久保存**；读取时返回 `Cache-Control: public, max-age=31536000, immutable`
+- 上传接口返回**绝对地址** `https://api.kuhai.de5.net/img/<id>`
+  （前端在 Pages 上，若返回相对路径 `/img/...` 会打到 Pages 得到 404）
+
+### 4.3 免费额度与运维
+
+| 项 | KV 免费额度 | 说明 |
+|---|---|---|
+| 存储 | 1 GB | 按单张 5 MB 上限算，约可存 200 张满额图 |
+| 写入 | 1,000 次/天 | 即每天最多 1,000 次上传 |
+| 读取 | 100,000 次/天 | 浏览器有 1 年缓存，实际读取远低于此 |
+| 单 value | 25 MiB | 远高于接口的 5 MB 限制 |
+
+> 存满后的处理：先删无用图片
+> `npx wrangler kv key delete --namespace-id <IMG_KV_id> "img:<id>"`
+> 或改用 R2（需绑卡，10 GB 免费）。
 
 ---
 
@@ -178,9 +217,16 @@ npx wrangler dev
 - 评论、评论点赞、帖子点赞
 - 回复 / @提及 / 点赞 会产生消息通知
 
-### 游戏分享
+### 游戏分享（游戏站，与论坛隔离）
+
 - 独立紫色主题板块，封面墙展示，帖子归入「游戏」分类
 - 支持最新/热门/最赞排序与搜索
+- **访问需密码**：在游戏站输入访问密码换取 `scope=game` 的 token（**12 小时**有效），与论坛登录态完全隔离
+- **独立账号体系**：游戏站可自行注册 / 登录（数据在 `game-db`），发帖评论显示账号身份；
+  未登录则以「访客昵称」发帖
+- **独立数据库**：游戏站的用户 / 帖子 / 评论 / 图片都走 `game-db`（`GAME_DB` 绑定），
+  与论坛 `forum-db` 互不影响 —— 论坛账号在游戏站不会自动登录，反之亦然
+- 游戏站管理员：拥有游戏站的帖子管理权限（任命方式与论坛管理员相同）
 
 ### 管理员（第一个注册用户自动成为管理员）
 - **数据概览**：用户 / 帖子 / 评论 / 点赞统计、今日新增、分类分布、热门帖子
@@ -198,8 +244,11 @@ npx wrangler dev
 2. **查询报 `no such column: category`**
    已有数据库未迁移，执行 `npx wrangler d1 execute forum-db --remote --file migrate.sql`。
 
-3. **图片上传报 501**
-   未配置 R2，按「第四节」操作；或不使用图片上传。
+3. **图片上传失败**
+   - 报 `501`／提示未绑定：`wrangler.jsonc` 缺 `kv_namespaces`，按「第四节」配置后重新部署。
+   - 报「图片不能超过 5MB」：单张上限 5 MB（前端 `compressImage` 会先压缩，可调低压缩质量）。
+   - 上传成功但图片不显示：确认接口返回的是 `https://api.kuhai.de5.net/img/...` 绝对地址
+     （相对路径会被 Pages 当成自己的路由 → 404）。
 
 4. **`wrangler dev` 报平台二进制错误**
    node_modules 是在其他平台安装的，在当前平台执行 `npm install` 重建。
