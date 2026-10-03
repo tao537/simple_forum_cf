@@ -50,10 +50,35 @@
   .tabs button { border: none; background: transparent; padding: 8px 16px; cursor: pointer;
                  border-radius: 8px; font-size: 14px; font-weight: 600; color: #64748b; transition: .15s; }
   .tabs button.active { background: #f3e8ff; color: #7c3aed; }
-  .searchbox { display: flex; flex: 1; min-width: 200px; gap: 8px; }
-  .searchbox input { flex: 1; padding: 10px 14px; border: 1px solid rgba(226,232,240,.8);
-                     border-radius: 10px; font-size: 14px; outline: none; background: rgba(255,255,255,.9); }
+  .searchbox { display: flex; flex: 1; min-width: 200px; gap: 8px; position: relative; }
+  .searchbox .search-wrap { position: relative; flex: 1; min-width: 0; }
+  .searchbox input { width: 100%; padding: 10px 34px 10px 14px; border: 1px solid rgba(226,232,240,.8);
+                     border-radius: 10px; font-size: 14px; outline: none; background: rgba(255,255,255,.9); box-sizing: border-box; }
   .searchbox input:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,.15); }
+  .search-clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+                  border: none; background: none; color: #94a3b8; font-size: 14px; cursor: pointer; padding: 2px 4px; display: none; }
+  .search-clear:hover { color: #475569; }
+  /* 联想/历史/热词下拉 */
+  .suggest { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50;
+             background: rgba(255,255,255,.97); border: 1px solid #e2e8f0; border-radius: 12px;
+             box-shadow: 0 12px 32px rgba(15,23,42,.16); padding: 10px 8px; max-height: 340px; overflow-y: auto; }
+  .suggest-sec { margin-bottom: 8px; }
+  .suggest-sec:last-child { margin-bottom: 0; }
+  .suggest-title { font-size: 12px; font-weight: 700; color: #94a3b8; padding: 4px 10px 6px; display: flex;
+                   justify-content: space-between; align-items: center; }
+  .suggest-title .s-clear { color: #94a3b8; cursor: pointer; font-weight: 500; font-size: 12px; }
+  .suggest-title .s-clear:hover { color: #dc2626; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; margin: 3px;
+          border-radius: 20px; font-size: 13px; cursor: pointer; transition: .12s;
+          border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; }
+  .chip:hover { background: #f3e8ff; border-color: #c4b5fd; color: #7c3aed; }
+  .chip .x { color: #cbd5e1; font-size: 12px; }
+  .chip .x:hover { color: #dc2626; }
+  .suggest-list .item { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none;
+                        background: none; border-radius: 8px; font-size: 14px; color: #334155; cursor: pointer; }
+  .suggest-list .item:hover { background: #f5f3ff; color: #7c3aed; }
+  .suggest-empty { font-size: 13px; color: #94a3b8; padding: 6px 12px; }
+  mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; }
 
   .btn { padding: 9px 16px; border: none; border-radius: 10px; cursor: pointer;
          font-size: 14px; font-weight: 600; transition: .15s; white-space: nowrap; }
@@ -172,7 +197,24 @@
       <button id="tab-top" onclick="setSort('top')">👍 最赞</button>
     </div>
     <div class="searchbox">
-      <input id="kw" type="text" placeholder="搜索游戏名称或介绍…" />
+      <div class="search-wrap">
+        <input id="kw" type="text" placeholder="搜索游戏名称或介绍…" autocomplete="off" />
+        <button class="search-clear" id="kwClear" onclick="clearKw(event)" title="清除">✕</button>
+        <div class="suggest" id="suggest" style="display:none">
+          <div class="suggest-sec" id="sec-history" style="display:none">
+            <div class="suggest-title">🕘 搜索历史 <span class="s-clear" onclick="clearHistory(event)">清空</span></div>
+            <div id="suggest-history"></div>
+          </div>
+          <div class="suggest-sec" id="sec-hot" style="display:none">
+            <div class="suggest-title">🔥 热门搜索</div>
+            <div id="suggest-hot"></div>
+          </div>
+          <div class="suggest-sec" id="sec-list" style="display:none">
+            <div class="suggest-title">💡 联想</div>
+            <div class="suggest-list" id="suggest-list"></div>
+          </div>
+        </div>
+      </div>
       <button class="btn btn-ghost" onclick="load(1)">搜索</button>
     </div>
     <button class="btn btn-primary" onclick="openShare()">分享游戏</button>
@@ -242,7 +284,7 @@
            initMusicPlayer, processImageForUpload } from './common.js';
 
   const API = '/api/game/posts';
-  const state = { page: 1, size: 12, total: 0, sort: 'new' };
+  const state = { page: 1, size: 12, total: 0, sort: 'new', keyword: '' };
   let pendingImages = [];
 
   initAnimatedBackground({ images: ['/wallpapers/game-anime.jpg'] });
@@ -336,9 +378,14 @@
 
   async function load(page = 1) {
     state.page = Math.max(1, page);
-    const keyword = document.getElementById('kw').value.trim();
+    state.keyword = document.getElementById('kw').value.trim();
+    // 首页搜索时记录历史（同一关键词只记一次）
+    if (state.page === 1 && state.keyword && state.keyword !== lastLoggedKw) {
+      lastLoggedKw = state.keyword;
+      addHistory(state.keyword);
+    }
     const qs = new URLSearchParams({ page: state.page, size: state.size, sort: state.sort });
-    if (keyword) qs.set('keyword', keyword);
+    if (state.keyword) qs.set('keyword', state.keyword);
     try {
       const data = await gameApi(`${API}?${qs}`);
       state.total = data.total;
@@ -352,10 +399,86 @@
   }
   window.load = load;
 
+  // ==================== 搜索增强（历史/热词/联想/高亮） ====================
+  const HISTORY_KEY = 'kuhai_history';
+  const HOT_WORDS = ['原神', '单机', '联机', '手游', 'PC', '推荐'];
+  let lastLoggedKw = '';
+  let suggestTimer = null, debounceTimer = null;
+
+  function getHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; } }
+  function saveHistory(h) { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0, 8))); } catch {} }
+  function addHistory(kw) {
+    kw = kw.trim(); if (!kw) return;
+    saveHistory([kw, ...getHistory().filter(x => x !== kw)]);
+  }
+  function escapeAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+  // 关键词高亮：先 split 再逐段转义，避免 XSS
+  function hl(text, kw) {
+    if (!kw) return escapeHtml(text);
+    const parts = String(text).split(kw);
+    return parts.map((p, i) => i < parts.length - 1 ? escapeHtml(p) + '<mark>' + escapeHtml(kw) + '</mark>' : escapeHtml(p)).join('');
+  }
+  function renderSuggest() {
+    const kw = document.getElementById('kw').value.trim();
+    const hist = getHistory();
+    const secH = document.getElementById('sec-history');
+    const secHot = document.getElementById('sec-hot');
+    const secList = document.getElementById('sec-list');
+    secH.style.display = hist.length ? '' : 'none';
+    document.getElementById('suggest-history').innerHTML = hist.map(w =>
+      `<span class="chip" data-kw="${escapeAttr(w)}" onclick="searchWith(this.dataset.kw)">${escapeHtml(w)}<span class="x" onclick="removeHistory(event, this)">✕</span></span>`).join('');
+    secHot.style.display = kw ? 'none' : '';
+    document.getElementById('suggest-hot').innerHTML = HOT_WORDS.map(w =>
+      `<span class="chip" onclick="searchWith('${escapeAttr(w)}')">${escapeHtml(w)}</span>`).join('');
+    const show = hist.length || !kw;
+    document.getElementById('suggest').style.display = show ? '' : 'none';
+    if (!kw) secList.style.display = 'none';
+  }
+  function fetchSuggest() {
+    const kw = document.getElementById('kw').value.trim();
+    const secList = document.getElementById('sec-list');
+    const box = document.getElementById('suggest-list');
+    if (!kw) { secList.style.display = 'none'; return; }
+    gameApi(`${API}/suggest?keyword=${encodeURIComponent(kw)}&limit=6`)
+      .then(d => {
+        if (!d.rows || !d.rows.length) { secList.style.display = 'none'; return; }
+        box.innerHTML = d.rows.map(r =>
+          `<button class="item" onclick="searchWith('${escapeAttr(r.title)}')">${hl(r.title, kw)}</button>`).join('');
+        secList.style.display = '';
+      }).catch(() => { secList.style.display = 'none'; });
+  }
+  window.searchWith = function (kw) {
+    kw = (kw || '').trim();
+    if (!kw) return;
+    document.getElementById('kw').value = kw;
+    document.getElementById('suggest').style.display = 'none';
+    addHistory(kw);
+    state.keyword = kw;
+    load(1);
+  };
+  window.clearKw = function (e) {
+    if (e) e.stopPropagation();
+    const input = document.getElementById('kw');
+    input.value = '';
+    document.getElementById('kwClear').style.display = 'none';
+    document.getElementById('suggest').style.display = 'none';
+    if (state.keyword) { state.keyword = ''; load(1); }
+    input.focus();
+  };
+  window.clearHistory = function (e) { if (e) e.stopPropagation(); localStorage.removeItem(HISTORY_KEY); renderSuggest(); };
+  window.removeHistory = function (e, el) {
+    e.stopPropagation();
+    saveHistory(getHistory().filter(x => x !== el.parentElement.getAttribute('data-kw')));
+    renderSuggest();
+  };
+  // ==================== /搜索增强 ====================
+
   function render(rows) {
     const grid = document.getElementById('grid');
     if (!rows.length) {
-      grid.innerHTML = `<div class="empty">还没有游戏分享，点击「分享游戏」上传第一个吧 🎮</div>`;
+      grid.innerHTML = state.keyword
+        ? `<div class="empty">没有找到与「${escapeHtml(state.keyword)}」相关的游戏<br /><span style="font-size:13px;color:#94a3b8">换个关键词试试，或看看全部游戏</span></div>`
+        : `<div class="empty">还没有游戏分享，点击「分享游戏」上传第一个吧 🎮</div>`;
       document.getElementById('pager').style.display = 'none';
       return;
     }
@@ -370,7 +493,7 @@
             <span class="tag">${g.pinned ? '📌 ' : ''}${g.featured ? '⭐ ' : ''}游戏</span>
           </div>
           <div class="gbody">
-            <h3>${escapeHtml(g.title)}</h3>
+            <h3>${hl(g.title, state.keyword)}</h3>
             <div class="gauthor">👤 ${escapeHtml(g.author_name)}</div>
             <div class="gmeta">
               <span>❤️ ${g.upvotes}</span>
@@ -454,9 +577,20 @@
     btn.disabled = false;
   };
 
-  document.getElementById('kw').addEventListener('keydown', e => {
-    if (e.key === 'Enter') load(1);
+  const kwInput = document.getElementById('kw');
+  kwInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { clearTimeout(debounceTimer); clearTimeout(suggestTimer); load(1); }
   });
+  kwInput.addEventListener('input', () => {
+    const v = kwInput.value;
+    document.getElementById('kwClear').style.display = v ? '' : 'none';
+    clearTimeout(suggestTimer); clearTimeout(debounceTimer);
+    renderSuggest();
+    suggestTimer = setTimeout(fetchSuggest, 300);
+    debounceTimer = setTimeout(() => { if (kwInput.value.trim()) load(1); }, 400);
+  });
+  kwInput.addEventListener('focus', () => { renderSuggest(); document.getElementById('suggest').style.display = ''; });
+  kwInput.addEventListener('blur', () => { setTimeout(() => { document.getElementById('suggest').style.display = 'none'; }, 200); });
   document.getElementById('overlay').addEventListener('click', e => {
     if (e.target.id === 'overlay') closeModal();
   });

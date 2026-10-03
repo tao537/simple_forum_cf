@@ -301,6 +301,21 @@ app.get('/api/posts/featured', async (c) => {
   return c.json({ rows: results });
 });
 
+// 搜索联想（按标题模糊匹配，返回 id+title 供前端下拉）
+// 必须在 /api/posts/:id 之前注册，避免被当作 id 匹配
+app.get('/api/posts/suggest', async (c) => {
+  const keyword = (c.req.query('keyword') || '').trim();
+  const limit = Math.max(1, Math.min(8, Number(c.req.query('limit')) || 6));
+  if (!keyword) return c.json({ rows: [] });
+  const db = c.env.DB;
+  const kw = `%${keyword}%`;
+  const { results } = await db
+    .prepare('SELECT id, title FROM posts WHERE title LIKE ? ORDER BY views DESC, id DESC LIMIT ?')
+    .bind(kw, limit)
+    .all<{ id: number; title: string }>();
+  return c.json({ rows: results });
+});
+
 // 图片上传（存 Cloudflare KV，免费 1GB，无需绑卡）
 app.post('/api/posts/upload', async (c) => {
   const payload = await getAuth(c);
@@ -1157,6 +1172,22 @@ app.get('/api/game/posts/featured', async (c) => {
        FROM posts p WHERE p.is_featured = 1 ORDER BY p.id DESC LIMIT 6`
     )
     .all();
+  return c.json({ rows: results });
+});
+
+// 游戏站搜索联想（按标题模糊匹配，返回 id+title 供前端下拉）
+// 必须在 /api/game/posts/:id 之前注册，避免被当作 id 匹配
+app.get('/api/game/posts/suggest', async (c) => {
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  const keyword = (c.req.query('keyword') || '').trim();
+  const limit = Math.max(1, Math.min(8, Number(c.req.query('limit')) || 6));
+  if (!keyword) return c.json({ rows: [] });
+  const db = c.env.GAME_DB;
+  const kw = `%${keyword}%`;
+  const { results } = await db
+    .prepare('SELECT id, title FROM posts WHERE title LIKE ? ORDER BY views DESC, id DESC LIMIT ?')
+    .bind(kw, limit)
+    .all<{ id: number; title: string }>();
   return c.json({ rows: results });
 });
 

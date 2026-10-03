@@ -97,10 +97,35 @@
                  border-radius: 8px; font-size: 14px; font-weight: 600; color: #64748b;
                  transition: .15s; }
   .tabs button.active { background: #eff6ff; color: #2563eb; }
-  .searchbox { display: flex; flex: 1; min-width: 200px; gap: 8px; }
-  .searchbox input { flex: 1; padding: 10px 14px; border: 1px solid rgba(226,232,240,.8);
-                     border-radius: 10px; font-size: 14px; outline: none; background: rgba(255,255,255,.88); }
+  .searchbox { display: flex; flex: 1; min-width: 200px; gap: 8px; position: relative; }
+  .searchbox .search-wrap { position: relative; flex: 1; min-width: 0; }
+  .searchbox input { width: 100%; padding: 10px 34px 10px 14px; border: 1px solid rgba(226,232,240,.8);
+                     border-radius: 10px; font-size: 14px; outline: none; background: rgba(255,255,255,.88); box-sizing: border-box; }
   .searchbox input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+  .search-clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+                  border: none; background: none; color: #94a3b8; font-size: 14px; cursor: pointer; padding: 2px 4px; display: none; }
+  .search-clear:hover { color: #475569; }
+  /* 联想/历史/热词下拉 */
+  .suggest { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50;
+             background: rgba(255,255,255,.97); border: 1px solid #e2e8f0; border-radius: 12px;
+             box-shadow: 0 12px 32px rgba(15,23,42,.16); padding: 10px 8px; max-height: 340px; overflow-y: auto; }
+  .suggest-sec { margin-bottom: 8px; }
+  .suggest-sec:last-child { margin-bottom: 0; }
+  .suggest-title { font-size: 12px; font-weight: 700; color: #94a3b8; padding: 4px 10px 6px; display: flex;
+                   justify-content: space-between; align-items: center; }
+  .suggest-title .s-clear { color: #94a3b8; cursor: pointer; font-weight: 500; font-size: 12px; }
+  .suggest-title .s-clear:hover { color: #dc2626; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; margin: 3px;
+          border-radius: 20px; font-size: 13px; cursor: pointer; transition: .12s;
+          border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; }
+  .chip:hover { background: #eff6ff; border-color: #93c5fd; color: #2563eb; }
+  .chip .x { color: #cbd5e1; font-size: 12px; }
+  .chip .x:hover { color: #dc2626; }
+  .suggest-list .item { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none;
+                        background: none; border-radius: 8px; font-size: 14px; color: #334155; cursor: pointer; }
+  .suggest-list .item:hover { background: #f1f5f9; color: #2563eb; }
+  .suggest-empty { font-size: 13px; color: #94a3b8; padding: 6px 12px; }
+  mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; }
 
   .btn { padding: 9px 16px; border: none; border-radius: 10px; cursor: pointer;
          font-size: 14px; font-weight: 600; transition: .15s; white-space: nowrap; }
@@ -229,7 +254,24 @@
       <button id="tab-top" onclick="setSort('top')">👍 最赞</button>
     </div>
     <div class="searchbox">
-      <input id="kw" type="text" placeholder="搜索标题或内容…" />
+      <div class="search-wrap">
+        <input id="kw" type="text" placeholder="搜索标题或内容…" autocomplete="off" />
+        <button class="search-clear" id="kwClear" onclick="clearKw(event)" title="清除">✕</button>
+        <div class="suggest" id="suggest" style="display:none">
+          <div class="suggest-sec" id="sec-history" style="display:none">
+            <div class="suggest-title">🕘 搜索历史 <span class="s-clear" onclick="clearHistory(event)">清空</span></div>
+            <div id="suggest-history"></div>
+          </div>
+          <div class="suggest-sec" id="sec-hot" style="display:none">
+            <div class="suggest-title">🔥 热门搜索</div>
+            <div id="suggest-hot"></div>
+          </div>
+          <div class="suggest-sec" id="sec-list" style="display:none">
+            <div class="suggest-title">💡 联想</div>
+            <div class="suggest-list" id="suggest-list"></div>
+          </div>
+        </div>
+      </div>
       <button class="btn btn-ghost" onclick="load(1)">搜索</button>
     </div>
     <button class="btn btn-primary" onclick="openCreate()">✏️ 发帖</button>
@@ -419,6 +461,11 @@
   async function load(page = 1) {
     state.page = Math.max(1, page);
     state.keyword = document.getElementById('kw').value.trim();
+    // 首页搜索时记录历史（同一关键词只记一次）
+    if (state.page === 1 && state.keyword && state.keyword !== lastLoggedKw) {
+      lastLoggedKw = state.keyword;
+      addHistory(state.keyword);
+    }
     const qs = new URLSearchParams({ page: state.page, size: state.size, keyword: state.keyword, sort: state.sort });
     if (state.category) qs.set('category', state.category);
     try {
@@ -431,10 +478,86 @@
   }
   window.load = load;
 
+  // ==================== 搜索增强（历史/热词/联想/高亮） ====================
+  const HISTORY_KEY = 'kuhai_history';
+  const HOT_WORDS = ['高考', '壁纸', '英语', '学习方法', '数学', '经验分享'];
+  let lastLoggedKw = '';
+  let suggestTimer = null, debounceTimer = null;
+
+  function getHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; } }
+  function saveHistory(h) { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0, 8))); } catch {} }
+  function addHistory(kw) {
+    kw = kw.trim(); if (!kw) return;
+    saveHistory([kw, ...getHistory().filter(x => x !== kw)]);
+  }
+  function escapeAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+  // 关键词高亮：先 split 再逐段转义，避免 XSS；kw 含特殊字符也安全
+  function hl(text, kw) {
+    if (!kw) return escapeHtml(text);
+    const parts = String(text).split(kw);
+    return parts.map((p, i) => i < parts.length - 1 ? escapeHtml(p) + '<mark>' + escapeHtml(kw) + '</mark>' : escapeHtml(p)).join('');
+  }
+  function renderSuggest() {
+    const kw = document.getElementById('kw').value.trim();
+    const hist = getHistory();
+    const secH = document.getElementById('sec-history');
+    const secHot = document.getElementById('sec-hot');
+    const secList = document.getElementById('sec-list');
+    secH.style.display = hist.length ? '' : 'none';
+    document.getElementById('suggest-history').innerHTML = hist.map(w =>
+      `<span class="chip" data-kw="${escapeAttr(w)}" onclick="searchWith(this.dataset.kw)">${escapeHtml(w)}<span class="x" onclick="removeHistory(event, this)">✕</span></span>`).join('');
+    secHot.style.display = kw ? 'none' : '';
+    document.getElementById('suggest-hot').innerHTML = HOT_WORDS.map(w =>
+      `<span class="chip" onclick="searchWith('${escapeAttr(w)}')">${escapeHtml(w)}</span>`).join('');
+    const show = hist.length || !kw;
+    document.getElementById('suggest').style.display = show ? '' : 'none';
+    if (!kw) secList.style.display = 'none';
+  }
+  function fetchSuggest() {
+    const kw = document.getElementById('kw').value.trim();
+    const secList = document.getElementById('sec-list');
+    const box = document.getElementById('suggest-list');
+    if (!kw) { secList.style.display = 'none'; return; }
+    api(`${API}/suggest?keyword=${encodeURIComponent(kw)}&limit=6`)
+      .then(d => {
+        if (!d.rows || !d.rows.length) { secList.style.display = 'none'; return; }
+        box.innerHTML = d.rows.map(r =>
+          `<button class="item" onclick="searchWith('${escapeAttr(r.title)}')">${hl(r.title, kw)}</button>`).join('');
+        secList.style.display = '';
+      }).catch(() => { secList.style.display = 'none'; });
+  }
+  window.searchWith = function (kw) {
+    kw = (kw || '').trim();
+    if (!kw) return;
+    document.getElementById('kw').value = kw;
+    document.getElementById('suggest').style.display = 'none';
+    addHistory(kw);
+    state.keyword = kw;
+    load(1);
+  };
+  window.clearKw = function (e) {
+    if (e) e.stopPropagation();
+    const input = document.getElementById('kw');
+    input.value = '';
+    document.getElementById('kwClear').style.display = 'none';
+    document.getElementById('suggest').style.display = 'none';
+    if (state.keyword) { state.keyword = ''; load(1); }
+    input.focus();
+  };
+  window.clearHistory = function (e) { if (e) e.stopPropagation(); localStorage.removeItem(HISTORY_KEY); renderSuggest(); };
+  window.removeHistory = function (e, el) {
+    e.stopPropagation();
+    saveHistory(getHistory().filter(x => x !== el.parentElement.getAttribute('data-kw')));
+    renderSuggest();
+  };
+  // ==================== /搜索增强 ====================
+
   function render(rows) {
     const box = document.getElementById('list');
     if (!rows.length) {
-      box.innerHTML = `<div class="empty">还没有帖子，点击「发帖」发第一条吧 ✨</div>`;
+      box.innerHTML = state.keyword
+        ? `<div class="empty">没有找到与「${escapeHtml(state.keyword)}」相关的内容<br /><span style="font-size:13px;color:#94a3b8">换个关键词试试，或看看全部帖子</span></div>`
+        : `<div class="empty">还没有帖子，点击「发帖」发第一条吧 ✨</div>`;
       document.getElementById('pager').style.display = 'none';
       return;
     }
@@ -451,9 +574,9 @@
             ${p.featured ? '<span class="star-badge">⭐ 精选</span>' : ''}
             ${hot ? '<span class="hot-badge">🔥 热门</span>' : ''}
             ${p.category ? `<span class="cat-badge">${escapeHtml(p.category)}</span>` : ''}
-            ${escapeHtml(p.title)}${me ? '<span class="tag-me">我</span>' : ''}
+            ${hl(p.title, state.keyword)}${me ? '<span class="tag-me">我</span>' : ''}
           </div>
-          <div class="post-summary">${escapeHtml(p.summary || '')}</div>
+          <div class="post-summary">${hl(p.summary || '', state.keyword)}</div>
           ${imgs.length ? `<div class="thumbs">${imgs.slice(0,4).map(i => `<img src="${escapeHtml(i)}" alt="" loading="lazy" />`).join('')}</div>` : ''}
           <div class="post-meta">
             <span>👤 ${escapeHtml(p.author_name)}</span>
@@ -541,9 +664,21 @@
     btn.disabled = false;
   };
 
-  document.getElementById('kw').addEventListener('keydown', e => {
-    if (e.key === 'Enter') load(1);
+  const kwInput = document.getElementById('kw');
+  kwInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { clearTimeout(debounceTimer); clearTimeout(suggestTimer); load(1); }
   });
+  kwInput.addEventListener('input', () => {
+    const v = kwInput.value;
+    document.getElementById('kwClear').style.display = v ? '' : 'none';
+    clearTimeout(suggestTimer); clearTimeout(debounceTimer);
+    renderSuggest();
+    // 停止输入 300ms 后请求联想，再停 400ms 自动搜索（Discourse 式即时搜索）
+    suggestTimer = setTimeout(fetchSuggest, 300);
+    debounceTimer = setTimeout(() => { if (kwInput.value.trim()) load(1); }, 400);
+  });
+  kwInput.addEventListener('focus', () => { renderSuggest(); document.getElementById('suggest').style.display = ''; });
+  kwInput.addEventListener('blur', () => { setTimeout(() => { document.getElementById('suggest').style.display = 'none'; }, 200); });
   document.getElementById('overlay').addEventListener('click', e => {
     if (e.target.id === 'overlay') closeModal();
   });
