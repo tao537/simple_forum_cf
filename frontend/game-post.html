@@ -245,6 +245,7 @@
     <div class="em">🔐</div>
     <h2>进入游戏站</h2>
     <p>请输入访问密码进入（与苦海论坛账号互不相通）</p>
+    <p id="gate-hint" style="font-size:13px;color:#94a3b8;margin:0 0 12px;text-align:center"></p>
     <div class="pw-wrap">
       <input id="gate-pw" type="text" placeholder="访问密码" autocomplete="off" autocapitalize="off" spellcheck="false" />
       <button type="button" class="pw-toggle" id="pw-toggle" onclick="togglePw()">👁</button>
@@ -351,6 +352,16 @@
   };
 
   // 密码门禁
+  // 加载门禁提示词（管理员可在后台修改）
+  async function loadGateHint() {
+    try {
+      const r = await gameApi('/api/game/hint');
+      const el = document.getElementById('gate-hint');
+      if (el && r.hint) el.textContent = r.hint;
+    } catch { /* 拉取失败不阻塞进入 */ }
+  }
+  loadGateHint();
+
   // 眼睛按钮：切换明文/圆点隐藏（默认明文，确保中文输入法可启动）
   window.togglePw = function () {
     const input = document.getElementById('gate-pw');

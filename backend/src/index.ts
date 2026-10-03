@@ -1098,6 +1098,12 @@ async function saveGameSettings(db: D1Database, data: any) {
     .run();
 }
 
+// 游戏站门禁提示词（公开接口，未进站也可读；显示在密码框上方）
+app.get('/api/game/hint', async (c) => {
+  const settings = await getGameSettings(c.env.GAME_DB);
+  return c.json({ hint: settings.gamePasswordHint || '本站为独立游戏分享社区，进入密码由站长管理，忘记密码请向站长索取。' });
+});
+
 // 进入游戏站（统一访问密码）
 app.post('/api/game/enter', async (c) => {
   const { password } = await c.req.json();
@@ -1733,6 +1739,22 @@ app.put('/api/admin/game/password', async (c) => {
   settings.gamePasswordHash = await hashPassword(password);
   await saveGameSettings(db, settings);
   return c.json({ ok: true });
+});
+
+// 修改游戏站门禁提示词（游戏站管理员 或 论坛管理员）
+app.put('/api/admin/game/hint', async (c) => {
+  const payload = await getAuth(c);
+  const isForumAdmin = !!payload && (await isAdmin(c, payload.id));
+  const isGameAdmin = await isGameAdminUser(c);
+  if (!isForumAdmin && !isGameAdmin) return c.json({ message: '需要管理员权限' }, 403);
+
+  const { hint } = await c.req.json();
+  const text = String(hint || '').trim().slice(0, 200);
+  const db = c.env.GAME_DB;
+  const settings = await getGameSettings(db);
+  settings.gamePasswordHint = text;
+  await saveGameSettings(db, settings);
+  return c.json({ ok: true, hint: text });
 });
 
 // ===== 帖子批量操作 =====

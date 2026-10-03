@@ -269,6 +269,14 @@
       </div>
     </div>
     <div class="card">
+      <h2>💡 游戏站门禁提示词</h2>
+      <p style="font-size:13px;color:#94a3b8;margin-bottom:12px">显示在游戏站密码输入框上方，可写引导语或密码提示（建议不要直接暴露密码）。</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="g-hint" type="text" placeholder="例：本站为独立游戏分享社区，密码由站长管理" maxlength="200" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:13px;outline:none;width:340px" />
+        <button class="btn btn-primary" onclick="saveGameHint()">保存提示词</button>
+      </div>
+    </div>
+    <div class="card">
       <h2>🎮 游戏分享管理</h2>
       <div class="filter-bar">
         <input id="g-post-kw" type="text" placeholder="搜索游戏标题…" />
@@ -649,8 +657,21 @@
       document.getElementById('g-likes').textContent = d.postLikes + d.commentLikes;
       document.getElementById('g-pw').textContent = d.passwordSet ? '已设置' : '未设置';
     } catch (e) { toast(e.message, true); }
+    // 回显当前门禁提示词
+    try {
+      const r = await api('/api/game/hint');
+      const el = document.getElementById('g-hint');
+      if (el && r.hint) el.value = r.hint;
+    } catch { /* 忽略 */ }
     loadGamePosts(1);
   }
+  window.saveGameHint = async function () {
+    const hint = document.getElementById('g-hint').value.trim();
+    try {
+      await api('/api/admin/game/hint', { method: 'PUT', body: JSON.stringify({ hint }) });
+      toast('门禁提示词已保存');
+    } catch (e) { toast(e.message, true); }
+  };
   window.saveGamePassword = async function () {
     const pw = document.getElementById('g-new-pw').value.trim();
     if (pw.length < 4 || pw.length > 50) return toast('密码长度需 4-50 位', true);
