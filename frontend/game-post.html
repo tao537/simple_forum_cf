@@ -149,8 +149,14 @@
   #toast.err { background: #dc2626; }
 
   @media (max-width: 560px) {
+    nav .inner { padding: 10px 12px; }
+    .brand b { font-size: 16px; }
+    .container { padding: 0 12px 40px; }
     .card h1 { font-size: 18px; }
     .gallery img { width: 108px; height: 108px; }
+    .comment-box textarea { font-size: 14px; }
+    .modal { max-width: 100%; margin: 0 12px; padding: 18px 16px; max-height: 88vh; overflow-y: auto; }
+    .modal .row { flex-direction: column; align-items: stretch; }
   }
 </style>
 </head>
@@ -169,9 +175,10 @@
   <div class="sec-title">💬 评论 <span id="commentCount" style="font-size:13px;color:#94a3b8"></span></div>
   <div class="comment-box">
     <textarea id="c-content" placeholder="说说你的看法…"></textarea>
-    <div class="comment-nick">
+    <div class="comment-nick" id="c-nick-wrap">
       <input id="c-nick" type="text" placeholder="你的昵称（站内显示）" maxlength="20" />
     </div>
+    <div class="hint" id="c-nick-hint" style="display:none;margin-top:8px;color:#8b5cf6"></div>
     <div style="margin-top:10px;display:flex;justify-content:flex-end">
       <button class="btn btn-primary" onclick="submitComment()">发表评论</button>
     </div>
@@ -201,6 +208,31 @@
       <button class="btn btn-ghost" onclick="closeEdit()">取消</button>
       <button class="btn btn-primary" id="saveBtn" onclick="submitEdit()">保存</button>
     </div>
+  </div>
+</div>
+
+<!-- 登录 / 注册弹窗 -->
+<div class="overlay" id="authOverlay">
+  <div class="modal">
+    <h2 id="authTitle">登录游戏站</h2>
+    <div class="field">
+      <label>用户名 *</label>
+      <input id="a-username" type="text" maxlength="20" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label>密码 *</label>
+      <input id="a-password" type="password" maxlength="50" autocomplete="off" />
+    </div>
+    <div class="field" id="a-nick-field" style="display:none">
+      <label>昵称（选填，不填则用用户名）</label>
+      <input id="a-nickname" type="text" maxlength="20" />
+    </div>
+    <p id="a-msg" style="font-size:13px;min-height:16px;margin-bottom:10px"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeAuth()">取消</button>
+      <button class="btn btn-primary" id="aBtn" onclick="submitAuth()">确定</button>
+    </div>
+    <div style="text-align:center;margin-top:12px;font-size:13px" id="a-switch"></div>
   </div>
 </div>
 
@@ -252,15 +284,71 @@
 
   function renderNav() {
     const box = document.getElementById('navRight');
-    const nick = gameAuth.nickname() || '游客';
-    const initial = (nick[0] || '?').toUpperCase();
-    box.innerHTML = `
-      <a class="link" href="/forum.html">⌬ 苦海论坛</a>
-      <a class="link" href="/game.html">◈ 游戏站</a>
-      <span class="guest-chip"><span class="avatar">${escapeHtml(initial)}</span>${escapeHtml(nick)}</span>
-      <span class="logout" onclick="exitGame()">退出</span>`;
+    const u = gameAuth.user();
+    if (u) {
+      const display = u.nickname || u.username;
+      const initial = (display[0] || '?').toUpperCase();
+      box.innerHTML = `
+        <a class="link" href="/forum.html">⌬ 苦海论坛</a>
+        <a class="link" href="/game.html">◈ 游戏站</a>
+        <span class="guest-chip"><span class="avatar">${escapeHtml(initial)}</span>${escapeHtml(display)}${u.role === 'admin' ? '<span style="color:#fbbf24;font-size:11px;margin-left:2px" title="游戏站管理员">🛡</span>' : ''}</span>
+        <span class="logout" onclick="exitGame()">退出</span>`;
+    } else {
+      const nick = gameAuth.nickname() || '游客';
+      const initial = (nick[0] || '?').toUpperCase();
+      box.innerHTML = `
+        <a class="link" href="/forum.html">⌬ 苦海论坛</a>
+        <a class="link" href="/game.html">◈ 游戏站</a>
+        <span class="guest-chip"><span class="avatar">${escapeHtml(initial)}</span>${escapeHtml(nick)}</span>
+        <a class="link" href="javascript:void(0)" onclick="openAuth('login')">登录</a>
+        <a class="link" href="javascript:void(0)" onclick="openAuth('register')">注册</a>
+        <span class="logout" onclick="exitGame()">退出</span>`;
+    }
   }
   window.exitGame = function () { gameAuth.clear(); location.href = '/game.html'; };
+
+  // ===== 游戏站登录 / 注册 =====
+  let authMode = 'login';
+  window.openAuth = function (mode) {
+    authMode = mode === 'register' ? 'register' : 'login';
+    document.getElementById('authTitle').textContent = authMode === 'login' ? '登录游戏站' : '注册游戏站账号';
+    document.getElementById('a-nick-field').style.display = authMode === 'register' ? '' : 'none';
+    document.getElementById('a-msg').textContent = '';
+    document.getElementById('a-switch').innerHTML = authMode === 'login'
+      ? '还没有账号？<a href="javascript:void(0)" onclick="openAuth(\'register\')" style="color:#8b5cf6">去注册</a>'
+      : '已有账号？<a href="javascript:void(0)" onclick="openAuth(\'login\')" style="color:#8b5cf6">去登录</a>';
+    document.getElementById('authOverlay').classList.add('show');
+  };
+  window.closeAuth = function () { document.getElementById('authOverlay').classList.remove('show'); };
+  window.submitAuth = async function () {
+    const username = document.getElementById('a-username').value.trim();
+    const password = document.getElementById('a-password').value;
+    const nickname = document.getElementById('a-nickname').value.trim();
+    const msg = document.getElementById('a-msg');
+    msg.style.color = '#dc2626';
+    if (!username || !password) { msg.textContent = '请填写用户名和密码'; return; }
+    const btn = document.getElementById('aBtn');
+    btn.disabled = true;
+    try {
+      if (authMode === 'register') {
+        const r = await gameApi('/api/game/register', { method: 'POST', body: JSON.stringify({ username, password, nickname }) });
+        msg.style.color = '#16a34a';
+        msg.textContent = r.message;
+        openAuth('login');
+        document.getElementById('a-username').value = username;
+        document.getElementById('a-password').value = '';
+      } else {
+        const r = await gameApi('/api/game/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+        gameAuth.setToken(r.token);
+        gameAuth.setUser(r.user);
+        closeAuth();
+        renderNav();
+        refreshAuthUI();
+        toast(`欢迎回来，${r.user.nickname || r.user.username}`);
+      }
+    } catch (e) { msg.textContent = e.message; }
+    btn.disabled = false;
+  };
 
   // 密码门禁
   // 眼睛按钮：切换明文/圆点隐藏（默认明文，确保中文输入法可启动）
@@ -287,8 +375,11 @@
 
   async function ensureEntered() {
     if (!gameAuth.isEntered()) return false;
-    try { await gameApi('/api/game/me'); return true; }
-    catch { gameAuth.clear(); return false; }
+    try {
+      const me = await gameApi('/api/game/me');
+      if (me.user) gameAuth.setUser(me.user); // 刷新账号信息（昵称/角色可能变更）
+      return true;
+    } catch { gameAuth.clear(); return false; }
   }
 
   if (!gameAuth.isEntered()) {
@@ -298,7 +389,7 @@
     });
   } else {
     ensureEntered().then((ok) => {
-      if (ok) { document.getElementById('gate').style.display = 'none'; renderNav(); load(); }
+      if (ok) { document.getElementById('gate').style.display = 'none'; renderNav(); load(); refreshAuthUI(); }
       else document.getElementById('main').style.display = 'none';
     });
   }
@@ -317,7 +408,7 @@
     if (img && img.dataset.full) openImg(img.dataset.full);
   });
 
-  const isAdminUser = () => auth.isLoggedIn() && auth.getUser()?.role === 'admin';
+  const isAdminUser = () => (auth.isLoggedIn() && auth.getUser()?.role === 'admin') || gameAuth.isAdmin();
 
   async function load() {
     if (!postId) {
@@ -329,7 +420,9 @@
       currentPost = p;
       const imgs = parseImages(p.images);
       const me = isAdminUser();
-      const isAuthor = p.author_visitor === gameAuth.visitorId();
+      const guser = gameAuth.user();
+      const isAuthor = (p.author_visitor === gameAuth.visitorId())
+                    || (!!guser && p.author_user_id === guser.id);
       const canEdit = me || isAuthor;
       const gallery = imgs.length ? `
         <div class="gallery">
@@ -384,14 +477,15 @@
   // ===== 评论 =====
   function renderComments(comments) {
     const me = isAdminUser();
+    const guser = gameAuth.user();
     document.getElementById('commentCount').textContent = `(${comments.length})`;
     document.getElementById('commentList').innerHTML = comments.length ? comments.map(c => `
       <div class="comment-row">
         <div class="chead">
-          <span class="cname">${escapeHtml(c.author_name)}</span>
+          <span class="cname">${escapeHtml(c.author_name)}${c.author_user_id && c.author_user_id === guser?.id ? '（我）' : ''}</span>
           <span class="ctime">${c.created_at}</span>
           <span class="clike ${c.liked ? 'liked' : ''}" onclick="likeComment(${c.id})">${c.liked ? '❤️' : '🤍'} ${c.upvotes}</span>
-          ${(me || c.author_visitor === gameAuth.visitorId())
+          ${(me || c.author_visitor === gameAuth.visitorId() || (!!guser && c.author_user_id === guser.id))
             ? `<span class="cdel" onclick="deleteComment(${c.id})">删除</span>` : ''}
         </div>
         <div class="ctext">${escapeHtml(c.content)}</div>
@@ -399,16 +493,41 @@
       : '<div class="comment-row" style="color:#94a3b8;text-align:center">暂无评论，来抢沙发～</div>';
   }
 
+  // 登录后评论区身份提示（未登录保持访客昵称输入）
+  function refreshAuthUI() {
+    const guser = gameAuth.user();
+    const nickInput = document.getElementById('c-nick');
+    const nickWrap = document.getElementById('c-nick-wrap');
+    if (!nickInput) return;
+    if (guser) {
+      nickInput.value = '';
+      nickInput.disabled = true;
+      nickInput.placeholder = `登录账号：${guser.nickname || guser.username}`;
+      if (nickWrap) nickWrap.style.display = 'none';
+      const hint = document.getElementById('c-nick-hint');
+      if (hint) { hint.style.display = ''; hint.textContent = `已登录为 ${guser.nickname || guser.username}，评论自动署名`; }
+    } else {
+      nickInput.disabled = false;
+      nickInput.placeholder = '你的昵称（站内显示）';
+      if (nickWrap) nickWrap.style.display = '';
+    }
+  }
+
   window.submitComment = async function () {
     const content = document.getElementById('c-content').value.trim();
-    const nickname = document.getElementById('c-nick').value.trim() || gameAuth.nickname();
     if (!content) return toast('评论内容不能为空', true);
-    if (!nickname) return toast('请填写你的昵称', true);
-    gameAuth.setNickname(nickname);
+    const payload = { content };
+    if (!gameAuth.isLoggedIn()) {
+      const nickname = document.getElementById('c-nick').value.trim() || gameAuth.nickname();
+      if (!nickname) return toast('请填写你的昵称', true);
+      gameAuth.setNickname(nickname);
+      payload.nickname = nickname;
+      payload.visitorId = gameAuth.visitorId();
+    }
     try {
       await gameApi(`/api/game/posts/${postId}/comments`, {
         method: 'POST',
-        body: JSON.stringify({ content, nickname, visitorId: gameAuth.visitorId() }),
+        body: JSON.stringify(payload),
       });
       document.getElementById('c-content').value = '';
       toast('评论成功');
@@ -518,6 +637,9 @@
 
   document.getElementById('editOverlay').addEventListener('click', e => {
     if (e.target.id === 'editOverlay') closeEdit();
+  });
+  document.getElementById('authOverlay').addEventListener('click', e => {
+    if (e.target.id === 'authOverlay') closeAuth();
   });
 </script>
 </body>

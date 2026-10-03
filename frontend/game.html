@@ -172,6 +172,34 @@
            font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 60; }
   #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
   #toast.err { background: #dc2626; }
+
+  /* ============ 手机端优化 ============ */
+  @media (max-width: 640px) {
+    nav .inner { padding: 10px 12px; gap: 6px; }
+    .brand b { font-size: 16px; }
+    .brand .logo { width: 30px; height: 30px; font-size: 16px; }
+    .nav-right { gap: 6px; }
+    .link { font-size: 13px; }
+    .guest-chip { font-size: 12px; padding: 4px 9px; max-width: 130px; overflow: hidden;
+                  text-overflow: ellipsis; white-space: nowrap; }
+    .container { padding: 0 12px 40px; }
+    .hero { padding: 26px 18px; margin-top: 12px; border-radius: 16px; }
+    .hero h1 { font-size: 22px; }
+    .hero p { font-size: 13px; margin-bottom: 14px; }
+    .hero::after { font-size: 110px; right: 10px; bottom: -20px; }
+    /* 工具栏：tabs 占满一行，搜索框独立一行，发帖按钮全宽 */
+    .toolbar { flex-direction: column; align-items: stretch; gap: 8px; margin: 16px 0 14px; }
+    .toolbar .tabs { display: flex; gap: 4px; }
+    .toolbar .tabs button { flex: 1; padding: 9px 0; text-align: center; }
+    .searchbox { min-width: 0; width: 100%; }
+    .searchbox .search-wrap { flex: 1; }
+    .toolbar > .btn-primary { width: 100%; }
+    /* 卡片墙：手机双列紧凑 */
+    .game-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+    /* 发帖弹窗 */
+    .modal { max-width: 100%; margin: 0 12px; padding: 18px 16px; max-height: 88vh; overflow-y: auto; }
+    .modal .row { flex-direction: column; align-items: stretch; }
+  }
 </style>
 </head>
 <body>
@@ -237,7 +265,7 @@
   <div class="modal">
     <h2>分享游戏</h2>
     <div class="field">
-      <label>你的昵称 *（游戏站内显示，不涉及苦海账号）</label>
+      <label id="f-nick-label">你的昵称 *（游戏站内显示，不涉及苦海账号）</label>
       <input id="f-nick" type="text" placeholder="例如：肝帝小明" maxlength="20" />
     </div>
     <div class="field">
@@ -258,6 +286,31 @@
       <button class="btn btn-ghost" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" id="pubBtn" onclick="submitGame()">发布</button>
     </div>
+  </div>
+</div>
+
+<!-- 登录 / 注册弹窗 -->
+<div class="overlay" id="authOverlay">
+  <div class="modal">
+    <h2 id="authTitle">登录游戏站</h2>
+    <div class="field">
+      <label>用户名 *</label>
+      <input id="a-username" type="text" maxlength="20" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label>密码 *</label>
+      <input id="a-password" type="password" maxlength="50" autocomplete="off" />
+    </div>
+    <div class="field" id="a-nick-field" style="display:none">
+      <label>昵称（选填，不填则用用户名）</label>
+      <input id="a-nickname" type="text" maxlength="20" />
+    </div>
+    <p id="a-msg" style="font-size:13px;min-height:16px;margin-bottom:10px"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeAuth()">取消</button>
+      <button class="btn btn-primary" id="aBtn" onclick="submitAuth()">确定</button>
+    </div>
+    <div style="text-align:center;margin-top:12px;font-size:13px" id="a-switch"></div>
   </div>
 </div>
 
@@ -306,14 +359,69 @@
 
   function renderNav() {
     const box = document.getElementById('navRight');
-    const nick = gameAuth.nickname() || '游客';
-    const initial = (nick[0] || '?').toUpperCase();
-    box.innerHTML = `
-      <a class="link" href="/forum.html">⌬ 苦海论坛</a>
-      <span class="guest-chip"><span class="avatar">${escapeHtml(initial)}</span>${escapeHtml(nick)}</span>
-      <span class="logout" onclick="exitGame()">退出</span>`;
+    const u = gameAuth.user();
+    if (u) {
+      const display = u.nickname || u.username;
+      const initial = (display[0] || '?').toUpperCase();
+      box.innerHTML = `
+        <a class="link" href="/forum.html">⌬ 苦海论坛</a>
+        <span class="guest-chip"><span class="avatar">${escapeHtml(initial)}</span>${escapeHtml(display)}${u.role === 'admin' ? '<span style="color:#fbbf24;font-size:11px;margin-left:2px" title="游戏站管理员">🛡</span>' : ''}</span>
+        <span class="logout" onclick="exitGame()">退出</span>`;
+    } else {
+      const nick = gameAuth.nickname() || '游客';
+      const initial = (nick[0] || '?').toUpperCase();
+      box.innerHTML = `
+        <a class="link" href="/forum.html">⌬ 苦海论坛</a>
+        <span class="guest-chip"><span class="avatar">${escapeHtml(initial)}</span>${escapeHtml(nick)}</span>
+        <a class="link" href="javascript:void(0)" onclick="openAuth('login')">登录</a>
+        <a class="link" href="javascript:void(0)" onclick="openAuth('register')">注册</a>
+        <span class="logout" onclick="exitGame()">退出</span>`;
+    }
   }
   window.exitGame = function () { gameAuth.clear(); location.reload(); };
+
+  // ===== 游戏站登录 / 注册 =====
+  let authMode = 'login';
+  window.openAuth = function (mode) {
+    authMode = mode === 'register' ? 'register' : 'login';
+    document.getElementById('authTitle').textContent = authMode === 'login' ? '登录游戏站' : '注册游戏站账号';
+    document.getElementById('a-nick-field').style.display = authMode === 'register' ? '' : 'none';
+    document.getElementById('a-msg').textContent = '';
+    document.getElementById('a-switch').innerHTML = authMode === 'login'
+      ? '还没有账号？<a href="javascript:void(0)" onclick="openAuth(\'register\')" style="color:#8b5cf6">去注册</a>'
+      : '已有账号？<a href="javascript:void(0)" onclick="openAuth(\'login\')" style="color:#8b5cf6">去登录</a>';
+    document.getElementById('authOverlay').classList.add('show');
+  };
+  window.closeAuth = function () { document.getElementById('authOverlay').classList.remove('show'); };
+  window.submitAuth = async function () {
+    const username = document.getElementById('a-username').value.trim();
+    const password = document.getElementById('a-password').value;
+    const nickname = document.getElementById('a-nickname').value.trim();
+    const msg = document.getElementById('a-msg');
+    msg.style.color = '#dc2626';
+    if (!username || !password) { msg.textContent = '请填写用户名和密码'; return; }
+    const btn = document.getElementById('aBtn');
+    btn.disabled = true;
+    try {
+      if (authMode === 'register') {
+        const r = await gameApi('/api/game/register', { method: 'POST', body: JSON.stringify({ username, password, nickname }) });
+        msg.style.color = '#16a34a';
+        msg.textContent = r.message;
+        // 注册成功切到登录页（用户名保留）
+        openAuth('login');
+        document.getElementById('a-username').value = username;
+        document.getElementById('a-password').value = '';
+      } else {
+        const r = await gameApi('/api/game/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+        gameAuth.setToken(r.token);
+        gameAuth.setUser(r.user);
+        closeAuth();
+        renderNav();
+        toast(`欢迎回来，${r.user.nickname || r.user.username}`);
+      }
+    } catch (e) { msg.textContent = e.message; }
+    btn.disabled = false;
+  };
 
   // ===== 密码门禁 =====
   // 眼睛按钮：切换明文/圆点隐藏（默认明文，确保中文输入法可启动）
@@ -348,7 +456,8 @@
   async function ensureEntered() {
     if (!gameAuth.isEntered()) return false;
     try {
-      await gameApi('/api/game/me');
+      const me = await gameApi('/api/game/me');
+      if (me.user) gameAuth.setUser(me.user); // 刷新账号信息（昵称/角色可能变更）
       return true;
     } catch {
       gameAuth.clear();
@@ -515,7 +624,14 @@
 
   // 弹窗
   window.openShare = function () {
-    document.getElementById('f-nick').value = gameAuth.nickname();
+    const isLogin = gameAuth.isLoggedIn();
+    const nickInput = document.getElementById('f-nick');
+    nickInput.value = isLogin ? '' : gameAuth.nickname();
+    nickInput.disabled = isLogin;
+    nickInput.placeholder = isLogin ? '登录账号自动署名' : '例如：肝帝小明';
+    document.getElementById('f-nick-label').textContent = isLogin
+      ? `你的身份：${escapeHtml(gameAuth.nickname())}${gameAuth.isAdmin() ? '（游戏站管理员）' : ''}`
+      : '你的昵称 *（游戏站内显示，不涉及苦海账号）';
     document.getElementById('f-title').value = '';
     document.getElementById('f-content').value = '';
     pendingImages = [];
@@ -555,17 +671,20 @@
   });
 
   window.submitGame = async function () {
-    const nickname = document.getElementById('f-nick').value.trim();
-    if (!nickname) return toast('请填写你的昵称', true);
-    gameAuth.setNickname(nickname);
+    const isLogin = gameAuth.isLoggedIn();
     const payload = {
       title: document.getElementById('f-title').value.trim(),
       content: document.getElementById('f-content').value.trim(),
-      nickname,
-      visitorId: gameAuth.visitorId(),
       images: pendingImages,
     };
     if (!payload.title || !payload.content) return toast('游戏名称和介绍必填', true);
+    if (!isLogin) {
+      const nickname = document.getElementById('f-nick').value.trim();
+      if (!nickname) return toast('请填写你的昵称', true);
+      gameAuth.setNickname(nickname);
+      payload.nickname = nickname;
+      payload.visitorId = gameAuth.visitorId();
+    }
     const btn = document.getElementById('pubBtn');
     btn.disabled = true;
     try {
@@ -593,6 +712,9 @@
   kwInput.addEventListener('blur', () => { setTimeout(() => { document.getElementById('suggest').style.display = 'none'; }, 200); });
   document.getElementById('overlay').addEventListener('click', e => {
     if (e.target.id === 'overlay') closeModal();
+  });
+  document.getElementById('authOverlay').addEventListener('click', e => {
+    if (e.target.id === 'authOverlay') closeAuth();
   });
 </script>
 </body>

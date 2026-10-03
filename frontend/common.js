@@ -87,13 +87,23 @@ export function parseImages(images) {
 const GAME_TOKEN_KEY = 'game_token';
 const GAME_NICK_KEY = 'game_nick';
 const GAME_VISITOR_KEY = 'game_visitor';
+const GAME_USER_KEY = 'game_user';
 
 export const gameAuth = {
   getToken() { return localStorage.getItem(GAME_TOKEN_KEY) || ''; },
   isEntered() { return !!this.getToken(); },
   setToken(t) { localStorage.setItem(GAME_TOKEN_KEY, t); },
-  clear() { localStorage.removeItem(GAME_TOKEN_KEY); },
-  nickname() { return localStorage.getItem(GAME_NICK_KEY) || ''; },
+  // 登录账号信息（{id,username,nickname,role}），访客为 null
+  user() { try { return JSON.parse(localStorage.getItem(GAME_USER_KEY)) || null; } catch { return null; } },
+  setUser(u) {
+    if (u) localStorage.setItem(GAME_USER_KEY, JSON.stringify(u));
+    else localStorage.removeItem(GAME_USER_KEY);
+  },
+  isLoggedIn() { return !!this.user(); },
+  isAdmin() { const u = this.user(); return !!u && u.role === 'admin'; },
+  // 退出：清 token + 账号信息，保留访客标识
+  clear() { localStorage.removeItem(GAME_TOKEN_KEY); localStorage.removeItem(GAME_USER_KEY); },
+  nickname() { return this.user()?.nickname || this.user()?.username || localStorage.getItem(GAME_NICK_KEY) || ''; },
   setNickname(n) { localStorage.setItem(GAME_NICK_KEY, String(n || '').slice(0, 20)); },
   visitorId() {
     let v = localStorage.getItem(GAME_VISITOR_KEY);

@@ -1041,30 +1041,47 @@ app.put('/api/users/password', async (c) => {
 // ================================================================
 //  娱乐游戏站（独立 D1 库 game-db，与苦海论坛完全隔离）
 //  进入方式：统一访问密码 → 服务端签发 scope=game 的短期 token
-//  站内无账号体系，发帖/评论使用访客昵称，点赞按访客标识去重
+//  站内账号体系：进站后可注册/登录游戏站独立账号（首账号自动成为管理员）
+//  未登录发帖/评论使用访客昵称，点赞按访客标识去重
 // ================================================================
 const DEFAULT_GAME_PASSWORD = '利益or节操'; // 首次进入自动初始化，管理后台可改
 const GAME_TOKEN_TTL = 12 * 3600; // 游戏 token 12 小时
 
-async function issueGameToken(c: any) {
+async function issueGameToken(c: any, userId?: number) {
   const now = Math.floor(Date.now() / 1000);
-  return await sign(
-    { scope: 'game', iat: now, exp: now + GAME_TOKEN_TTL },
-    c.env.JWT_SECRET,
-    'HS256'
-  );
+  const payload: any = { scope: 'game', iat: now, exp: now + GAME_TOKEN_TTL };
+  if (userId) payload.id = userId; // 登录账号时携带账号 id，访客 token 不带
+  return await sign(payload, c.env.JWT_SECRET, 'HS256');
 }
 
 // 校验游戏访问 token（只认 scope=game，与论坛 token 隔离）
-async function getGameAuth(c: any): Promise<boolean> {
+// 返回 payload（可能含 id=账号id），无效返回 null
+async function getGameAuth(c: any): Promise<{ scope: string; id?: number } | null> {
   const token = c.req.header('Authorization')?.replace('Bearer ', '');
-  if (!token) return false;
+  if (!token) return null;
   try {
     const p = await verify(token, c.env.JWT_SECRET, 'HS256');
-    return p?.scope === 'game';
+    return p?.scope === 'game' ? (p as any) : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+// 获取当前游戏站登录账号（未登录或访客 token 返回 null）
+async function getGameUser(c: any): Promise<{ id: number; username: string; nickname: string; role: string; is_banned: number } | null> {
+  const auth = await getGameAuth(c);
+  if (!auth || !auth.id) return null;
+  const user = await c.env.GAME_DB
+    .prepare('SELECT id, username, nickname, role, is_banned FROM users WHERE id = ?')
+    .bind(auth.id)
+    .first<{ id: number; username: string; nickname: string; role: string; is_banned: number }>();
+  return user || null;
+}
+
+// 判断当前是否为游戏站管理员（登录账号且 role=admin 且未封禁）
+async function isGameAdminUser(c: any): Promise<boolean> {
+  const guser = await getGameUser(c);
+  return !!guser && guser.role === 'admin' && !guser.is_banned;
 }
 
 const VISITOR_RE = /^v[a-z0-9]{12,40}$/;
@@ -1108,11 +1125,59 @@ app.post('/api/game/enter', async (c) => {
   return c.json({ token, expiresIn: GAME_TOKEN_TTL });
 });
 
-// 游戏 token 有效性检查
+// 游戏 token 有效性检查（登录账号时返回账号信息）
 app.get('/api/game/me', async (c) => {
   const ok = await getGameAuth(c);
   if (!ok) return c.json({ message: '未进入游戏站' }, 401);
-  return c.json({ ok: true });
+  const user = await getGameUser(c);
+  return c.json({ ok: true, user });
+});
+
+// 游戏站注册（独立账号体系，与苦海论坛完全隔离；先进站后可注册）
+app.post('/api/game/register', async (c) => {
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  const { username, password, nickname } = await c.req.json();
+  const name = String(username || '').trim();
+  const pw = String(password || '');
+  const nick = String(nickname || '').trim().slice(0, 20) || name;
+  if (!/^[a-zA-Z0-9_\-\u4e00-\u9fa5]{2,20}$/.test(name)) {
+    return c.json({ message: '用户名需 2-20 位（字母/数字/下划线/中文）' }, 400);
+  }
+  if (pw.length < 6) return c.json({ message: '密码至少 6 位' }, 400);
+  const db = c.env.GAME_DB;
+  const row = await db.prepare('SELECT COUNT(*) AS n FROM users').first<{ n: number }>();
+  const role = (row?.n ?? 0) === 0 ? 'admin' : 'user'; // 首个注册账号自动成为游戏站管理员
+  const hash = await hashPassword(pw);
+  try {
+    await db
+      .prepare('INSERT INTO users (username, password_hash, nickname, role) VALUES (?, ?, ?, ?)')
+      .bind(name, hash, nick, role)
+      .run();
+  } catch {
+    return c.json({ message: '用户名已被注册' }, 409);
+  }
+  return c.json({ ok: true, role, message: role === 'admin' ? '🎉 首个账号已成为游戏站管理员' : '注册成功，请登录' });
+});
+
+// 游戏站登录（独立账号，与苦海论坛账号互不相通）
+app.post('/api/game/login', async (c) => {
+  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  const { username, password } = await c.req.json();
+  const db = c.env.GAME_DB;
+  const user = await db
+    .prepare('SELECT * FROM users WHERE username = ?')
+    .bind(String(username || '').trim())
+    .first<any>();
+  if (!user || !(await verifyPassword(String(password || ''), user.password_hash))) {
+    return c.json({ message: '账号或密码错误' }, 401);
+  }
+  if (user.is_banned) return c.json({ message: '账号已被封禁' }, 403);
+  const token = await issueGameToken(c, user.id);
+  return c.json({
+    token,
+    expiresIn: GAME_TOKEN_TTL,
+    user: { id: user.id, username: user.username, nickname: user.nickname, role: user.role },
+  });
 });
 
 // ==================== 游戏帖子 ====================
@@ -1213,22 +1278,23 @@ app.post('/api/game/posts/upload', async (c) => {
   return c.json({ url: `${origin}/img/${id}` });
 });
 
-// 游戏发帖
+// 游戏发帖（登录账号用账号身份，未登录用访客昵称）
 app.post('/api/game/posts', async (c) => {
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const { title, content, nickname, visitorId, images } = await c.req.json();
   if (!title || !content) return c.json({ message: '标题和内容不能为空' }, 400);
-  const nick = String(nickname || '').trim().slice(0, 20) || '匿名玩家';
-  const vid = typeof visitorId === 'string' && VISITOR_RE.test(visitorId) ? visitorId : '';
+  const guser = await getGameUser(c);
+  const nick = guser ? (guser.nickname || guser.username) : (String(nickname || '').trim().slice(0, 20) || '匿名玩家');
+  const vid = !guser && typeof visitorId === 'string' && VISITOR_RE.test(visitorId) ? visitorId : '';
   const safeImages = sanitizeImages(images);
 
   const result = await c.env.GAME_DB
-    .prepare('INSERT INTO posts (title, content, author_name, author_visitor, images) VALUES (?, ?, ?, ?, ?)')
-    .bind(title, content, nick, vid, JSON.stringify(safeImages))
+    .prepare('INSERT INTO posts (title, content, author_name, author_visitor, author_user_id, images) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(title, content, nick, vid, guser ? guser.id : null, JSON.stringify(safeImages))
     .run();
 
-  return c.json({ id: result.meta.last_row_id, title, content }, 201);
+  return c.json({ id: result.meta.last_row_id, title, content, author_user_id: guser ? guser.id : null }, 201);
 });
 
 // 游戏帖子详情
@@ -1257,7 +1323,7 @@ app.get('/api/game/posts/:id', async (c) => {
 
   const { results: comments } = await db
     .prepare(
-      `SELECT c.id, c.post_id, c.author_name, c.author_visitor, c.content, c.created_at,
+      `SELECT c.id, c.post_id, c.author_name, c.author_visitor, c.author_user_id, c.content, c.created_at,
               (SELECT COUNT(*) FROM comment_likes cl WHERE cl.comment_id = c.id) AS upvotes
        FROM comments c WHERE c.post_id = ? ORDER BY c.id ASC`
     )
@@ -1310,26 +1376,27 @@ app.post('/api/game/posts/:id/like', async (c) => {
   return c.json({ liked: !liked, upvotes: total?.n ?? 0 });
 });
 
-// 游戏评论
+// 游戏评论（登录账号用账号身份，未登录用访客昵称）
 app.post('/api/game/posts/:id/comments', async (c) => {
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const postId = Number(c.req.param('id'));
   const { content, nickname, visitorId } = await c.req.json();
   if (!content) return c.json({ message: '评论内容不能为空' }, 400);
-  const nick = String(nickname || '').trim().slice(0, 20) || '匿名玩家';
-  const vid = typeof visitorId === 'string' && VISITOR_RE.test(visitorId) ? visitorId : '';
+  const guser = await getGameUser(c);
+  const nick = guser ? (guser.nickname || guser.username) : (String(nickname || '').trim().slice(0, 20) || '匿名玩家');
+  const vid = !guser && typeof visitorId === 'string' && VISITOR_RE.test(visitorId) ? visitorId : '';
 
   const db = c.env.GAME_DB;
   const post = await db.prepare('SELECT id FROM posts WHERE id = ?').bind(postId).first<{ id: number }>();
   if (!post) return c.json({ message: '帖子不存在' }, 404);
 
   const result = await db
-    .prepare('INSERT INTO comments (post_id, author_name, author_visitor, content) VALUES (?, ?, ?, ?)')
-    .bind(postId, nick, vid, content)
+    .prepare('INSERT INTO comments (post_id, author_name, author_visitor, author_user_id, content) VALUES (?, ?, ?, ?, ?)')
+    .bind(postId, nick, vid, guser ? guser.id : null, content)
     .run();
 
-  return c.json({ id: result.meta.last_row_id, content }, 201);
+  return c.json({ id: result.meta.last_row_id, content, author_user_id: guser ? guser.id : null }, 201);
 });
 
 // 游戏评论点赞
@@ -1363,7 +1430,7 @@ app.post('/api/game/posts/:postId/comments/:commentId/like', async (c) => {
   return c.json({ liked: !liked, upvotes: total?.n ?? 0 });
 });
 
-// 游戏帖子编辑/删除（作者访客标识或管理员）
+// 游戏帖子编辑（作者/游戏站管理员/论坛管理员）
 app.put('/api/game/posts/:id', async (c) => {
   const adminPayload = await getAuth(c);
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
@@ -1373,11 +1440,13 @@ app.put('/api/game/posts/:id', async (c) => {
   const { title, content, nickname, visitorId, images } = await c.req.json();
   if (!title || !content) return c.json({ message: '标题和内容不能为空' }, 400);
 
-  const post = await db.prepare('SELECT id, author_visitor FROM posts WHERE id = ?').bind(id).first<{ id: number; author_visitor: string }>();
+  const post = await db.prepare('SELECT id, author_visitor, author_user_id FROM posts WHERE id = ?').bind(id).first<{ id: number; author_visitor: string; author_user_id: number | null }>();
   if (!post) return c.json({ message: '帖子不存在' }, 404);
 
-  const isAuthor = typeof visitorId === 'string' && post.author_visitor && post.author_visitor === visitorId;
-  const isAdminUser = !!adminPayload && (await isAdmin(c, adminPayload.id));
+  const guser = await getGameUser(c);
+  const isAuthor = (typeof visitorId === 'string' && post.author_visitor && post.author_visitor === visitorId)
+                || (!!guser && post.author_user_id === guser.id);
+  const isAdminUser = (!!adminPayload && (await isAdmin(c, adminPayload.id))) || (await isGameAdminUser(c));
   if (!isAuthor && !isAdminUser) return c.json({ message: '无权修改' }, 403);
 
   const safeImages = sanitizeImages(images);
@@ -1398,11 +1467,13 @@ app.delete('/api/game/posts/:id', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const visitorId = String(body?.visitorId || '');
 
-  const post = await db.prepare('SELECT id, author_visitor FROM posts WHERE id = ?').bind(id).first<{ id: number; author_visitor: string }>();
+  const post = await db.prepare('SELECT id, author_visitor, author_user_id FROM posts WHERE id = ?').bind(id).first<{ id: number; author_visitor: string; author_user_id: number | null }>();
   if (!post) return c.json({ message: '帖子不存在' }, 404);
 
-  const isAuthor = !!post.author_visitor && post.author_visitor === visitorId;
-  const isAdminUser = !!adminPayload && (await isAdmin(c, adminPayload.id));
+  const guser = await getGameUser(c);
+  const isAuthor = (!!post.author_visitor && post.author_visitor === visitorId)
+                || (!!guser && post.author_user_id === guser.id);
+  const isAdminUser = (!!adminPayload && (await isAdmin(c, adminPayload.id))) || (await isGameAdminUser(c));
   if (!isAuthor && !isAdminUser) return c.json({ message: '无权删除' }, 403);
 
   await db.prepare('DELETE FROM posts WHERE id = ?').bind(id).run();
@@ -1412,7 +1483,9 @@ app.delete('/api/game/posts/:id', async (c) => {
 app.post('/api/game/posts/:id/pin', async (c) => {
   const adminPayload = await getAuth(c);
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
-  if (!adminPayload || !(await isAdmin(c, adminPayload.id))) return c.json({ message: '需要管理员权限' }, 403);
+  const isGameAdmin = await isGameAdminUser(c);
+  const isForumAdmin = !!adminPayload && (await isAdmin(c, adminPayload.id));
+  if (!isGameAdmin && !isForumAdmin) return c.json({ message: '需要管理员权限' }, 403);
 
   const id = Number(c.req.param('id'));
   const result = await c.env.GAME_DB
@@ -1427,7 +1500,9 @@ app.post('/api/game/posts/:id/pin', async (c) => {
 app.post('/api/game/posts/:id/feature', async (c) => {
   const adminPayload = await getAuth(c);
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
-  if (!adminPayload || !(await isAdmin(c, adminPayload.id))) return c.json({ message: '需要管理员权限' }, 403);
+  const isGameAdmin = await isGameAdminUser(c);
+  const isForumAdmin = !!adminPayload && (await isAdmin(c, adminPayload.id));
+  if (!isGameAdmin && !isForumAdmin) return c.json({ message: '需要管理员权限' }, 403);
 
   const id = Number(c.req.param('id'));
   const result = await c.env.GAME_DB
@@ -1448,11 +1523,13 @@ app.delete('/api/game/comments/:id', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const visitorId = String(body?.visitorId || '');
 
-  const comment = await db.prepare('SELECT id, author_visitor FROM comments WHERE id = ?').bind(id).first<{ id: number; author_visitor: string }>();
+  const comment = await db.prepare('SELECT id, author_visitor, author_user_id FROM comments WHERE id = ?').bind(id).first<{ id: number; author_visitor: string; author_user_id: number | null }>();
   if (!comment) return c.json({ message: '评论不存在' }, 404);
 
-  const isAuthor = !!comment.author_visitor && comment.author_visitor === visitorId;
-  const isAdminUser = !!adminPayload && (await isAdmin(c, adminPayload.id));
+  const guser = await getGameUser(c);
+  const isAuthor = (!!comment.author_visitor && comment.author_visitor === visitorId)
+                || (!!guser && comment.author_user_id === guser.id);
+  const isAdminUser = (!!adminPayload && (await isAdmin(c, adminPayload.id))) || (await isGameAdminUser(c));
   if (!isAuthor && !isAdminUser) return c.json({ message: '无权删除' }, 403);
 
   await db.prepare('DELETE FROM comments WHERE id = ?').bind(id).run();
