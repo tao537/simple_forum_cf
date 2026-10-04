@@ -5,19 +5,34 @@
            （realpath 实际指向 /home/zhong/Disk_R/DesktopProject/project/simple_forum_cf/automation）
 报告生成 : 2026-10-04
 运行环境 : Node.js（原生 ESM）+ Linux，抓取层零第三方依赖
-报告范围 : automation/ 抓取流水线现状、代码结构与关键行号、本次改动、实测证据、待办事项
+报告范围 : automation/ 抓取流水线现状、代码结构与关键行号、文件结构示意图（第 2 节）、
+           本次改动、实测证据、待办事项
 说明     : 本报告所有数字均取自本次实测输出，未估算、未虚构。
 
 --------------------------------------------------------------------------------
 执行摘要（先看这一段）
 --------------------------------------------------------------------------------
-当前进度：抓取层已完成并实测跑通，2 个来源（steam / galgame）。
-          发布层：publish-game.mjs 脚本已就绪（本次新增 --dry-run / --file），
-          但尚未真跑过一次真发布——缺 config.json，queue/ 里也还没有真实清单。
+当前进度：抓取层已完成并实测跑通，2 个来源（steam / galgame）；复核层 review.mjs 已就绪。
+          发布层：publish-game.mjs 已就绪（--dry-run / --file），并在 2026-10-04 完成首次
+          单条真发：--file queue/AutoChart.json → postId=3，
+          https://kuhai.de5.net/game-post.html?id=3（已用门禁 token 读回验证：正文 453 字、
+          含网盘链接与下载小节、无截图区块），归档到 published/AutoChart.json，整条约 2.5 分钟
+          （用例 15，日志见 reports/evidence/2026-10-04-first-real-publish.txt）。
+          config.json 已填好 4 个账号字段（2026-10-04，见第 11 节待办 2）。
+          queue/ 现有 7 条待发布清单：1 条手写（社畜就是要躺平.json，303 B，引用了两张待补
+          截图）+ 6 条由 Steam 候选「全部通过」批量生成（猫险 Catventure / Grave Of Voices /
+          Demon Lord：Clicker / Stick Cards RNG / Major Mutt / Factorized；口径：panUrl =
+          Steam 商店页、panCode = 无、无截图）；同批的 AutoChart 那条已发布移入 published/。
+          queue/*.json 含网盘链接，2026-10-04 起不入库（社畜那条已 git rm --cached，
+          其余 7 条生来就被忽略）；published/*.json 同样不入库。
+关键前提：automation/.env 已存在（96 字节，2026-10-04 实测）；config.json 已填好账号
+          （2026-10-04）；queue/screenshots/ 空目录已建好，手写清单引用的两张截图仍未放入。
 实测状态：node --check 全绿；node fetch.mjs list → 2 个来源、退出码 0；
           代理 127.0.0.1:7890 实测可达（google / store.steampowered.com 均 200）；
-          发布脚本 6 个用例全部通过，--dry-run 零文件改动（见第 10、15 节）。
-待办     ：7 项（第 1 项已打钩，见第 11 节）。
+          发布脚本 6 个参数用例全部通过，--dry-run 零文件改动（见第 10、15 节）；
+          2026-10-04 又把整个队列（8 条清单）空跑一遍，8/8 生成文案预览、零报错（用例 14）；
+          同日单条真发成功（用例 15：postId=3，服务端读回验证通过）。
+待办     ：全部 12 项见第 11 节（其中 4 项已完成，8 项待办）。
 API 成本 ：当前抓取层 0 元（不调用任何 API）；发布层本地 ollama 生成 0 元，
           云端润色只在 config.json 配了 cloudAi 时才调用（见第 14 节）。
 证据     ：全部实测日志在 reports/evidence/，第 15 节按文件名索引。
@@ -28,6 +43,10 @@ API 成本 ：当前抓取层 0 元（不调用任何 API）；发布层本地 o
   执行摘要（先看这一段）                       ← 本次新增
   1. 项目概览
   2. 当前目录结构（含行数）
+       2.1 磁盘实际清单（ls 能看到的全部东西）
+       2.2 文件结构示意图（按角色分层：谁是谁）
+       2.3 数据流向图（文件层面：谁写、谁读、落到哪）
+       2.4 文件角色与 git 状态表
   3. 数据流水线（一次抓取都发生了什么）
   4. 统一数据格式与守门人校验
   5. 两个来源的实现
@@ -49,22 +68,59 @@ API 成本 ：当前抓取层 0 元（不调用任何 API）；发布层本地 o
 1. 项目概览
 --------------------------------------------------------------------------------
 automation/ 是 simple_forum_cf 站点的内容自动化流水线，目标是自动化产出可发布的
-候选内容（游戏 / 资源类帖子）。
+候选内容（游戏 / 资源类帖子），把「找游戏 → 复核 → 写文案 → 发帖」从纯手工压成几条命令。
 
-当前完成度：
+成功标准（本项目的验收口径）：
+  1) 抓到的东西字段统一、能一眼复核（HTML 卡片 + 无图筛选）；
+  2) 发帖文案由本地模型生成，不花钱；云端润色只在显式配置后才启用；
+  3) 任何一步失败都能说清原因、退出码非 0、不产生半成品；
+  4) 真发布前必须能空跑体检（--dry-run），且空跑零副作用。
+
+流水线一览（一条链，每一步的产物就是下一步的输入）：
+
+  网络
+   → sources/<来源>/index.mjs            各来源自己解析（steam / galgame 子站点）
+   → fetch.mjs                           统一字段校验 / 按 id 去重 / 按日期落盘
+   → candidates/<来源>-<日期>.json       抓取产物（gitignore）
+   → review.mjs → reports/<来源>-<日期>.html + .md    人工复核（无图筛选 / 一键复制 id）
+   → queue/<清单名>.json                 人工写 / 批量通过生成：网盘链接 + 截图 + 标签
+   → publish-game.mjs                    ollama 生成文案 →（可选）云端润色 →（可选）截图
+                                         上传 → 游戏站发帖
+   → 游戏站帖子 + published/<清单名>.json  归档（追加 publishedAt / postId / postUrl）
+
+当前完成度（2026-10-04 实测，按层划分）：
 
   [已完成] 抓取层
-           - 主程序 fetch.mjs：来源扫描 / 统一格式校验 / 按 id 去重 / 按日期落盘
-           - 来源 steam：Steam 官方公开接口抓免费游戏
-           - 来源 galgame：聚合器架构，每个论坛站点一个子目录，站点可横向扩展
+           - 主程序 fetch.mjs（343 行）：来源扫描 / 统一格式校验 / 按 id 去重 / 按日期落盘
+           - 来源 steam（178 行）：Steam 官方公开接口抓免费游戏，实测入库 8 款
+           - 来源 galgame（215 行，聚合器）：每个论坛站点一个子目录，站点可横向扩展；
+             当前只有模板 siteA（LIST_URL 为空，不抓真实帖子）
            - 网络层：可选代理（默认本机 127.0.0.1:7890），支持 --no-proxy / --proxy
            - 软警告：条目没有图片不丢弃，只打印提醒（便于人工复核）
 
-  [未开始] 发布层
-           - publish.mjs（把 candidates/*.json 发布到站点）
-           - drafts/ 草稿模板（_template.json / _example.json）
-           - 仓库总 README 的自动化章节
-           - config.json（含 network.proxy）
+  [已完成] 复核层
+           - review.mjs（145 行）：candidates/<来源>-<日期>.json → reports/<来源>-<日期>
+             .html + .md；卡片浏览、无图筛选、一键复制 id/url，默认 firefox 打开
+
+  [进行中] 发布层（publish-game.mjs，431 行，已提交 b95d90a）
+           - 脚本就绪：ollama 生成文案 →（可选）云端润色 →（可选）截图上传 →
+             游戏站门禁 + 管理员登录 → 发帖 → 原名移动到 published/ 并追加
+             publishedAt / postId / postUrl
+           - 命令行：--dry-run（空跑体检，零副作用）/ --file（只处理指定清单）/ -h
+           - 清单状态（真发后 7 条，全部只在本机、不入库）：社畜就是要躺平.json（303 B，手写，
+             已 git rm --cached）+ 6 条由 Steam 候选「全部通过」批量生成的清单
+             （猫险 Catventure / Grave Of Voices / Demon Lord：Clicker /
+             Stick Cards RNG / Major Mutt / Factorized，2026-10-04）；同批的 AutoChart
+             已于 2026-10-04 真发成功并移入 published/（postId=3）；模板
+             queue/_example-game.json 仍入库
+           - 批量通过口径（与手写那条一致）：panUrl = 候选的 Steam 商店页、panCode = 「无」、
+             genre 留空（候选无此数据，不编造）、platform = PC、tags 取自候选真实标签、
+             无图时 screenshots 写空数组（写不存在的路径会让正式发布在发帖前中止）
+           - 尚未完成：queue/screenshots/ 已建好（空目录），手写清单引用的
+             game1-1.jpg / game1-2.jpg 待补（正式发布会因截图不存在、在生成文案前中止）；
+             config.json 的账号字段已于 2026-10-04 填好，真发布链路已用 AutoChart 跑通
+             （postId=3，用例 15）
+           - 仓库总 README 的自动化章节：未写
 
 设计原则：
   1) 零依赖：只用 Node 原生能力（fs / path / url / fetch），不引入任何 npm 包；
@@ -77,31 +133,180 @@ automation/ 是 simple_forum_cf 站点的内容自动化流水线，目标是自
 --------------------------------------------------------------------------------
 2. 当前目录结构（含行数，2026-10-04 实测）
 --------------------------------------------------------------------------------
-automation/
+2.1 磁盘实际清单（ls 能看到的全部东西）
+
+automation/                                （行数 = wc -l 实测；大小 = ls -l 实测）
 ├── fetch.mjs                        343 行  抓取主程序（scan / 校验 / 去重 / 落盘）
-├── run-with-proxy.sh                       便捷脚本：加载 .env 并让 Node fetch 走代理
-├── .gitignore                             忽略 config.json / .env / 截图 / 归档 /
-│                                          candidates/*.json / reports 的 html+md
-├── candidates/                            抓取产物目录（*.json 被 gitignore，不入库）
-│   ├── steam-2026-10-03.json          8 条
-│   └── steam-2026-10-04.json          8 条
-└── sources/
-    ├── steam/
-    │   ├── index.mjs                178 行
-    │   └── README.md
-    └── galgame/
-        ├── index.mjs                215 行  聚合器（扫描子目录、动态加载、归一、去重）
-        ├── README.md                116 行  使用说明（怎么加站点 / 字段含义 / 兼容开关）
-        ├── sites.txt.example          9 行  旧版「单一入口 + 站点清单」写法，仅作参考
-        └── siteA/                           站点模板（LIST_URL 为空，不会发请求）
-            ├── index.mjs            262 行
-            └── README.md             82 行
+├── review.mjs                       145 行  复核工具（candidates → reports 的 HTML + MD）
+├── publish-game.mjs                 431 行  发布脚本（queue → ollama → 发帖 → published）
+├── run-with-proxy.sh                 35 行  代理包装（给 publish-game.mjs 这类脚本用，可执行）
+├── config.example.json               22 行  配置模板（复制成 config.json 再填）
+├── config.json                        26 行  真实配置，含账号密码（4 个账号字段已填好·2026-10-04；被 gitignore）
+├── .env                               --    代理环境变量（96 字节，已存在；被 gitignore）
+├── .gitignore                        22 行  忽略规则（见下方说明；queue 段为 2026-10-04 新增）
+├── README.md                        102 行  发布脚本的接口说明
+├── 使用教程.md                             面向日常操作的操作手册（10 节）
+├── 项目报告.txt                            本文件（架构 / 证据 / 待办）
+├── sources/                                来源模块（新增来源不用改 fetch.mjs）
+│   ├── steam/
+│   │   ├── index.mjs                178 行  Steam 免费游戏
+│   │   └── README.md
+│   └── galgame/
+│       ├── index.mjs                215 行  聚合器（扫描子目录、动态加载、归一、去重）
+│       ├── README.md                 116 行 使用说明（怎么加站点 / 字段含义 / 兼容开关）
+│       ├── sites.txt.example           9 行 旧版「单一入口 + 站点清单」写法，仅作参考
+│       └── siteA/                          站点模板（LIST_URL 为空，不会发请求）
+│           ├── index.mjs            262 行
+│           └── README.md             82 行
+├── candidates/                             抓取产物 <来源>-<日期>.json（*.json 被 gitignore）
+│   ├── steam-2026-10-03.json           8 条
+│   └── steam-2026-10-04.json           8 条
+├── reports/                                复核报告 <来源>-<日期>.html/.md（被 gitignore）
+│   ├── steam-2026-10-04.html          11 KB
+│   ├── steam-2026-10-04.md            5.3 KB
+│   └── evidence/                           实测日志存档（*.txt 已入库，共 6 个，见第 15 节）
+├── queue/                                  待发布清单（queue/*.json 已改为不入库，见下方说明）
+│   ├── _example-game.json             469 B 模板（_ 开头 → 默认跳过；! 例外，仍入库）
+│   ├── 社畜就是要躺平.json             303 B 手写清单（本地保留；已从版本控制移除）
+│   ├── 猫险 Catventure.json            323 B ┐
+│   ├── Grave Of Voices.json           335 B  │
+│   ├── Demon Lord： Clicker.json       407 B  ├ 6 条由 Steam 候选「全部通过」生成、
+│   ├── Stick Cards RNG.json           383 B  │ 尚未发布（2026-10-04；panUrl=商店页、
+│   ├── Major Mutt.json                336 B  │  panCode=无、无截图）
+│   ├── Factorized.json                350 B  ┘
+│   └── screenshots/                       截图目录：已建好（空目录，含 .gitkeep；两张图待补）
+├── published/                              已发布归档（原名移动进来；*.json 被 gitignore）
+│   ├── .gitkeep
+│   └── AutoChart.json                 446 B 首次真发的归档（postId=3，2026-10-04）
+└── drafts/                                 空目录（当前没有任何脚本读取它，可留可删）
 
 关键说明：
   - galgame 已从「单入口 + sites.txt」重构为「聚合器 + 每站点一个子文件夹」；
     旧 sites.txt 改名为 sites.txt.example 留作参考，不再参与运行。
   - 聚合器会跳过「.」和「_」开头的目录，所以模板类目录可以放 _template/ 里而不被抓取。
   - galgame/siteA/ 是活模板：LIST_URL 为空时打印提示并返回空数组，不发起任何网络请求。
+  - 忽略规则（.gitignore，22 行 = 17 行基线 + 2026-10-04 新增的 queue 段 + 1 空行）：
+    config.json、.env、queue/screenshots/、queue/*.json、published/*.json、candidates/*.json、
+    publish.log、reports/*.html、reports/*.md；两处 ! 反转例外保留入库：
+    queue/_example-game.json（模板）、reports/evidence/*.txt（测试证据）。
+  - 补充（2026-10-04 复核）：queue 段是当天新增的（理由：清单含网盘链接/提取码），
+    该改动尚未提交（.gitignore 仍为 M）；它一度被重复追加成两段（25 行），现已清理为
+    22 行（含末尾 1 空行）。同一天 queue/社畜就是要躺平.json 已用 git rm --cached
+    移除跟踪（文件仍在磁盘，303 B）——两件事见第 11 节待办 12。
+  - 存在状态（2026-10-04 实测）：.env 存在（96 字节，内容为 HTTP_PROXY / HTTPS_PROXY /
+    NO_PROXY）；config.json 已填好 4 个账号字段（2026-10-04 实测）；queue/screenshots/ 已建好
+    （空目录，含 .gitkeep——但该文件被 queue/screenshots/ 规则挡住，git 追不到它）；
+    drafts/ 存在但为空。
+
+
+2.2 文件结构示意图（按角色分层：谁是谁）
+    说明：行数 / 字节 / 条数见 2.1；本节只看「结构、依赖、读写关系」。
+    [入库] = 会进 git；[忽略] = 被 .gitignore 挡住，不进 git。
+
+  ├─ ① 命令入口层（你手动敲的三条命令）
+  │    fetch.mjs            抓取  node fetch.mjs <来源> [--date YYYY-MM-DD|--proxy|--no-proxy]
+  │    review.mjs           复核  node review.mjs <来源> [--date YYYY-MM-DD|--no-open]
+  │    publish-game.mjs     发布  node publish-game.mjs [--dry-run|--file <清单>|-h]
+  │    run-with-proxy.sh    包装  ./run-with-proxy.sh <脚本> [参数]（给发布脚本包一层代理）
+  │
+  ├─ ② 来源层 sources/（被 fetch.mjs 动态 import；新增来源不用改 fetch.mjs）
+  │    steam/index.mjs            导出 fetchGames() → 调 Steam 官方公开接口
+  │    galgame/index.mjs          聚合器：扫自身子目录，逐个 import 调用，失败只跳过该站点
+  │    galgame/siteA/index.mjs    活模板（LIST_URL 为空 → 不发请求、返回空数组）
+  │    galgame/sites.txt.example  旧版「单入口 + 站点清单」写法残留，不参与运行
+  │
+  ├─ ③ 中间产物层（脚本自动生成，人只看不改）
+  │    candidates/<来源>-<日期>.json   ← fetch.mjs 写，review.mjs 读          [忽略]
+  │    reports/<来源>-<日期>.html/.md  ← review.mjs 写，人用浏览器/预览读     [忽略]
+  │    reports/evidence/*.txt          ← 人工粘进来的实测日志（证据）         [入库]
+  │
+  ├─ ④ 待发与归档层（人机交接的地方）
+  │    queue/_example-game.json   ← 模板，_ 开头 → 默认跳过（! 例外，仍入库）
+  │    queue/<清单名>.json        ← 人手写 / 批量通过生成（网盘链接/提取码），发布脚本读  [忽略]
+  │    queue/screenshots/*.jpg    ← 人放图，发布脚本读（相对清单文件所在目录）  [忽略]
+  │    published/<清单名>.json    ← 发布脚本写（原名移动 + 追加发布结果）       [忽略]
+  │
+  ├─ ⑤ 配置与机密层（真实配置一律不入库）
+  │    config.json（2026-10-04 已填好账号）  ← fetch.mjs 读 network.proxy；publish-game.mjs 读
+  │                                 ollama / cloudAi / forumAdmin / game / siteBase [忽略]
+  │    .env（已存在 96 B）        ← run-with-proxy.sh 读 HTTP_PROXY / HTTPS_PROXY /
+  │                                 NO_PROXY                                      [忽略]
+  │    config.example.json        ← 上面那份的模板，唯一入库的配置相关文件      [入库]
+  │
+  ├─ ⑥ 文档层
+  │    README.md                 发布脚本的接口说明（命令、字段、退出码）
+  │    使用教程.md               日常操作手册（快速开始 → 环境 → 日常 → 速查 → 加站点 → …）
+  │    项目报告.txt              本文件（架构 / 结构示意 / 证据 / 待办）
+  │    sources/*/README.md       各来源与站点模板的说明
+  │
+  └─ ⑦ 留空备用
+       drafts/                   空目录，当前没有任何脚本读取它（git 不跟踪空目录）
+
+
+2.3 数据流向图（文件层面：谁写、谁读、落到哪）
+    注：fetch.mjs 内部那 10 个步骤见第 3 节；这里只看文件怎么流动。
+
+  网络（Steam 官方接口 / galgame 站点 HTML）
+    │
+    ▼
+  sources/<来源>/index.mjs        导出 fetchGames(options)，返回统一格式的条目数组
+    │  fetchGames()
+    ▼
+  fetch.mjs                       统一字段守门人校验 → 按 id 去重 → 按日期落盘
+    │
+    ▼
+  candidates/<来源>-<日期>.json   （抓取产物；同一天重跑只会去重追加）
+    │  review.mjs（只读 candidates，不修改它）
+    ▼
+  reports/<来源>-<日期>.html + .md
+    │  人用 firefox / VS Code 预览复核：看封面、筛「仅无图」、一键复制 id 与 url
+    ▼
+  queue/<清单名>.json（手写）+ queue/screenshots/*.jpg（放图）
+    │  publish-game.mjs
+    │    ├─ ollama     http://localhost:11434   生成 title + 正文（本地，0 元）
+    │    ├─ cloudAi     仅当 config.json 配了 cloudAi.apiKey（--dry-run 明确跳过）
+    │    ├─ 论坛 KV     仅当清单里有 screenshots（需要 forumAdmin 账号）
+    │    └─ 游戏站 API  门禁 → 管理员登录 → 发帖（需要 game.gatePassword / admin*）
+    ▼
+  游戏站帖子（外部，落地为一个 URL）
+    ＋
+  published/<清单名>.json         原名移动进来 + 追加 publishedAt / postId / postUrl
+
+  退出码约定：抓取 / 复核出错 → 1（不静默重试）；正式发布处理到第 N 条失败 → 1，且
+  后续清单不处理；--dry-run 无论体检结果如何都 → 0。
+
+
+2.4 文件角色与 git 状态表（2026-10-04 实测）
+
+  文件 / 目录                写入者            读取者                进 git   当前状态
+  -------------------------  ----------------  --------------------  -------  --------------------
+  fetch.mjs                  人（开发）         你运行                [入库]   343 行
+  review.mjs                 人（开发）         你运行                [入库]   145 行
+  publish-game.mjs           人（开发）         你运行                [入库]   431 行
+  run-with-proxy.sh          人（开发）         shell                 [入库]   35 行，可执行
+  sources/steam/index.mjs    人（开发）         fetch.mjs 动态 import [入库]   178 行
+  sources/galgame/index.mjs  人（开发）         fetch.mjs 动态 import [入库]   215 行
+  sources/galgame/siteA/index.mjs   人（开发）   聚合器动态 import     [入库]   262 行（LIST_URL 空）
+  config.example.json        人（开发）         人（复制成 config）   [入库]   22 行
+  .gitignore                 人（开发）         git                   [入库]   22 行（未提交）
+  README.md                  人（开发）         人                    [入库]   102 行
+  使用教程.md                人（开发）         人                    [入库]   10 节
+  项目报告.txt               人（开发）         人                    [入库]   本文件
+  candidates/*.json          fetch.mjs          review.mjs            [忽略]   2 个文件，各 8 条
+  reports/*.html / *.md      review.mjs         人（浏览器 / 预览）   [忽略]   1 份 steam-2026-10-04
+  reports/evidence/*.txt     人（粘日志）       人                    [入库]   6 个 txt（见第 15 节）
+  queue/*.json               人（手写/批量）   publish-game.mjs      [忽略]   7 条待发（1 手写 + 6 生成）
+  queue/社畜就是要躺平.json    人（手写）         publish-game.mjs      [忽略]   303 B，引用 2 张待补截图
+  queue/screenshots/*        人（放图）         publish-game.mjs      [忽略]   已建好（空）
+  published/*.json           publish-game.mjs   人（对账）            [忽略]   1 个（AutoChart，postId=3）
+  published/.gitkeep         git（初建）        —                     [入库]   0 B
+  config.json                人（已填好账号）  fetch.mjs / 发布脚本  [忽略]   26 行·账号已填
+  .env                       人（已写好）       run-with-proxy.sh     [忽略]   96 B，已存在
+  drafts/                    —                  无脚本读取            —        空目录
+
+  怎么读这张表：代码与规则在「[入库]」的文件里（换机器 clone 就有），运行时状态在
+  「[忽略]」的文件里（换机器要自己补）。所以新环境开跑 = clone 仓库 + 补 config.json
+  （做法见使用教程 2.3）+ 确认 .env + 放 queue/screenshots/。
 
 --------------------------------------------------------------------------------
 3. 数据流水线（一次抓取都发生了什么）
@@ -182,11 +387,11 @@ automation/
   架构：sources/galgame/index.mjs 是唯一入口（守门人只 import 它），它在运行时
   扫描自己的子目录，把每个子站点当成一个独立小爬虫来调用。
 
-    sources/galgame/
+    sources/galgame/          （磁盘上当前只有：index.mjs、README.md、sites.txt.example、siteA/）
     ├── index.mjs      聚合器
-    ├── siteA/         子站点（模板）
-    ├── siteB/         以后照着 siteA 复制
-    └── _template/     下划线开头 → 被聚合器忽略，可放模板
+    ├── siteA/         子站点（活模板：LIST_URL 为空 → 打印提示并跳过，不发任何请求）
+    ├── siteB/         [计划] 以后照着 siteA 复制；该目录尚未创建
+    └── _template/     [约定] 下划线开头 → 被聚合器忽略，可放模板；尚未创建
 
   子站点约定（每个子目录一个 index.mjs）：
     必须导出  export async function fetchGames(options) { ... }
@@ -310,11 +515,13 @@ run-with-proxy.sh：
   - 作用：加载同目录 .env，导出 NODE_USE_ENV_PROXY=1 与
     NODE_OPTIONS="--dns-result-order=ipv4first"（强制 IPv4，避免 IPv6 静默超时），
     然后 exec node "$@"
-  - 当前目录下还没有 .env，所以它会打印「⚠️ 未找到 .env 文件，将不使用代理运行」；
-    此时仍能正常抓取，因为 fetch.mjs 自己会设默认代理（127.0.0.1:7890）
-  - 想用它指定别的代理，就在 automation/ 下建 .env：
+  - automation/.env 已存在（96 字节，2026-10-04 实测），内容为 HTTP_PROXY / HTTPS_PROXY /
+    NO_PROXY，所以运行时不会再打印「⚠️ 未找到 .env 文件」；即使删掉它也能正常抓取，
+    因为 fetch.mjs 自己会设默认代理（127.0.0.1:7890）
+  - 要用它指定别的代理，直接改 automation/.env：
         HTTP_PROXY=http://127.0.0.1:7890
         HTTPS_PROXY=http://127.0.0.1:7890
+        NO_PROXY=localhost,127.0.0.1
 
 
 --------------------------------------------------------------------------------
@@ -336,8 +543,19 @@ run-with-proxy.sh：
   # 抓 galgame（聚合所有子站点）
   node fetch.mjs galgame
 
-  # 经代理脚本跑（需要 .env 才真正生效）
+  # 经代理脚本跑（.env 已存在，直接生效）
   ./run-with-proxy.sh fetch.mjs steam
+  ./run-with-proxy.sh publish-game.mjs        # 要调用云端润色时用它包一层
+
+  # 复核（candidates → reports 的 HTML + MD，默认 firefox 打开）
+  node review.mjs steam
+  node review.mjs steam --date 2026-10-03
+  node review.mjs steam --no-open
+
+  # 发布（读 queue/；先空跑体检，确认无误再去掉 --dry-run）
+  node publish-game.mjs --dry-run
+  node publish-game.mjs --file queue/xxx.json --dry-run
+  node publish-game.mjs                        # 正式发布（会真发帖）
 
   # 约定：每次改完 .mjs 先做语法检查（已写入本项目的开发习惯）
   node --check fetch.mjs
@@ -434,12 +652,14 @@ D. 发布脚本加参数（publish-game.mjs，2026-10-04）
 E. 证据入库
    reports/evidence/ 已纳入版本控制，作为测试证据。
    具体规则：automation/.gitignore 忽略 reports/*.html 与 reports/*.md（review.mjs 的运行时
-   产物），再用 ! 反转规则保留 reports/evidence/*.txt；evidence/ 下现有 5 个 .txt 日志
+   产物），再用 ! 反转规则保留 reports/evidence/*.txt；evidence/ 下现有 6 个 .txt 日志
    一并入库。
 
-版本控制现状（git status，automation 目录）：fetch.mjs、review.mjs、run-with-proxy.sh、
-sources/、reports/evidence/*.txt 为未跟踪（??）状态，publish-game.mjs 与 .gitignore、
-README.md 有修改（M）。这一层整体尚未提交，已决定本次一并提交、不拆分。
+版本控制现状：本层已提交为 b95d90a（2026-10-04 11:29，21 files，+3105/-12，尚未 push，
+main 领先 origin/main 1 个提交）。内容为 publish-game.mjs（M）、.gitignore（M）、
+README.md（M）、fetch.mjs、review.mjs、run-with-proxy.sh、sources/**、
+reports/evidence/*.txt（5 个；2026-10-04 真发后新增的第 6 个尚未提交）、使用教程.md、项目报告.txt，以及 queue/ 下第一条真实清单
+社畜就是要躺平.json。candidates/*.json 与 reports 顶层的 html/md 已按规则忽略、未入库。
 
 --------------------------------------------------------------------------------
 10. 实测验证记录（证据）
@@ -484,11 +704,33 @@ README.md 有修改（M）。这一层整体尚未提交，已决定本次一并
                                                              ❌ 文件不存在（正式发布会中止）
   13  publish 参数报错      --bad-arg / --file（无值） /        三个用例退出码均为 1 并打印
                             --file queue/nope.json / -h        完整用法；-h 退出码 0
+  14  整队列空跑（8 条）      node publish-game.mjs --dry-run    12:08:14 → 12:17:19 共 9 分 05 秒
+                            （7 条批量通过生成 + 1 条手写）    （≈68 秒/条）；8 条逐条「字段校验 ✅」
+                                                              并真生成文案预览；唯一 ❌ 是手写清单引用的
+                                                              2 张截图尚未存在（符合预期，正式发布会中止）；
+                                                              退出码 0，末行「8 个清单，其中 8 个成功
+                                                              生成文案预览」；queue/ 与 published/ 未改动
+
+  15  首次单条真发           node publish-game.mjs --file       起跑 12:36 → 12:38:36 归档完成，
+       （无截图支路）          queue/AutoChart.json               约 2.5 分钟；门禁 → 登录 → 发帖
+                                                              → 归档全绿，postId=3，退出码 0；
+                                                              服务端只读读回：title/作者/453 字
+                                                              正文/含下载小节/无截图区块；
+                                                              queue/ 8→7 条、published/ 出现首个
+                                                              归档（完整日志见第 15 节）
 
 清理情况：上述所有临时探针（sources/probe/、candidates/probe-*.json、/tmp 下的 fixture
 与副本）均已删除并复查，仓库目录内无任何残留。发布脚本实测用的临时清单
 queue/zz-probe-game.json 也已删除，删除后 queue/ 与 published/ 的文件哈希与测试前
 完全一致（对照见 reports/evidence/2026-10-04-dryrun-no-side-effect.txt）。
+2026-10-04 批量通过（用例 14）用到的两个一次性脚本与空跑日志都在 /tmp
+（approve_all_steam.mjs、validate_queue.mjs、dryrun_all.txt），仓库内没有新增任何脚本；
+7 条生成的清单落在 queue/ 且被 .gitignore 挡住，不进版本控制。
+2026-10-04 首次真发（用例 15）同样只用了 /tmp 下的一次性脚本（verify_config2.mjs 只读校验配置、
+precheck_a.mjs / precheck_b.mjs 前置检查、verify_post.mjs / verify_list.mjs 服务端只读复核），
+仓库内没有新增任何脚本；真发的完整输出与复核结果存为
+reports/evidence/2026-10-04-first-real-publish.txt（入库证据，6.5 KB），
+config.json 与 queue/*.json、published/*.json 均被 .gitignore 挡住，不进版本控制。
 
 
 --------------------------------------------------------------------------------
@@ -499,24 +741,65 @@ queue/zz-probe-game.json 也已删除，删除后 queue/ 与 published/ 的文�
      timeout），抓取失败时退出码为 1，日志会给出排查建议。网络正常时 steam 整批
      35.4 秒可完成。这不是代码问题，重跑即可。
   2) galgame/siteA 还是模板（LIST_URL 为空），目前不会抓任何真实帖子。
-  3) run-with-proxy.sh 依赖 automation/.env，而该文件尚不存在（不建也能抓，因为
-     fetch.mjs 自己会设默认代理）。
+  3) automation/.env 已存在（96 字节，实测），run-with-proxy.sh 会读取它；若删掉它，
+     脚本会打印「⚠️ 未找到 .env 文件」，但抓取仍正常，因为 fetch.mjs 自己会设默认
+     代理（127.0.0.1:7890）。
+  4) config.json 的账号字段已于 2026-10-04 填好，原先"账号为空 → 发帖前中止"的状况解除：
+     同日用 AutoChart 真发成功（postId=3，用例 15）。代码里两道校验仍然保留、换机器补配置
+     时仍会用到——缺 game.* 报「config.json 缺少 game.adminUsername / game.adminPassword」，
+     清单带截图但缺 forumAdmin 报「缺少 forumAdmin」；--dry-run 不受这些影响，任何时候都能空跑。
+  5) --dry-run 每条清单都要本机 ollama 生成一次文案，实测约 68 秒/条（2026-10-04：8 条从
+     12:08:14 跑到 12:17:19，共 9 分 05 秒），这不是卡死；想只快速验证一条用
+     --file "queue/<清单名>.json"。
+  6) 真发一条实测约 2.5 分钟（2026-10-04 AutoChart：12:36 起跑 → 12:38:36 归档完成），比
+     --dry-run 的 68 秒/条更长，因为还要走门禁 → 登录 → 发帖 → 归档这几步；整批真发别按
+     68 秒/条估算，多条会线性累加（剩余 7 条清单预计十几分钟）。
 
-待办（按建议顺序，2026-10-04 复核）：
-  [x] 第 3 步发布脚本：automation/publish-game.mjs 已就绪，本次已加 --dry-run / --file
-      （见第 9 节 D）。注意它读的是 queue/（不是 drafts/），且是「原名移动到
-      published/ 再追加发布结果」，不是复制。尚未真跑过一次真发布：缺 config.json，
-      queue/ 里只有 _example-game.json 模板。
-  [ ] config.json（建议含 network.proxy；注意 config.example.json 里目前没有 network
-      字段，而 fetch.mjs 支持 network.proxy，这一段要手写）
-  [ ] queue/ 放第一条真实游戏清单（参考 queue/_example-game.json），先 --dry-run 体检
-      再正式发布
-  [ ] 仓库总 README.md 的自动化章节（注意：旧 README.md 已被 git 跟踪，
-      改造前先改名备份，例如 README.old.md）
-  [ ] 接入第一个真实 galgame 站点（复制 siteA → siteB，填 LIST_URL 与两个 parse 函数）
-  [x] candidates/ 不入库：已在 .gitignore 追加 `candidates/*.json`（性质同 published/，
-      2026-10-04 定案；抓取产物每天跑一次就变，不纳入版本控制）
-  [ ] 把 automation/ 的新代码提交进版本库（含 reports/evidence/ 是否一起入库的决定）
+待办（唯一完整清单，按建议顺序，2026-10-04 复核）：
+  说明：使用教程.md 第十节只保留面向日常操作的 4 条并指向本节，避免两份文档各写一套。
+
+  [x] 1. 发布脚本 publish-game.mjs 已就绪（含 --dry-run / --file / -h，见第 9 节 D）。
+        注意：它读 queue/（不是 drafts/），归档方式是「原名移动到 published/ 再追加
+        publishedAt / postId / postUrl」，不是复制。
+  [x] 2. config.json 填账号：已于 2026-10-04 填好 4 个字段（game.adminUsername /
+        adminPassword、forumAdmin.username / password；apiBase / siteBase 保持模板值，
+        network.proxy 与 cloudAi.apiKey 留空；顶层 "_TODO" 说明已同步为"已填好"）。
+        同日用它真发成功一次（用例 15：AutoChart → postId=3），这 4 个字段对发帖确实够用。
+        备注：该文件被 JSON.parse 严格解析，不能写 // 注释；要固定代理就填已预留的
+        "network": { "proxy": "..." }（默认按 http://127.0.0.1:7890）。
+  [ ] 3. queue/screenshots/ 放两张截图（game1-1.jpg / game1-2.jpg）→
+        node publish-game.mjs --dry-run 体检 → 确认无误后去掉 --dry-run 真发一次。
+        现状（2026-10-04 实测）：无截图那条支路已用 AutoChart 真发验证（postId=3，用例 15）；
+        剩余 queue/ 7 条待发清单——1 条手写（社畜就是要躺平.json，引用上述两张待补截图，
+        空跑会报「❌ 文件不存在（正式发布会中止）」）+ 6 条批量通过生成的清单（无截图，空跑
+        逐条 ✅ 字段校验通过并生成文案，8 条实测 9 分 05 秒）。本项真正要补的是"带截图真发"：
+        放好图 → 空跑 → 真发，届时会走到「论坛管理员登录 → 上传截图 → 正文插入截图区块」
+        这三步（该分支至今未在真实环境下跑过）。
+  [ ] 4. 仓库总 README.md 的自动化章节（注意：根 README.md 已被 git 跟踪，改造前先
+        改名备份，例如 README.old.md）。
+  [ ] 5. 接入第一个真实 galgame 站点（复制 siteA → siteB，填 LIST_URL 与两个 parse
+        函数，步骤见第 12 节）。
+  [ ] 6. fetch.mjs 加 --limit N，控制单次抓取条数（当前不支持，详见使用教程 FAQ）。
+  [ ] 7. 把 candidates/ 里超过 30 天的抓取文件归档。
+  [ ] 8. 定时任务：cron 每天自动抓取（发布脚本也可以定时，但建议稳定几天后再开）。
+  [ ] 9. 复核页加「生成 queue 清单」按钮：把 candidates/ 里选中的游戏直接转成待发布
+        JSON，省掉手抄 id / url。备注：2026-10-04 已用一次性脚本
+        （/tmp/approve_all_steam.mjs，临时文件、未入库）按下述口径把 Steam 那 7 条一次
+        放行；「按钮」本身仍待做。
+  [x] 10. candidates/ 不入库：已在 .gitignore 追加 candidates/*.json（性质同 published/，
+        2026-10-04 定案）。
+  [x] 11. automation/ 新代码已提交：b95d90a（21 files，未 push）——publish-game.mjs 与
+        fetch.mjs / review.mjs / sources/ 一起提交、未拆分；reports/evidence/ 决定入库。
+        备注：两份文档做过两轮「事实对齐」（第一轮：.env 存在 / 待办合并到本节 / 快速开始
+        改为先 --dry-run；第二轮：同步 config.json 骨架、queue/screenshots/ 空目录、
+        .gitignore 清理为 22 行、旧口径全扫零残留），对齐后使用教程.md 与 项目报告.txt
+        处于已修改未提交状态，可 git commit --amend --no-edit 追加进 b95d90a（尚未 push）。
+
+  [ ] 12. 提交仓库收尾的未提交改动：.gitignore（M，新增 queue 段）、
+        queue/社畜就是要躺平.json（D，已 git rm --cached，文件保留在磁盘 303 B）、
+        使用教程.md 与 项目报告.txt（M）、reports/evidence/2026-10-04-first-real-publish.txt
+        （新文件，2026-10-04 真发证据）。建议一起 amend 进 b95d90a（未 push），
+        或另起一个独立提交。（原「① .gitignore 重复段」已由用户于 2026-10-04 11:40 清理。）
 
   说明：上一版待办里的「publish.mjs」「drafts/_template.json」两项经核实不存在
   （真实文件名是 publish-game.mjs，草稿模板也从未建过），本次已按实际代码改写。
@@ -559,7 +842,7 @@ queue/zz-probe-game.json 也已删除，删除后 queue/ 与 published/ 的文�
   现象：抓取失败：The operation was aborted due to timeout
      → 网络/代理问题。依次试：重跑；--no-proxy 直连；--proxy <你的代理>；
        确认系统代理端口（本机是 127.0.0.1:7890）。
-     → 可用 ./run-with-proxy.sh（需要 automation/.env）自动带
+     → 可用 ./run-with-proxy.sh（依赖 automation/.env，已存在）自动带
        NODE_USE_ENV_PROXY=1 与 ipv4first。
 
   现象：来源「x」第 N 条数据的 id「y」前缀必须是「x-」
@@ -625,6 +908,10 @@ queue/zz-probe-game.json 也已删除，删除后 queue/ 与 published/ 的文�
                                                                     与去重 fixture 输出
 2026-10-04-galgame-fix.txt           第 10 节 3              1.1 KB  galgame 无站点配置时的
                                                                     优雅退出输出
+2026-10-04-first-real-publish.txt    第 10 节 15             6.5 KB  首次单条真发：publish 完整
+                                                                    输出 + published 归档原文 +
+                                                                    服务端读回（帖子 / 列表）+
+                                                                    文件与 git 对账
 
 这些文件是当时终端输出的原样重定向（含 emoji 与退出码行），未做编辑美化，
 第 10 节表格里的每个数字都能在其中找到出处。本目录（evidence/*.txt）已纳入版本控制；

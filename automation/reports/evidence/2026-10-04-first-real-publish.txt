@@ -1,0 +1,113 @@
+================================================================================
+首次单条真发实录（项目报告.txt 第 10 节 用例 15）
+日期：2026-10-04（北京时间）
+命令：cd automation && node publish-game.mjs --file queue/AutoChart.json
+起跑约 12:36（命令发起时刻）→ 12:38:36 归档完成，整条约 2.5 分钟；
+绝大部分时间花在本地 ollama 生成文案上。
+前置：config.json 已填好 4 个账号字段（game.adminUsername / game.adminPassword /
+      forumAdmin.username / forumAdmin.password，2026-10-04），apiBase / siteBase 同
+      config.example.json，network.proxy 与 cloudAi.apiKey 留空。
+结果：postId=3，https://kuhai.de5.net/game-post.html?id=3，归档 published/AutoChart.json
+================================================================================
+
+【1】publish-game.mjs 的完整输出（原样重定向；首行 nohup: ignoring input 来自 nohup，
+     不是脚本输出；脚本本身退出后终端无其他报错）
+--------------------------------------------------------------------------------
+$ node publish-game.mjs --file queue/AutoChart.json
+nohup: ignoring input
+发现 1 个待发布游戏，开始处理…
+
+▶ AutoChart
+  · 本地模型生成文案…完成
+  · 进入游戏站…完成
+  · 发布帖子…完成（id=3）
+  ✅ 已发布：https://kuhai.de5.net/game-post.html?id=3
+
+🎉 全部完成，共发布 1 篇。
+
+说明：本清单 screenshots=[]，所以「论坛管理员登录 / 上传截图」这两步整段被跳过
+      （分支在 publish-game.mjs:324-338：shots.length 为 0 时不进 if）。这是设计如此，
+      不是漏跑；forumAdmin 那两个字段会在清单里带截图时才用到。
+      实际链路 = 清单校验 → 本地模型生成文案 →（cloudAi.apiKey 为空，跳过云端润色）
+      → 游戏站门禁（/api/game/enter）→ 游戏站管理员登录（/api/game/login）→ 发帖
+      （POST /api/game/posts）→ 归档（原名移动进 published/ 并追加三个字段）。
+
+【2】归档结果：published/AutoChart.json（原文，仅此一份；queue/AutoChart.json 已被移走）
+--------------------------------------------------------------------------------
+{
+  "name": "AutoChart",
+  "panUrl": "https://store.steampowered.com/app/5201270/",
+  "panCode": "无",
+  "genre": "",
+  "platform": "PC",
+  "tags": [
+    "休闲",
+    "独立"
+  ],
+  "notes": "Steam 免费游戏（候选来源 steam-5201270，抓取于 2026-10-04）；候选复核全部通过后生成",
+  "screenshots": [],
+  "publishedAt": "2026-10-04T04:38:36.045Z",
+  "postId": 3,
+  "postUrl": "https://kuhai.de5.net/game-post.html?id=3"
+}
+
+【3】服务端只读复核（独立脚本 /tmp/verify_post.mjs：门禁 → 读帖；
+     密码与 token 一律不回显，只打印长度）
+--------------------------------------------------------------------------------
+$ node /tmp/verify_post.mjs
+===== 只读验证：https://kuhai.de5.net/game-post.html?id=3 =====
+  1) 门禁 /api/game/enter → HTTP 200，token 已签发（长度 148，不回显）
+  2) 读帖 /api/game/posts/3 → HTTP 200
+  ---- 服务器返回的帖子（真实存在）----
+  · id        = 3
+  · title     = 【游戏推荐】AutoChart：轻松上手的休闲冒险之旅
+  · 作者      = adminstartor
+  · 创建时间  = 2026-10-04 04:38:35
+  · 正文长度  = 453 字
+  · 点赞/评论 = 0 / 0
+  ---- 正文开头 200 字 ----
+    | 
+    | AutoChart 是一款充满创意与乐趣的休闲游戏，让你在轻松愉快的氛围中享受游戏带来的乐趣。
+    | 
+    | ## 🎮 游戏简介
+    | - **独特画风**：AutoChart 采用简约风格的画面设计，结合独特的色彩搭配，营造出一种清新而富有艺术感的视觉体验。
+    | - **轻松玩法**：玩家可以自由探索各种充满创意的关卡，只需轻轻一点，就能让各种元素自动组合，完成挑战。
+    | - **多样化关卡**：游戏中拥有多种不同类
+  ---- 关键信息是否落进正文 ----
+  · 含网盘链接：✅ 是
+  · 含下载信息小节：✅ 是
+  · 截图区块（本条应为 0 张）：✅ 无（符合预期）
+
+【4】列表复核（同一只读脚本的第二个请求：/api/game/posts?page=1&size=50，
+     返回结构是 { rows, page, size, total }，不是 posts/items）
+--------------------------------------------------------------------------------
+$ node /tmp/verify_list.mjs
+  HTTP 200  total=3  size=50  page=1  返回 3 条
+  列表里能看到的新帖（前 5 条）：
+    id=  3  adminstartor  views=1  likes=0  【游戏推荐】AutoChart：轻松上手的休闲冒险之旅
+    id=  2  adminstartor  views=12  likes=0  追加网站
+    id=  1  adminstartor  views=13  likes=0  炎孕4
+  → 列表包含 id=3：✅ 是（前台页面可看到）
+
+  站内共 3 帖：id=1（炎孕4）、id=2（追加网站）在此次之前就存在，id=3 是本次真发产生。
+
+【5】文件与版本控制对账
+--------------------------------------------------------------------------------
+· queue/：真发前 8 条待发清单 → 真发后 7 条（AutoChart.json 被脚本按设计移入 published/）；
+  其余 7 条文件名与字节数不变（猫险 Catventure 323 B / 社畜就是要躺平 303 B /
+  Demon Lord： Clicker 407 B / _example-game 469 B / Factorized 350 B /
+  Grave Of Voices 335 B / Major Mutt 336 B / Stick Cards RNG 383 B）。
+· published/：真发前只有一个 .gitkeep → 真发后多出 AutoChart.json（446 B，12:38）。
+· git status（automation/ 子目录）：只有 .gitignore（M）、queue/社畜就是要躺平.json（D）、
+  使用教程.md（M）、项目报告.txt（M）——没有 config.json、没有任何 queue/*.json
+  （config.json 被 .gitignore:2 忽略，queue/*.json 被 .gitignore:20 忽略）。
+· 本次用到的临时脚本（/tmp/verify_config2.mjs、/tmp/precheck_a.mjs、/tmp/precheck_b.mjs、
+  /tmp/verify_post.mjs、/tmp/verify_list.mjs）全部在 /tmp，仓库内没有新增任何脚本；
+  仓库内本次唯一的文件改动是本文档与两份说明文档。
+
+【6】一条注意事项（给下次操作）
+--------------------------------------------------------------------------------
+publish-game.mjs 不带参数时会处理 queue/ 下「全部」非 _ 开头的清单——现在队列里还有 7 条
+（含手写那条，它引用的两张截图尚未放进 queue/screenshots/，正式跑会在生成文案前中止）。
+因此想单条试水务必用 --file；整队列真发前先 --dry-run 体检。
+================================================================================

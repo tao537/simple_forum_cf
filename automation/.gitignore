@@ -15,3 +15,8 @@ reports/*.md
 !reports/evidence/*.txt
 # 抓取产物（每天跑一次就变，性质同 published/）
 candidates/*.json
+
+# 发布清单（含网盘链接/提取码，不入库）
+queue/*.json
+!queue/_example-game.json
+
