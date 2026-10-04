@@ -3,16 +3,29 @@
  * 苦海 · 娱乐游戏 —— 一键自动发布游戏推荐帖
  * 流程：读取 queue/*.json → ollama 生成推荐文案 → 云端 AI 润色（可选）
  *       → 截图上传 KV（可选）→ 游戏站 API 发帖 → 归档到 published/
+ * 截图：screenshots 的每一项可以是 ——
+ *       ① 本地路径（相对清单文件）：原有行为不变，缺失即中止本条；
+ *       ② http(s) URL：先直连下载（10s），失败再走代理下载（30s）；
+ *          代理优先级 .env 的 HTTPS_PROXY → config.json 的 network.proxy → 内置 7890；
+ *          下载落在 /tmp/publish-game-cache/，单张失败只跳过不中止，每条最多 5 张。
  * 运行：node publish-game.mjs
  * 环境：Node 18+（内置 fetch），无需安装依赖
  */
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, renameSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const QUEUE_DIR = join(ROOT, 'queue');
 const PUB_DIR = join(ROOT, 'published');
+const CACHE_DIR = '/tmp/publish-game-cache';   // 远程截图下载缓存（临时产物，可随时删）
+const DEFAULT_PROXY = 'http://127.0.0.1:7890'; // 与 fetch.mjs 的内置默认一致
+const MAX_SHOTS = 5;                           // 每条清单最多上传多少张截图
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;       // 服务端 /api/posts/upload 的 5MB 上限
+const DIRECT_TIMEOUT_MS = 10000;               // 远程图直连下载超时
+const PROXY_TIMEOUT_MS = 30000;                // 远程图代理下载超时
 
 // ---------- 通用 HTTP ----------
 async function httpJson(url, opts = {}) {
@@ -34,6 +47,137 @@ const postJson = (url, body, headers = {}) =>
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
   });
+
+// ---------- 截图：本地路径 / 远程 URL ----------
+const isRemoteShot = (shot) => /^https?:\/\//i.test(String(shot));
+const hashOf = (url) => createHash('sha1').update(String(url)).digest('hex').slice(0, 12);
+
+/** 读 .env 里的一个键（零依赖手写解析；.env 已被 .gitignore 忽略） */
+function envValue(key) {
+  const file = join(ROOT, '.env');
+  if (!existsSync(file)) return '';
+  const re = new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=\\s*(.+?)\\s*$`, 'i');
+  for (const line of readFileSync(file, 'utf8').split('\n')) {
+    const m = line.match(re);
+    if (m) return m[1].replace(/^["']|["']$/g, '');
+  }
+  return '';
+}
+
+/** 代理地址优先级：.env 的 HTTPS_PROXY > config.json 的 network.proxy > 内置默认 */
+function proxyUrl() {
+  return envValue('HTTPS_PROXY') || (config.network && config.network.proxy) || DEFAULT_PROXY;
+}
+
+/** 按魔数判断图片类型（不依赖扩展名）；识别不出返回 null */
+function sniffImage(buf) {
+  if (!buf || buf.length < 12) return null;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { mime: 'image/jpeg', ext: 'jpg' };
+  const pngMagic = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (buf.subarray(0, 8).equals(pngMagic)) return { mime: 'image/png', ext: 'png' };
+  if (buf.subarray(0, 4).toString('latin1') === 'RIFF' && buf.subarray(8, 12).toString('latin1') === 'WEBP') {
+    return { mime: 'image/webp', ext: 'webp' };
+  }
+  const head6 = buf.subarray(0, 6).toString('latin1');
+  if (head6 === 'GIF87a' || head6 === 'GIF89a') return { mime: 'image/gif', ext: 'gif' };
+  return null;
+}
+
+/** 校验一张图的二进制（类型按魔数、大小按服务端上限）；不可用返回 { error } */
+function checkImage(buf) {
+  if (!buf || !buf.length) return { error: '内容为空' };
+  if (buf.length > MAX_IMAGE_BYTES) {
+    return { error: `超过 5MB 上限（${(buf.length / 1024 / 1024).toFixed(1)}MB，服务端会拒绝）` };
+  }
+  const kind = sniffImage(buf);
+  if (!kind) return { error: '魔数不是 jpg/png/webp/gif，无法确定图片类型' };
+  return { ...kind, bytes: buf.length };
+}
+
+/** 直连下载（10s 超时） */
+async function downloadDirect(url) {
+  const r = await fetch(url, { signal: AbortSignal.timeout(DIRECT_TIMEOUT_MS), redirect: 'follow' });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return Buffer.from(await r.arrayBuffer());
+}
+
+/**
+ * 走代理下载（30s 超时）。
+ * Node 只在「进程启动时」读 NODE_USE_ENV_PROXY，进程内 setenv 无效（2026-10-04 实测），
+ * 所以这里用子进程 + 启动前注入环境变量，做法与 run-with-proxy.sh 一致。
+ */
+function downloadViaProxy(url, proxy) {
+  const SRC = [
+    'const [url, out] = process.argv.slice(1);',
+    'try {',
+    `  const r = await fetch(url, { signal: AbortSignal.timeout(${PROXY_TIMEOUT_MS}), redirect: 'follow' });`,
+    "  if (!r.ok) { console.error('HTTP ' + r.status); process.exit(3); }",
+    '  const buf = Buffer.from(await r.arrayBuffer());',
+    "  if (!buf.length) { console.error('空响应'); process.exit(4); }",
+    "  const fs = await import('node:fs');",
+    '  fs.writeFileSync(out, buf);',
+    '  process.stdout.write(String(buf.length));',
+    '} catch (e) {',
+    "  console.error((e && e.cause && e.cause.code) || (e && e.message) || String(e));",
+    '  process.exit(5);',
+    '}',
+  ].join('\n');
+  mkdirSync(CACHE_DIR, { recursive: true });
+  const cacheFile = join(CACHE_DIR, `${hashOf(url)}.download`);
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', SRC, url, cacheFile], {
+    encoding: 'utf8',
+    timeout: PROXY_TIMEOUT_MS + 5000,
+    env: {
+      ...process.env,
+      NODE_USE_ENV_PROXY: '1',
+      NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --dns-result-order=ipv4first`.trim(),
+      HTTP_PROXY: proxy,
+      HTTPS_PROXY: proxy,
+      http_proxy: proxy,
+      https_proxy: proxy,
+      NO_PROXY: 'localhost,127.0.0.1,::1',
+      no_proxy: 'localhost,127.0.0.1,::1',
+    },
+  });
+  if (r.error) throw new Error(`子进程启动失败：${r.error.message}`);
+  if (r.status !== 0) {
+    // 子进程失败时只回传一行（否则会把整段 Node 堆栈带进日志）
+    const firstLine = (r.stderr || '').split('\n').map((line) => line.trim()).filter(Boolean)[0];
+    throw new Error((firstLine || `退出码 ${r.status}`).slice(0, 120));
+  }
+  return readFileSync(cacheFile);
+}
+
+/** 取回远程图：先直连，失败再走代理（两段式） */
+async function fetchRemoteShot(url) {
+  try {
+    return { ok: true, buf: await downloadDirect(url), via: '直连' };
+  } catch (directErr) {
+    const proxy = proxyUrl();
+    try {
+      return { ok: true, buf: downloadViaProxy(url, proxy), via: `代理 ${proxy}` };
+    } catch (proxyErr) {
+      return { ok: false, error: `直连失败（${directErr.message}）且代理失败（${proxyErr.message}）` };
+    }
+  }
+}
+
+/** 取回并校验一张截图（本地路径或远程 URL）；失败返回 { ok:false, error } */
+async function loadShot(shot, listFile) {
+  if (isRemoteShot(shot)) {
+    const got = await fetchRemoteShot(shot);
+    if (!got.ok) return got;
+    const info = checkImage(got.buf);
+    if (info.error) return { ok: false, error: `${info.error}（来源 ${got.via}）` };
+    return { ok: true, buf: got.buf, ...info, via: got.via, name: `${hashOf(shot)}.${info.ext}` };
+  }
+  const path = shot.startsWith('/') ? shot : join(dirname(listFile), shot);
+  if (!existsSync(path)) return { ok: false, error: `本地文件不存在：${path}` };
+  const buf = readFileSync(path);
+  const info = checkImage(buf);
+  if (info.error) return { ok: false, error: info.error };
+  return { ok: true, buf, ...info, via: '', name: basename(path) };
+}
 
 // ---------- ollama 本地生成 ----------
 async function ollamaGenerate(system, user) {
@@ -133,10 +277,10 @@ async function gameLogin(gateToken) {
   );
   return d.token;
 }
-async function uploadImage(forumToken, filePath) {
-  const buf = readFileSync(filePath);
+async function uploadImage(forumToken, buf, mime, name) {
   const fd = new FormData();
-  fd.append('file', new Blob([buf]), basename(filePath));
+  // Blob 必须带 MIME：后端要求 file.type 是 image/*，否则 400「只能上传图片」（2026-10-04 实测）
+  fd.append('file', new Blob([buf], { type: mime }), name);
   const d = await httpJson(`${config.apiBase}/api/posts/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${forumToken}` },
@@ -167,16 +311,22 @@ function validateGame(g) {
   return problems;
 }
 
-/** 把清单里的截图路径解析成实际路径（相对清单文件所在目录） */
-function resolveScreenshots(g, listFile) {
-  const shots = Array.isArray(g.screenshots) ? g.screenshots : [];
-  return shots.map((shot) => ({
-    shot,
-    path: shot.startsWith('/') ? shot : join(dirname(listFile), shot),
-  }));
+/** 清单里的截图条目（本地路径或 URL，原样返回） */
+function shotList(g) {
+  return Array.isArray(g.screenshots) ? g.screenshots : [];
 }
 
-/** 本地不存在的截图（正式发布会中止，--dry-run 只提示） */
+/** 只把「本地路径」条目解析成实际路径（相对清单文件所在目录）；URL 交给 loadShot */
+function resolveScreenshots(g, listFile) {
+  return shotList(g)
+    .filter((shot) => !isRemoteShot(shot))
+    .map((shot) => ({
+      shot,
+      path: shot.startsWith('/') ? shot : join(dirname(listFile), shot),
+    }));
+}
+
+/** 本地不存在的截图（正式发布会中止，--dry-run 只提示）；URL 不参与本地检查 */
 function missingScreenshots(g, listFile) {
   return resolveScreenshots(g, listFile).filter((s) => !existsSync(s.path));
 }
@@ -196,6 +346,13 @@ const HELP_TEXT = `
   --dry-run       不登录、不上传截图、不调用云端 AI、不写 published/，
                   只打印每条清单的校验结果和将要说出的字段（本地模型照跑）
   -h, --help      显示本帮助
+
+截图来源：
+  清单里 screenshots 的每一项都可以是「本地路径（相对清单文件）」或「http(s) URL」。
+  URL 先直连下载（10s），失败再走代理下载（30s）；代理取 .env 的 HTTPS_PROXY，
+  其次 config.json 的 network.proxy，最后内置 ${DEFAULT_PROXY}；
+  下载缓存在 ${CACHE_DIR}/。单张失败只跳过不中止；每条最多 ${MAX_SHOTS} 张。
+  （本地文件缺失仍按原行为直接中止本条。）
 
 示例：
   node publish-game.mjs
@@ -248,14 +405,22 @@ async function previewGame(file) {
   );
   console.log(`  · 网盘：${g.panUrl || '(空)'}${g.panCode ? `　提取码：${g.panCode}` : ''}`);
 
-  // 2. 截图：只检查本地文件是否存在，不上传
-  const shots = resolveScreenshots(g, file);
-  const absent = missingScreenshots(g, file).map((s) => s.path);
-  if (!shots.length) {
+  // 2. 截图：本地只查文件是否存在；URL 不下载（--dry-run 保持零副作用）
+  const allShots = shotList(g);
+  const plannedPreview = allShots.slice(0, MAX_SHOTS);
+  if (!allShots.length) {
     console.log('  · 截图：无（跳过上传）');
   } else {
-    for (const s of shots) {
-      console.log(`  · 截图 ${s.shot}：${absent.includes(s.path) ? '❌ 文件不存在（正式发布会中止）' : '✅ 存在（正式发布会上传）'}`);
+    for (const shot of plannedPreview) {
+      if (isRemoteShot(shot)) {
+        console.log(`  · 截图 ${shot}：远程 URL（正式发布：先直连下载，失败走代理；不检查本地文件）`);
+      } else {
+        const path = shot.startsWith('/') ? shot : join(dirname(file), shot);
+        console.log(`  · 截图 ${shot}：${existsSync(path) ? '✅ 存在（正式发布会上传）' : '❌ 文件不存在（正式发布会中止）'}`);
+      }
+    }
+    if (allShots.length > MAX_SHOTS) {
+      console.log(`  · 截图共 ${allShots.length} 张，超过上限，正式发布只会用前 ${MAX_SHOTS} 张`);
     }
   }
 
@@ -282,7 +447,8 @@ async function previewGame(file) {
   console.log(`      title   = ${draft.title}`);
   console.log(`      content = ${body.slice(0, 120).replace(/\n/g, '\n                ')}${body.length > 120 ? '…' : ''}`);
   console.log(`                （正文共 ${body.length} 字，此处截断预览）`);
-  console.log(`      images  = ${shots.length ? `${shots.length} 张（上传后替换为论坛地址）` : '(无)'}`);
+  const effectiveShots = Math.min(allShots.length, MAX_SHOTS);
+  console.log(`      images  = ${effectiveShots ? `${effectiveShots} 张（上传后替换为论坛地址）` : '(无)'}`);
   console.log('  · --dry-run：跳过 门禁 → 登录 → 发帖 → 归档，queue/ 与 published/ 均不改动');
   return true;
 }
@@ -315,26 +481,46 @@ async function processGame(file) {
     console.log('完成');
   }
 
-  // 3. 截图上传（需要论坛管理员 token）
-  //    先统一检查文件是否存在再登录：避免"登录后才发现缺文件、截图已传了一半"
-  const images = [];
-  const shots = resolveScreenshots(g, file);
+  // 3. 截图：先把本地/远程都取回并校验，再决定是否登录上传
+  //    本地缺文件仍按老规矩直接中止本条；远程单张失败只跳过（不中止）；每条最多 MAX_SHOTS 张
   const absent = missingScreenshots(g, file);
   if (absent.length) throw new Error(`截图不存在：${absent.map((s) => s.path).join('、')}`);
-  if (shots.length) {
+
+  const allShots = shotList(g);
+  if (allShots.length > MAX_SHOTS) {
+    console.log(`  · 截图共 ${allShots.length} 张，超过上限，只取前 ${MAX_SHOTS} 张`);
+  }
+
+  const ready = [];
+  for (const shot of allShots.slice(0, MAX_SHOTS)) {
+    const label = isRemoteShot(shot) ? shot : basename(shot);
+    process.stdout.write(`  · 取回截图 ${label}…`);
+    const got = await loadShot(shot, file);
+    if (!got.ok) {
+      console.log(`跳过（${got.error}）`);
+      continue;
+    }
+    console.log(`完成（${got.via ? `${got.via}，` : ''}${got.mime} ${(got.bytes / 1024).toFixed(0)}KB）`);
+    ready.push({ ...got, label });
+  }
+
+  const images = [];
+  if (ready.length) {
     if (!config.forumAdmin || !config.forumAdmin.username) {
       throw new Error('config.json 缺少 forumAdmin（上传截图需要论坛管理员账号）');
     }
     process.stdout.write('  · 论坛管理员登录…');
     const forumToken = await forumLogin();
     console.log('完成');
-    for (const { path: shotPath } of shots) {
-      process.stdout.write(`  · 上传截图 ${basename(shotPath)}…`);
-      images.push(await uploadImage(forumToken, shotPath));
+    for (const shot of ready) {
+      process.stdout.write(`  · 上传截图 ${shot.label}…`);
+      images.push(await uploadImage(forumToken, shot.buf, shot.mime, shot.name));
       console.log('完成');
     }
     const block = `\n## 🖼 游戏截图\n\n${images.map((u) => `![](${u})`).join('\n\n')}\n`;
     content = insertScreenshots(content, block);
+  } else if (allShots.length) {
+    console.log('  · ⚠️ 没有可用截图（全部跳过），本条按无图发布');
   }
 
   // 4. 游戏站门禁 + 管理员登录 + 发帖

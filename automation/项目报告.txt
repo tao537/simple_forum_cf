@@ -510,6 +510,9 @@ automation/                                （行数 = wc -l 实测；大小 = l
   - 同时设置 NO_PROXY=localhost,127.0.0.1,::1
   - 直连：--no-proxy（跳过整个代理设置）
   - 来源（sources/）本身完全不用关心网络，代理在调用它们之前就设好了
+  - ⚠️ 2026-10-04 实测更正：上面这段「运行期设 env」在 Node v26.8.2 上并不生效
+    （NODE_USE_ENV_PROXY 只在进程启动时读取），所以 fetch.mjs 实际一直在直连；
+    真要走代理必须用 run-with-proxy.sh（启动前注入）。详见第 11 节已知问题 7)。
 
 run-with-proxy.sh：
   - 作用：加载同目录 .env，导出 NODE_USE_ENV_PROXY=1 与
@@ -743,7 +746,7 @@ config.json 与 queue/*.json、published/*.json 均被 .gitignore 挡住，不�
   2) galgame/siteA 还是模板（LIST_URL 为空），目前不会抓任何真实帖子。
   3) automation/.env 已存在（96 字节，实测），run-with-proxy.sh 会读取它；若删掉它，
      脚本会打印「⚠️ 未找到 .env 文件」，但抓取仍正常，因为 fetch.mjs 自己会设默认
-     代理（127.0.0.1:7890）。
+     代理（127.0.0.1:7890）——注：这条内置默认代理在运行期注入、实测并不生效，见第 7 条。
   4) config.json 的账号字段已于 2026-10-04 填好，原先"账号为空 → 发帖前中止"的状况解除：
      同日用 AutoChart 真发成功（postId=3，用例 15）。代码里两道校验仍然保留、换机器补配置
      时仍会用到——缺 game.* 报「config.json 缺少 game.adminUsername / game.adminPassword」，
@@ -754,6 +757,18 @@ config.json 与 queue/*.json、published/*.json 均被 .gitignore 挡住，不�
   6) 真发一条实测约 2.5 分钟（2026-10-04 AutoChart：12:36 起跑 → 12:38:36 归档完成），比
      --dry-run 的 68 秒/条更长，因为还要走门禁 → 登录 → 发帖 → 归档这几步；整批真发别按
      68 秒/条估算，多条会线性累加（剩余 7 条清单预计十几分钟）。
+  7) fetch.mjs 的代理设置在运行期注入，实测不生效（2026-10-04 定论；本轮只记录，不改代码）：
+     现象：applyProxy()（fetch.mjs 第 136–153 行）在进程内设 NODE_USE_ENV_PROXY=1 与
+       HTTP(S)_PROXY，但 Node 只在「进程启动时」读 NODE_USE_ENV_PROXY（Node v26.8.2 实测），
+       进程内设置无效——把 --proxy 指向假代理（关闭端口/不可达 IP）时，请求照样成功，
+       假代理连一个 CONNECT 都收不到；而同样的变量在启动前注入时，假代理立刻收到 CONNECT。
+     后果：fetch.mjs 在需要代理的环境里会「静默直连」——日志仍打印「🌐 网络：走代理 …」，
+       实际没走代理。本机碰巧能直连（curl 直连出口与大陆 IP 一致），所以一直没暴露。
+     现状缓解：run-with-proxy.sh 是在 node 启动前 source .env 并 export NODE_USE_ENV_PROXY=1，
+       这条路有效（实测代理出口 IP 与直连出口 IP 不同）；需要真走代理时用它跑抓取。
+     待定：是否让 fetch.mjs 内部改用子进程/ProxyAgent 方式（下一轮单独做，本轮不动 fetch.mjs）。
+     对照：publish-game.mjs 的远程截图下载已按正确姿势实现（子进程 + 启动前注入 env，
+       与 run-with-proxy.sh 同路数），本轮已端到端验证通过。
 
 待办（唯一完整清单，按建议顺序，2026-10-04 复核）：
   说明：使用教程.md 第十节只保留面向日常操作的 4 条并指向本节，避免两份文档各写一套。
