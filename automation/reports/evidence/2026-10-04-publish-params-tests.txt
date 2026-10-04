@@ -1,0 +1,145 @@
+########## 测试 1：node publish-game.mjs --dry-run ##########
+⚠️ 未找到 config.json（--dry-run 不需要它；正式发布前请先 cp config.example.json config.json 并填写账号）
+
+🔍 --dry-run 空跑：共 1 个清单（不发帖 / 不上传截图 / 不归档 / 不调用云端 AI）
+
+▶ /home/zhong/Disk_R/DesktopProject/project/simple_forum_cf/automation/queue/zz-probe-game.json
+  名称：空跑探针游戏（临时文件，测完即删，不会发布）
+  · 字段校验：✅ name / panUrl 齐全
+  · 网盘：https://pan.example.com/s/probe　提取码：probe
+  · 截图 ../reports/steam-2026-10-04.html：✅ 存在（正式发布会上传）
+  · 本地模型生成文案（--dry-run 跳过云端润色）…完成
+  · 将要说出的字段：
+      title   = 游戏推荐：空跑探针游戏
+      content = 发掘未知世界，体验独特的探针游戏！
+                
+                ## 🎮 游戏简介
+                在这款充满挑战与探索乐趣的探针游戏中，你将扮演一名勇敢的探针操作员，穿梭于神秘莫测的未知领域。游戏融合了策略与动作元素，每一步探针操作都可能引发意想不到的连锁反应。亮点包括：- 独…
+                （正文共 280 字，此处截断预览）
+      images  = 1 张（上传后替换为论坛地址）
+  · --dry-run：跳过 门禁 → 登录 → 发帖 → 归档，queue/ 与 published/ 均不改动
+
+🔍 空跑结束：共 1 个清单，其中 1 个成功生成文案预览（空跑只体检、不阻断）
+退出码=0
+
+########## 测试 2：node publish-game.mjs --file queue/_example-game.json --dry-run ##########
+⚠️ 未找到 config.json（--dry-run 不需要它；正式发布前请先 cp config.example.json config.json 并填写账号）
+
+🔍 --dry-run 空跑：共 1 个清单（不发帖 / 不上传截图 / 不归档 / 不调用云端 AI）
+
+▶ /home/zhong/Disk_R/DesktopProject/project/simple_forum_cf/automation/queue/_example-game.json
+  名称：示例游戏：星穹铁道（这里换成真实游戏名）
+  · 字段校验：✅ name / panUrl 齐全
+  · 网盘：https://pan.baidu.com/s/1234567890　提取码：abcd
+  · 截图 screenshots/game1-1.jpg：❌ 文件不存在（正式发布会中止）
+  · 截图 screenshots/game1-2.jpg：❌ 文件不存在（正式发布会中止）
+  · 本地模型生成文案（--dry-run 跳过云端润色）…完成
+  · 将要说出的字段：
+      title   = 【游戏推荐】星穹铁道：穿梭星轨，探索未知的世界！
+      content = 探索多样的星轨，邂逅不同角色，开启一场奇幻之旅！
+                
+                ## 🎮 游戏简介
+                - 世界观：构建于多个星球之间的宏大故事，每个角色都有独特的背景故事。
+                - 玩法：回合制RPG，策略与情感并重的冒险旅程。
+                - 特色：精致的二次元画风，深度的角色互动…
+                （正文共 280 字，此处截断预览）
+      images  = 2 张（上传后替换为论坛地址）
+  · --dry-run：跳过 门禁 → 登录 → 发帖 → 归档，queue/ 与 published/ 均不改动
+
+🔍 空跑结束：共 1 个清单，其中 1 个成功生成文案预览（空跑只体检、不阻断）
+退出码=0
+
+########## 测试 3：node publish-game.mjs --bad-arg ##########
+
+❌ 未知参数：--bad-arg
+
+苦海 · 娱乐游戏 —— 一键自动发布游戏推荐帖
+
+用法：
+  node publish-game.mjs                 发布 queue/ 里全部的清单
+  node publish-game.mjs --file <路径>    只处理指定的一个清单
+  node publish-game.mjs --dry-run       空跑：走完整流程但不发帖、不归档
+
+可选参数：
+  --file <路径>   相对 automation/ 或绝对路径；显式指定时不跳过 _ 开头的模板文件
+  --dry-run       不登录、不上传截图、不调用云端 AI、不写 published/，
+                  只打印每条清单的校验结果和将要说出的字段（本地模型照跑）
+  -h, --help      显示本帮助
+
+示例：
+  node publish-game.mjs
+  node publish-game.mjs --dry-run
+  node publish-game.mjs --file queue/_example-game.json --dry-run
+
+退出码=1
+
+########## 附加 A：--file 指向不存在的文件 ##########
+⚠️ 未找到 config.json（--dry-run 不需要它；正式发布前请先 cp config.example.json config.json 并填写账号）
+
+❌ --file 指定的清单不存在：/home/zhong/Disk_R/DesktopProject/project/simple_forum_cf/automation/queue/nope.json
+
+苦海 · 娱乐游戏 —— 一键自动发布游戏推荐帖
+
+用法：
+  node publish-game.mjs                 发布 queue/ 里全部的清单
+  node publish-game.mjs --file <路径>    只处理指定的一个清单
+  node publish-game.mjs --dry-run       空跑：走完整流程但不发帖、不归档
+
+可选参数：
+  --file <路径>   相对 automation/ 或绝对路径；显式指定时不跳过 _ 开头的模板文件
+  --dry-run       不登录、不上传截图、不调用云端 AI、不写 published/，
+                  只打印每条清单的校验结果和将要说出的字段（本地模型照跑）
+  -h, --help      显示本帮助
+
+示例：
+  node publish-game.mjs
+  node publish-game.mjs --dry-run
+  node publish-game.mjs --file queue/_example-game.json --dry-run
+
+退出码=1
+
+########## 附加 B：-h ##########
+苦海 · 娱乐游戏 —— 一键自动发布游戏推荐帖
+
+用法：
+  node publish-game.mjs                 发布 queue/ 里全部的清单
+  node publish-game.mjs --file <路径>    只处理指定的一个清单
+  node publish-game.mjs --dry-run       空跑：走完整流程但不发帖、不归档
+
+可选参数：
+  --file <路径>   相对 automation/ 或绝对路径；显式指定时不跳过 _ 开头的模板文件
+  --dry-run       不登录、不上传截图、不调用云端 AI、不写 published/，
+                  只打印每条清单的校验结果和将要说出的字段（本地模型照跑）
+  -h, --help      显示本帮助
+
+示例：
+  node publish-game.mjs
+  node publish-game.mjs --dry-run
+  node publish-game.mjs --file queue/_example-game.json --dry-run
+退出码=0
+
+########## 附加 C：--file 少给值 ##########
+
+❌ --file 需要一个值，例如：--file queue/xxx.json
+
+苦海 · 娱乐游戏 —— 一键自动发布游戏推荐帖
+
+用法：
+  node publish-game.mjs                 发布 queue/ 里全部的清单
+  node publish-game.mjs --file <路径>    只处理指定的一个清单
+  node publish-game.mjs --dry-run       空跑：走完整流程但不发帖、不归档
+
+可选参数：
+  --file <路径>   相对 automation/ 或绝对路径；显式指定时不跳过 _ 开头的模板文件
+  --dry-run       不登录、不上传截图、不调用云端 AI、不写 published/，
+                  只打印每条清单的校验结果和将要说出的字段（本地模型照跑）
+  -h, --help      显示本帮助
+
+示例：
+  node publish-game.mjs
+  node publish-game.mjs --dry-run
+  node publish-game.mjs --file queue/_example-game.json --dry-run
+
+退出码=1
+
+=== ALL DONE ===

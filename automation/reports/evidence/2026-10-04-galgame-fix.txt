@@ -1,0 +1,16 @@
+]633;E;node --check sources/galgame/index.mjs;475b5166-a590-4595-a373-e34a0ff1ab97]633;C✅ 落盘后 node --check：sources/galgame/index.mjs 语法 OK
+
+=== 跑 fixture ===
+[galgame] 发现 2 个子站点：siteFirst、siteSecond
+[galgame] ⚠️ siteFirst 无图帖子甲 无图，已入库（建议人工确认）
+[galgame] ✅ siteFirst：返回 2 条，入库 2 条
+[galgame] ⚠️ siteSecond 无图帖子丙 无图，已入库（建议人工确认）
+[galgame] ✅ siteSecond：返回 2 条，入库 1 条
+[galgame] 聚合结束：子站点 2 个（成功 2 个，失败 0 个），入库 3 条（跳过重复 id 1 条，无图 2 条，建议人工确认）
+
+>>> 返回 3 条：有图 1 条，无图 2 条
+>>> id 列表：["galgame-siteFirst-withimg","galgame-siteFirst-noimg","galgame-siteSecond-fresh-noimg"]
+>>> 无图条目确实在结果里（id + cover）：[["galgame-siteFirst-noimg",""],["galgame-siteSecond-fresh-noimg",""]]
+退出码=0
+
+=== 警告打印次数 = 2（期望 2：无图帖子甲 + 无图帖子丙；被去重丢弃的「重复且无图的帖子」不误报）===

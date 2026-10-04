@@ -1,0 +1,645 @@
+================================================================================
+ simple_forum_cf / automation —— 项目报告
+================================================================================
+项目路径 : /home/zhong/Desktop/project/simple_forum_cf/automation
+           （realpath 实际指向 /home/zhong/Disk_R/DesktopProject/project/simple_forum_cf/automation）
+报告生成 : 2026-10-04
+运行环境 : Node.js（原生 ESM）+ Linux，抓取层零第三方依赖
+报告范围 : automation/ 抓取流水线现状、代码结构与关键行号、本次改动、实测证据、待办事项
+说明     : 本报告所有数字均取自本次实测输出，未估算、未虚构。
+
+--------------------------------------------------------------------------------
+执行摘要（先看这一段）
+--------------------------------------------------------------------------------
+当前进度：抓取层已完成并实测跑通，2 个来源（steam / galgame）。
+          发布层：publish-game.mjs 脚本已就绪（本次新增 --dry-run / --file），
+          但尚未真跑过一次真发布——缺 config.json，queue/ 里也还没有真实清单。
+实测状态：node --check 全绿；node fetch.mjs list → 2 个来源、退出码 0；
+          代理 127.0.0.1:7890 实测可达（google / store.steampowered.com 均 200）；
+          发布脚本 6 个用例全部通过，--dry-run 零文件改动（见第 10、15 节）。
+待办     ：7 项（第 1 项已打钩，见第 11 节）。
+API 成本 ：当前抓取层 0 元（不调用任何 API）；发布层本地 ollama 生成 0 元，
+          云端润色只在 config.json 配了 cloudAi 时才调用（见第 14 节）。
+证据     ：全部实测日志在 reports/evidence/，第 15 节按文件名索引。
+
+--------------------------------------------------------------------------------
+0. 目录
+--------------------------------------------------------------------------------
+  执行摘要（先看这一段）                       ← 本次新增
+  1. 项目概览
+  2. 当前目录结构（含行数）
+  3. 数据流水线（一次抓取都发生了什么）
+  4. 统一数据格式与守门人校验
+  5. 两个来源的实现
+       5.1 steam —— 官方接口抓免费游戏
+       5.2 galgame —— 聚合器 + 每站点一个子目录
+  6. 软警告规则（本次新增：无图不丢弃，只提醒）
+  7. 网络与代理（实测结论）
+  8. 运行手册（命令清单）
+  9. 本次改动清单
+ 10. 实测验证记录（证据）
+ 11. 已知问题与待办
+ 12. 附录 A：新增一个 galgame 站点的步骤
+ 13. 附录 B：常见问题排查
+ 14. 成本与 API（当前 0 元，以及未来接 DeepSeek 的控费策略）  ← 本次新增
+ 15. 证据附件（reports/evidence/ 文件索引）                     ← 本次新增
+
+
+--------------------------------------------------------------------------------
+1. 项目概览
+--------------------------------------------------------------------------------
+automation/ 是 simple_forum_cf 站点的内容自动化流水线，目标是自动化产出可发布的
+候选内容（游戏 / 资源类帖子）。
+
+当前完成度：
+
+  [已完成] 抓取层
+           - 主程序 fetch.mjs：来源扫描 / 统一格式校验 / 按 id 去重 / 按日期落盘
+           - 来源 steam：Steam 官方公开接口抓免费游戏
+           - 来源 galgame：聚合器架构，每个论坛站点一个子目录，站点可横向扩展
+           - 网络层：可选代理（默认本机 127.0.0.1:7890），支持 --no-proxy / --proxy
+           - 软警告：条目没有图片不丢弃，只打印提醒（便于人工复核）
+
+  [未开始] 发布层
+           - publish.mjs（把 candidates/*.json 发布到站点）
+           - drafts/ 草稿模板（_template.json / _example.json）
+           - 仓库总 README 的自动化章节
+           - config.json（含 network.proxy）
+
+设计原则：
+  1) 零依赖：只用 Node 原生能力（fs / path / url / fetch），不引入任何 npm 包；
+  2) 一个来源一个目录：sources/<来源名>/index.mjs 导出 fetchGames() 即注册成功；
+  3) 统一数据格式：所有来源产出同一套字段，下游发布逻辑只认这一套格式；
+  4) 失败隔离：单个站点 / 单条数据出问题只跳过它自己，不拖垮整批；
+  5) 可观测：每一步都有中文日志，异常给排查建议。
+
+
+--------------------------------------------------------------------------------
+2. 当前目录结构（含行数，2026-10-04 实测）
+--------------------------------------------------------------------------------
+automation/
+├── fetch.mjs                        343 行  抓取主程序（scan / 校验 / 去重 / 落盘）
+├── run-with-proxy.sh                       便捷脚本：加载 .env 并让 Node fetch 走代理
+├── .gitignore                             忽略 config.json / .env / 截图 / 归档 /
+│                                          candidates/*.json / reports 的 html+md
+├── candidates/                            抓取产物目录（*.json 被 gitignore，不入库）
+│   ├── steam-2026-10-03.json          8 条
+│   └── steam-2026-10-04.json          8 条
+└── sources/
+    ├── steam/
+    │   ├── index.mjs                178 行
+    │   └── README.md
+    └── galgame/
+        ├── index.mjs                215 行  聚合器（扫描子目录、动态加载、归一、去重）
+        ├── README.md                116 行  使用说明（怎么加站点 / 字段含义 / 兼容开关）
+        ├── sites.txt.example          9 行  旧版「单一入口 + 站点清单」写法，仅作参考
+        └── siteA/                           站点模板（LIST_URL 为空，不会发请求）
+            ├── index.mjs            262 行
+            └── README.md             82 行
+
+关键说明：
+  - galgame 已从「单入口 + sites.txt」重构为「聚合器 + 每站点一个子文件夹」；
+    旧 sites.txt 改名为 sites.txt.example 留作参考，不再参与运行。
+  - 聚合器会跳过「.」和「_」开头的目录，所以模板类目录可以放 _template/ 里而不被抓取。
+  - galgame/siteA/ 是活模板：LIST_URL 为空时打印提示并返回空数组，不发起任何网络请求。
+
+--------------------------------------------------------------------------------
+3. 数据流水线（一次抓取都发生了什么）
+--------------------------------------------------------------------------------
+命令入口：
+  node fetch.mjs <来源名> [--date YYYY-MM-DD] [--proxy <url> | --no-proxy]
+
+执行顺序（括号内为 fetch.mjs 中的行号）：
+
+  1) parseArgs()      解析参数；只允许一个来源；--date 校验 YYYY-MM-DD
+  2) loadConfig()     读取 config.json（可选，不存在就用默认值）
+  3) applyProxy()     设置 NODE_USE_ENV_PROXY=1 与 HTTP(S)_PROXY（默认 127.0.0.1:7890）
+  4) listSources()    扫描 sources/*/ 目录，只有含 index.mjs 的目录才是有效来源   [156]
+  5) 动态 import       await import('sources/<来源名>/index.mjs')，调用 fetchGames(options)
+  6) validateItems()  统一格式守门人；任何一条不合法 → 打印原因并退出（不写文件）  [185]
+  7) 空数据保护       来源返回 0 条 → 提示「本次没有抓到任何数据」，不写文件
+  8) mergeById()      与当天已有文件按 id 去重合并（新增 / 跳过重复）             [232]
+  9) writeFileSync()  写入 candidates/<来源名>-<日期>.json（JSON，2 空格缩进）
+ 10) 汇总输出         抓取完成统计行 + 「📊 本次入库 N 条，其中无图 M 条」        [334]
+
+传给来源的 options：{ source, date, automationDir, candidatesDir }
+  - date 只影响输出文件名；条目的 fetched_at 始终记录真实抓取时间。
+
+
+--------------------------------------------------------------------------------
+4. 统一数据格式与守门人校验
+--------------------------------------------------------------------------------
+必需字段（fetch.mjs 第 36 行 REQUIRED_FIELDS，八个字段一个都不能少）：
+
+  id  source  name  desc  url  cover  tags  fetched_at
+
+逐字段规则：
+
+  字段        要求
+  --------    --------------------------------------------------------------
+  id          非空字符串，且必须以「<来源名>-」开头（例：steam-5076420）
+  source      必须严格等于来源名（例：'steam'）
+  name        非空字符串
+  desc        字符串（可以为空串）
+  url         字符串，且是 http(s) 链接
+  cover       字符串（没有封面就填空字符串 ''，不允许 undefined）
+  tags        数组（没有标签就填 []）
+  fetched_at  存在即可（来源自行填「YYYY-MM-DD HH:mm」）
+  另：同一批结果内 id 不得重复（重复会直接报错退出）
+
+不在守门人校验范围内的字段：
+  images[] / links[] / site  —— galgame 的扩展字段，可选，守门人不管。
+
+校验失败的行为：fail() → 打印「来源「x」第 N 条数据 … 」并终止，不写任何文件，
+已有 candidates 文件保持不动。这保证了脏数据永远不会进产物目录。
+
+
+--------------------------------------------------------------------------------
+5. 两个来源的实现
+--------------------------------------------------------------------------------
+5.1 steam —— 官方接口抓免费游戏（sources/steam/index.mjs，178 行）
+
+  数据源（两个公开接口，无需 key）：
+    A. 分类接口 https://store.steampowered.com/api/featuredcategories?cc=CN&l=schinese
+       → specials / new_releases / top_sellers 等分类，每类里有 items
+    B. 详情接口 https://store.steampowered.com/api/appdetails?appids=<id>&cc=CN&l=schinese
+       → short_description（简介）、header_image（封面）、genres（类型标签）
+
+  处理链：
+    collectFeaturedItems()  跨分类按 appid 去重
+    isFree()                final_price 或 original_price 为 0 即判免费
+    SKIP_DEMO = true        详情里 type === 'demo' 的试玩版直接跳过（第 24 行开关）
+    逐条请求详情            间隔 REQUEST_INTERVAL = 2000ms（Steam 限流严格）
+                            单次超时 REQUEST_TIMEOUT = 20000ms
+    容错                    单条详情失败只跳过并计数，不影响整批（唯一允许的容错）
+    软警告                  cover 为空 → 计数 + 打印（见第 6 节）
+
+  2026-10-04 实测：分类去重 51 款 → 判免费 14 款 → 跳过 Demo 6 款 → 入库 8 款，
+  0 条详情失败，耗时 35.4 秒（14 次详情请求，2 秒间隔）。
+
+5.2 galgame —— 聚合器 + 每站点一个子目录（sources/galgame/index.mjs，215 行）
+
+  架构：sources/galgame/index.mjs 是唯一入口（守门人只 import 它），它在运行时
+  扫描自己的子目录，把每个子站点当成一个独立小爬虫来调用。
+
+    sources/galgame/
+    ├── index.mjs      聚合器
+    ├── siteA/         子站点（模板）
+    ├── siteB/         以后照着 siteA 复制
+    └── _template/     下划线开头 → 被聚合器忽略，可放模板
+
+  子站点约定（每个子目录一个 index.mjs）：
+    必须导出  export async function fetchGames(options) { ... }
+    返回数组，每条格式：
+      { id, source, name, desc, images[], links[], url, fetched_at }
+      - id         必须以 galgame- 开头；推荐 galgame-<站点名>-<帖子URL的sha256前12位>
+                   （由帖子 URL 派生 → 天然稳定，重复抓取不会产生新 id）
+      - source     建议写 'galgame/<站点名>'（聚合器会按下面的兼容层处理）
+      - images[]   帖子里的图片地址（无图就 []，不会因此被丢弃）
+      - links[]    帖子里出现的所有链接（不判断类型，判断交给人）
+      - url        原帖地址
+
+  聚合器做的事（export async function fetchGames，第 135 行）：
+    1) listSubSites()   扫描子目录；跳过「.」/「_」开头；没有 index.mjs 的目录视为无效  [68]
+    2) 逐个动态 import 子站点的 index.mjs，检查 fetchGames 是否导出
+    3) 串行调用（不并发，避免打崩站点），把返回的每条数据交给 normalizeItem()
+    4) normalizeItem()  归一 + 单条守门（不是对象 / 缺 id / id 前缀错 / 缺 name /
+                        url 非 http(s) → 只丢弃这一条并打印原因）                [89]
+    5) 按 id 去重（同一 id 只保留第一条，同时 fetch.mjs 也会拒重复）
+    6) 逐条软警告：无图 → 计数 + 打印（见第 6 节）                                [189]
+    7) 汇总一行：子站点数 / 成功失败数 / 入库条数 /（丢弃、重复、无图几条）
+    8) 返回合并后的数组给 fetch.mjs
+
+  容错矩阵（全部实测过，见第 10 节）：
+    情况                        行为
+    ------------------------    --------------------------------------------------
+    目录里没有 index.mjs        ⚠️ 跳过该站点并打印原因
+    子站点 fetchGames 抛异常    ⚠️ 跳过该站点，其它站点照常
+    返回值不是数组              ⚠️ 跳过该站点并说明实际类型
+    某条数据格式不合法          ⚠️ 只丢弃这一条，其余照常入库
+    与其它站点 id 重复          ⚠️ 只保留第一条，计入「跳过重复 id」
+    images 为空数组             ✅ 照常入库（仅打印软警告，不丢弃）
+    一个子站点都没有            提示「还没有任何子站点」并返回 []（不报错）
+
+  兼容层（sources/galgame/index.mjs 第 36 行 COMPAT_WITH_VALIDATOR = true）：
+    守门人要求 source 严格等于 'galgame'、且必须有 cover / tags 字段，而子站点希望
+    保留自己的站点标识。兼容模式下的处理：
+      source = 'galgame'          （满足守门人）
+      site   = 'siteA'            （新增字段，保留「这条是谁抓的」）
+      cover  = images[0] || ''    （拿第一张图当封面，没图就是空串）
+      tags   = []                 （galgame 帖子本来没有标签）
+    子站点代码在两种模式下都不用改；若想落盘时保留 source = 'galgame/siteB'，
+    把该开关改成 false，并同时放宽 fetch.mjs 里对应的 4 行校验（README 中有说明）。
+
+  站点模板：sources/galgame/siteA/
+    LIST_URL 为空 → 打印「本模板还没配置（LIST_URL 为空），本次跳过」并返回 []，
+    不发起任何请求。按同目录 README.md 填上真实站点即可开始抓。
+
+--------------------------------------------------------------------------------
+6. 软警告规则（本次新增：无图不丢弃，只提醒）
+--------------------------------------------------------------------------------
+规则定义：任何来源抓到的条目，如果没有图片，照常入库，只打印一条显眼的警告，
+方便人工判断是否需要补齐素材。它是提醒，不是过滤。
+
+判定标准（fetch.mjs 第 226 行 hasNoImage()，统一口径）：
+  既没有 images 数组内容、也没有 cover 才算是「无图」：
+      const hasImages = Array.isArray(item.images) && item.images.length > 0;
+      return !hasImages && !item.cover;
+  等价说法：
+    - steam：cover === ''（空串 / 缺字段都算没图）
+    - galgame：images 为空数组（兼容模式下 cover 也是 ''）
+  反过来，只要 cover 有值（哪怕 images 是空数组）就不算无图，不该打扰你复核。
+
+三处实现（全部实测）：
+
+  1) sources/steam/index.mjs 第 159–163 行（逐条警告 + 计数）
+       if (!game.cover) {
+         noCoverCount += 1;
+         console.warn(`[steam]   ⚠️ ${game.name} 无封面图，已入库（建议人工确认）`);
+       }
+     末行统计同时带上了这个数（第 175 行）：
+       [steam] 详情抓取结束：入库 8 款（跳过试玩版 6 款、详情失败 0 款、无封面图 0 款）
+
+  2) sources/galgame/index.mjs 第 188–193 行（放在 merged.push 之后，见下方说明）
+       // 软警告：没图也照常入库，只提醒人工确认（不过滤、不丢弃）
+       if (unified.images.length === 0) {
+         noImageItems += 1;
+         console.warn(`[galgame] ⚠️ ${site.name} ${unified.name} 无图，已入库（建议人工确认）`);
+       }
+     注意位置：刻意放在「已经通过去重、真正 push 进结果」之后，而不是放在
+     normalizeItem() 里。因为 normalizeItem() 是纯转换函数，不该掺入「是否入库」的
+     业务判断；放在 normalizeItem 里会对「因同 id 被去重丢弃」的条目也打印
+     「已入库」，属于误报。实测已验证：两个站点抓到同 id 时，警告只打印一次。
+     聚合汇总行（第 207 行）：
+       [galgame] 聚合结束：子站点 2 个（成功 2 个，失败 0 个），入库 3 条（跳过重复 id 1 条，无图 2 条，建议人工确认）
+
+  3) fetch.mjs 第 330–334 行（全局汇总，统计口径 = 本次真正新增写入的条目）
+       console.log(`📊 本次入库 ${added} 条，其中无图 ${addedItems.filter(hasNoImage).length} 条（建议人工复核）`);
+     mergeById() 顺带回传 addedItems（本次真正新增的条目数组），与上一行
+     「新增 N 条」完全同口径：
+       ✅ 抓取完成：来源返回 3 条，新增 3 条，跳过重复 0 条，文件共 3 条
+       📊 本次入库 3 条，其中无图 2 条（建议人工复核）
+     重复抓取那天会显示「本次入库 0 条，其中无图 0 条」，与上一行自洽。
+
+约束遵守情况：
+  - 不引入任何新依赖（只用 console.warn）；
+  - 不改动任何校验 / 过滤逻辑：REQUIRED_FIELDS 与 validateItems() 一个字没动；
+  - 落盘数据里允许出现 cover: "" 与 images: []，两者都不是必填项；
+  - 来源返回 0 条（没写文件）时不会打印 📊 行。
+
+
+--------------------------------------------------------------------------------
+7. 网络与代理（实测结论）
+--------------------------------------------------------------------------------
+本机网络情况（实测）：
+  - 系统代理：GNOME「手动」设置 → 127.0.0.1:7890
+  - shell 环境里的 HTTPS_PROXY（7892）不稳定，实测会 fetch failed，故代码刻意
+    不继承 shell 的同名变量（fetch.mjs 第 133–134 行有注释说明）
+  - 网络本身间歇性抖动：多次出现 20 秒请求超时（The operation was aborted due to
+    timeout）；网络正常时 steam 整批 35.4 秒可跑完
+
+代码里的处理（fetch.mjs 第 128–153 行 applyProxy()）：
+  - Node 默认忽略 HTTP(S)_PROXY 环境变量，必须先开 NODE_USE_ENV_PROXY=1
+  - 代理优先级：--proxy 参数 > config.json 的 network.proxy > 内置默认值（第 33 行）
+  - 默认值：DEFAULT_PROXY = 'http://127.0.0.1:7890'
+  - 同时设置 NO_PROXY=localhost,127.0.0.1,::1
+  - 直连：--no-proxy（跳过整个代理设置）
+  - 来源（sources/）本身完全不用关心网络，代理在调用它们之前就设好了
+
+run-with-proxy.sh：
+  - 作用：加载同目录 .env，导出 NODE_USE_ENV_PROXY=1 与
+    NODE_OPTIONS="--dns-result-order=ipv4first"（强制 IPv4，避免 IPv6 静默超时），
+    然后 exec node "$@"
+  - 当前目录下还没有 .env，所以它会打印「⚠️ 未找到 .env 文件，将不使用代理运行」；
+    此时仍能正常抓取，因为 fetch.mjs 自己会设默认代理（127.0.0.1:7890）
+  - 想用它指定别的代理，就在 automation/ 下建 .env：
+        HTTP_PROXY=http://127.0.0.1:7890
+        HTTPS_PROXY=http://127.0.0.1:7890
+
+
+--------------------------------------------------------------------------------
+8. 运行手册（命令清单）
+--------------------------------------------------------------------------------
+  # 看有哪些来源（扫 sources/ 目录）
+  node fetch.mjs list
+
+  # 抓 Steam（默认走代理 127.0.0.1:7890）
+  node fetch.mjs steam
+
+  # 指定日期文件名（便于回补历史数据）
+  node fetch.mjs steam --date 2026-10-03
+
+  # 直连 / 换代理
+  node fetch.mjs steam --no-proxy
+  node fetch.mjs steam --proxy http://127.0.0.1:7890
+
+  # 抓 galgame（聚合所有子站点）
+  node fetch.mjs galgame
+
+  # 经代理脚本跑（需要 .env 才真正生效）
+  ./run-with-proxy.sh fetch.mjs steam
+
+  # 约定：每次改完 .mjs 先做语法检查（已写入本项目的开发习惯）
+  node --check fetch.mjs
+  node --check sources/galgame/index.mjs
+
+产物：candidates/<来源名>-<日期>.json（同一天重复抓取会按 id 去重后追加，
+不会产生重复条目）。
+
+--------------------------------------------------------------------------------
+9. 本次改动清单
+--------------------------------------------------------------------------------
+A. galgame 抓取层重构（单一入口 + sites.txt → 聚合器 + 每站点一个子目录）
+
+   文件                                  操作     关键点
+   ----------------------------------    ------   ------------------------------------------------
+   sources/galgame/index.mjs            重写    唯一入口改为聚合器：扫子目录 / 动态 import /
+                                               串行调用 / 归一 / 按 id 去重 / 失败跳过 /
+                                               无站点时优雅返回 []（215 行）
+   sources/galgame/siteA/index.mjs      新建    站点模板（262 行）：LIST_URL 为空时不发请求，
+                                               只提示；含列表解析 / 详情解析 / id 生成骨架
+   sources/galgame/siteA/README.md      新建    站点怎么改（82 行）
+   sources/galgame/README.md            重写    新目录结构、新增站点 4 条规则、输出格式、
+                                               images/links 含义、兼容模式开关（116 行）
+   sources/galgame/sites.txt            改名    → sites.txt.example（9 行，仅参考，不再参与运行）
+   sources/galgame/index.mjs（旧）      删除    旧的单一入口实现
+   sources/galgame/README.md（旧）      删除    由新版覆盖
+   sources/steam/                     未改动  ——
+
+B. 软警告规则（无图不丢弃，只提醒）—— 本次三步改动
+
+   #  文件                            改动处                        内容
+   1  sources/steam/index.mjs         第 124 / 159–163 / 175 行    noCoverCount 计数；逐条无封面图
+                                                                   警告；末行统计增加
+                                                                   「无封面图 N 款」
+   2  sources/galgame/index.mjs       第 150 / 188–193 / 207 行    noImageItems 计数；在真正入库处
+                                                                   逐条警告；聚合汇总行增加
+                                                                   「无图 N 条，建议人工确认」
+   3  fetch.mjs                       第 221–229 / 244 / 256 /     新增 hasNoImage() 判定；
+                                      330–334 行                   mergeById() 回传 addedItems；
+                                                                   新增「📊 本次入库 N 条，其中
+                                                                   无图 M 条（建议人工复核）」
+
+C. 其他
+   - fetch.mjs 第 133–134 行注释修正：明确说明默认代理是 GNOME 系统代理 127.0.0.1:7890，
+     并解释为什么刻意不继承 shell 的 HTTPS_PROXY。
+   - 开发约定：每次改完 .mjs 先跑 node --check（本次 4 个 .mjs 均已通过）。
+
+D. 发布脚本加参数（publish-game.mjs，2026-10-04）
+
+   新增两个参数（process.argv 手写解析，零新依赖），原有队列机制、字段规则、
+   归档逻辑全部保持不变：
+
+   参数               行为
+   -----------------  ----------------------------------------------------------
+   无参数             原逻辑不变：读 queue/ 里所有非 _ 开头的清单，逐条发布并归档
+   --dry-run          空跑：不登录、不上传截图、不调用云端 AI、不写 published/；
+                      只打印每条清单的校验结果和将要说出的字段，退出码 0
+   --file <路径>      只处理指定清单（相对 automation/ 或绝对路径）；显式指定时
+                      不再跳过 _ 开头的模板文件
+   -h / --help        打印用法；未知参数打印用法并退出码 1
+   --file + --dry-run 可组合
+
+   为让"空跑"与"正式发布"用同一套规则，抽出三个共用函数
+   （publish-game.mjs 第 160–182 行），processGame() 与 previewGame() 都调它们：
+     validateGame(g)              必需字段 name、panUrl；screenshots 必须是数组
+     resolveScreenshots(g, file)  截图相对清单所在目录解析成实际路径
+     missingScreenshots(g, file)  返回本地不存在的截图
+   注：在此之前 processGame() 对清单字段没有任何门禁，name/panUrl 缺失只会在
+   提示词里变成 "undefined"，属于本次顺带补上的硬校验。
+
+   顺带的三处加固（都在 diff 里逐条标出过）：
+   1) 正式发布前先检查截图是否齐全再登录上传（原来登录后逐张才发现缺文件，
+      已上传的截图无法回收）；
+   2) 缺 config.json 时仍在启动阶段退出并提示 cp config.example.json config.json；
+      新增更明确的守卫：有截图但缺 forumAdmin → 提示需要论坛管理员账号；
+      缺 game.gatePassword / adminUsername / adminPassword → 提示发帖需要这些配置
+      （原来会在 login() 处抛 TypeError 或收到服务端 4xx）；
+   3) 修正空队列提示里的模板文件名（原写 queue/example-game.json，
+      实际是 queue/_example-game.json）。
+
+   实测（6 个用例全绿，原始日志 reports/evidence/2026-10-04-publish-params-tests.txt；
+   零副作用对照 reports/evidence/2026-10-04-dryrun-no-side-effect.txt）：
+     node publish-game.mjs --dry-run                            退出码 0，打印字段
+        校验 + 截图存在性 + 本地模型生成的 title/content 预览
+     node publish-game.mjs --file queue/_example-game.json --dry-run
+                                                                退出码 0，显式处理 _ 模板
+     node publish-game.mjs --bad-arg                            退出码 1，打印用法
+     node publish-game.mjs --file queue/nope.json --dry-run     退出码 1，清单不存在
+     node publish-game.mjs -h                                   退出码 0，打印用法
+     node publish-game.mjs --file                               退出码 1，缺少值
+   --dry-run 前后 published/.gitkeep 与 queue/_example-game.json 的 sha256 完全一致，
+   说明空跑没有移动文件、也没有写 publishedAt/postId/postUrl。
+
+E. 证据入库
+   reports/evidence/ 已纳入版本控制，作为测试证据。
+   具体规则：automation/.gitignore 忽略 reports/*.html 与 reports/*.md（review.mjs 的运行时
+   产物），再用 ! 反转规则保留 reports/evidence/*.txt；evidence/ 下现有 5 个 .txt 日志
+   一并入库。
+
+版本控制现状（git status，automation 目录）：fetch.mjs、review.mjs、run-with-proxy.sh、
+sources/、reports/evidence/*.txt 为未跟踪（??）状态，publish-game.mjs 与 .gitignore、
+README.md 有修改（M）。这一层整体尚未提交，已决定本次一并提交、不拆分。
+
+--------------------------------------------------------------------------------
+10. 实测验证记录（证据）
+--------------------------------------------------------------------------------
+  #   验证项                  命令 / 方式                        结果
+  --- ---------------------- ---------------------------------- -------------------------------------
+  1   语法（4 个 .mjs）       node --check <file>                全部通过
+  2   来源注册                node fetch.mjs list                识别 2 个来源：galgame、steam
+  3   galgame 无站点配置      node fetch.mjs galgame             发现 1 个子站点(siteA) → 模板未配置
+                                                                 跳过 → 入库 0 条 → 优雅退出（退出码 0），
+                                                                 不写文件、无报错
+  4   galgame 容错            /tmp fixture：5 个子站点          坏站点全部只警告不崩：无 index.mjs 跳过、
+      （聚合器）              （1 正常 + 1 无入口 + 1 抛错       抛错跳过、非数组跳过、坏 id 丢弃；
+                              + 1 非数组 + 1 下划线模板）        下划线模板未被加载；结果 1 条正确
+  5   galgame 软警告 + 去重   /tmp fixture：有图 + 无图 +        警告恰好 2 次（有图的 0 次；被去重丢弃
+      （方案 B 无误报）       两站点同 id 的无图条目             的那条 0 次 → 证明无误报）；返回 3 条，
+                                                                 无图 2 条照样入库（cover 为 ""）；
+                                                                 汇总行含「无图 2 条，建议人工确认」
+  6   steam 真实抓取          ./run-with-proxy.sh fetch.mjs      51 款 → 免费 14 款 → Demo 6 款 →
+                              steam                              入库 8 款，0 失败，35.4 秒；
+                                                                 重复抓取：新增 0 条 / 跳过重复 8 条
+  7   steam 软警告            /tmp 副本把 cover 改为 '' 后       逐条打印 8 次「无封面图，已入库」，
+      （强制无封面）          真实联网跑                         末行「无封面图 8 款」，仍返回 8 条
+                                                                 （证明不过滤、不丢弃），退出码 0
+  8   fetch.mjs 全局统计      node fetch.mjs probe               第一次：新增 3 条 → 📊 本次入库 3 条，
+                              （临时探针来源，跑两遍）           其中无图 2 条；落盘文件 3 条、cover 为
+                                                                 "" 的 2 条确实写进了 JSON；
+                                                                 第二次：新增 0 条 → 📊 本次入库 0 条，
+                                                                 其中无图 0 条（口径 A 自洽）
+  9   --date 参数             node fetch.mjs steam               生成 steam-2026-10-03.json，8 条，
+                              --date 2026-10-03                  格式与 id 前缀 / 去重全部合格
+  10  candidates 产物校验     /tmp/check_candidates.mjs          两个文件各 8 条，字段完整、id 前缀
+                                                                 正确、无重复，cover 均有值
+
+  11  publish --dry-run      node publish-game.mjs --dry-run    空跑 1 个清单：字段校验 ✅、
+                            （queue/ 临时探针清单，测后即删） 截图逐条 ✅、本地模型真生成
+                                                             280 字文案并打印 title/content
+                                                             预览；退出码 0；末行
+                                                             「1/1 个清单成功生成文案预览」
+  12  publish --file        node publish-game.mjs --file       退出码 0；显式处理 _ 开头的
+                            queue/_example-game.json --dry-run 模板清单；两条截图逐条报
+                                                             ❌ 文件不存在（正式发布会中止）
+  13  publish 参数报错      --bad-arg / --file（无值） /        三个用例退出码均为 1 并打印
+                            --file queue/nope.json / -h        完整用法；-h 退出码 0
+
+清理情况：上述所有临时探针（sources/probe/、candidates/probe-*.json、/tmp 下的 fixture
+与副本）均已删除并复查，仓库目录内无任何残留。发布脚本实测用的临时清单
+queue/zz-probe-game.json 也已删除，删除后 queue/ 与 published/ 的文件哈希与测试前
+完全一致（对照见 reports/evidence/2026-10-04-dryrun-no-side-effect.txt）。
+
+
+--------------------------------------------------------------------------------
+11. 已知问题与待办
+--------------------------------------------------------------------------------
+已知问题：
+  1) 本机网络间歇性抖动。多次出现 20 秒请求超时（The operation was aborted due to
+     timeout），抓取失败时退出码为 1，日志会给出排查建议。网络正常时 steam 整批
+     35.4 秒可完成。这不是代码问题，重跑即可。
+  2) galgame/siteA 还是模板（LIST_URL 为空），目前不会抓任何真实帖子。
+  3) run-with-proxy.sh 依赖 automation/.env，而该文件尚不存在（不建也能抓，因为
+     fetch.mjs 自己会设默认代理）。
+
+待办（按建议顺序，2026-10-04 复核）：
+  [x] 第 3 步发布脚本：automation/publish-game.mjs 已就绪，本次已加 --dry-run / --file
+      （见第 9 节 D）。注意它读的是 queue/（不是 drafts/），且是「原名移动到
+      published/ 再追加发布结果」，不是复制。尚未真跑过一次真发布：缺 config.json，
+      queue/ 里只有 _example-game.json 模板。
+  [ ] config.json（建议含 network.proxy；注意 config.example.json 里目前没有 network
+      字段，而 fetch.mjs 支持 network.proxy，这一段要手写）
+  [ ] queue/ 放第一条真实游戏清单（参考 queue/_example-game.json），先 --dry-run 体检
+      再正式发布
+  [ ] 仓库总 README.md 的自动化章节（注意：旧 README.md 已被 git 跟踪，
+      改造前先改名备份，例如 README.old.md）
+  [ ] 接入第一个真实 galgame 站点（复制 siteA → siteB，填 LIST_URL 与两个 parse 函数）
+  [x] candidates/ 不入库：已在 .gitignore 追加 `candidates/*.json`（性质同 published/，
+      2026-10-04 定案；抓取产物每天跑一次就变，不纳入版本控制）
+  [ ] 把 automation/ 的新代码提交进版本库（含 reports/evidence/ 是否一起入库的决定）
+
+  说明：上一版待办里的「publish.mjs」「drafts/_template.json」两项经核实不存在
+  （真实文件名是 publish-game.mjs，草稿模板也从未建过），本次已按实际代码改写。
+
+--------------------------------------------------------------------------------
+12. 附录 A：新增一个 galgame 站点的步骤
+--------------------------------------------------------------------------------
+  1) 复制模板目录
+       cp -r sources/galgame/siteA sources/galgame/siteB
+
+  2) 改文件顶部三个常量（siteA/index.mjs 里都有注释）
+       SITE_NAME = 'siteB'          // 站点名，会写进每条数据的 site 字段
+       LIST_URL  = 'https://…'      // 站点列表页地址（填上后模板就不再跳过）
+       （其余常量：请求间隔、超时、UA 视站点情况微调）
+
+  3) 改两个解析函数
+       parseList(html)  → 从列表页解析出「帖子 URL 列表」
+       parsePost(html, url) → 从帖子页解析出 { name, desc, images[], links[] }
+
+  4) 遵守 4 条输出规则（聚合器会检查）
+       - id 必须以 galgame- 开头，推荐 galgame-<站点名>-<帖子URL的sha256前12位>
+         （由帖子 URL 派生 → 天然稳定，重复抓取不会产生新 id）
+       - source 写 'galgame/<站点名>'（兼容模式下聚合器会自动归一成 'galgame'
+         并把站点名放进 site 字段）
+       - name 不能为空；url 必须是 http(s) 链接
+       - images 可以是 []（无图不会被丢弃，只会打印软警告）
+
+  自检：
+       node --check sources/galgame/siteB/index.mjs
+       node fetch.mjs galgame
+       # 期望看到：发现 N 个子站点：siteA、siteB …
+       #           [galgame] ✅ siteB：返回 X 条，入库 X 条
+
+  注意：目录名以「.」或「_」开头会被聚合器跳过（想放草稿/模板就用 _template/）。
+
+
+--------------------------------------------------------------------------------
+13. 附录 B：常见问题排查
+--------------------------------------------------------------------------------
+  现象：抓取失败：The operation was aborted due to timeout
+     → 网络/代理问题。依次试：重跑；--no-proxy 直连；--proxy <你的代理>；
+       确认系统代理端口（本机是 127.0.0.1:7890）。
+     → 可用 ./run-with-proxy.sh（需要 automation/.env）自动带
+       NODE_USE_ENV_PROXY=1 与 ipv4first。
+
+  现象：来源「x」第 N 条数据的 id「y」前缀必须是「x-」
+     → id 必须以「来源名-」开头，例如 steam-5076420、galgame-siteA-abc123。
+
+  现象：来源「x」第 N 条数据的 source 必须是「x」
+     → source 要与来源目录名严格一致。galgame 的子站点不必自己处理，
+       兼容模式会归一；若关掉兼容模式，则需在 fetch.mjs 里放宽这行校验。
+
+  现象：source 目录存在但 node fetch.mjs list 显示「缺少 index.mjs」
+     → 该目录里没有 index.mjs，不是有效来源；建了这个文件才注册成功。
+
+  现象：galgame 提示「⚠️ <站点>：目录里没有 index.mjs，已跳过」
+     → 子站点目录缺少 index.mjs（或文件名写错）。补齐即可，其它站点不受影响。
+
+  现象：模板目录也被当成站点抓了
+     → 把目录名改成下划线开头（如 _template），聚合器会跳过。
+
+  现象：抓取完成「新增 0 条，跳过重复 N 条」
+     → 正常：同一天重复抓取时，id 已存在所以不重复写入。id 由帖子 URL 派生，
+       稳定不漂移，这正是想要的行为。
+     → 想重新生成这一天的文件，先备份/删除 candidates/<来源>-<日期>.json 再抓。
+
+  现象：candidates 里出现了 cover 为 "" 或 images 为 [] 的条目
+     → 这是允许的（软警告规则：无图不丢弃）。日志里会有对应的 ⚠️ 提醒与
+       「📊 本次入库 N 条，其中无图 M 条（建议人工复核）」统计，交给人工判断。
+
+
+--------------------------------------------------------------------------------
+14. 成本与 API
+--------------------------------------------------------------------------------
+当前（2026-10-04 实测）：
+  · 抓取层：零 API 成本。steam 走官方公开接口，galgame 走站点页面解析，
+    全程不需要 API Key，也不产生任何费用。
+  · 发布层文案：本地 ollama 生成（默认 http://localhost:11434，模型 qwen2.5:7b），
+    实测一条约 280 字中文文案，只花显卡电费。--dry-run 也是走本地模型，
+    不会因为"空跑练手"产生任何外部调用。
+  · 唯一可能产生费用的开关是 config.json 里的 cloudAi：只有配了它，
+    publish-game.mjs 才会去调云端润色；--dry-run 明确跳过这一步。
+
+未来若接入 DeepSeek（或同类云端模型）做润色/校对，建议的控费策略：
+  1) 默认关闭：cloudAi 留空即不调用，本地稿够用就不打开；
+  2) 只润色不生成：把本地初稿（几百字）交给云端改写，输入小、输出可控；
+  3) 每条清单只调一次云端（不做失败重试风暴），失败就退回本地文案照发；
+  4) 先空跑估量：新题材先用 --dry-run 看本地稿质量，确认值得润色再正式发；
+  5) 留痕可核对：每次真发布的结果记进 published/*.json，方便按条对账；
+  6) 预算红线：给单条 token 上限与月度额度，超限直接退回本地文案，不静默重试。
+
+一句话：现在跑一天的抓取 + 发布，成本是 0 元；费用只会出现在你主动打开 cloudAi 之后。
+
+--------------------------------------------------------------------------------
+15. 证据附件（reports/evidence/）
+--------------------------------------------------------------------------------
+文件名                               对应验证                大小    说明
+-----------------------------------  ----------------------  ------  --------------------
+2026-10-04-publish-params-tests.txt  第 10 节 11–13          7.1 KB  发布脚本 6 个用例的
+                                                                    完整终端输出（含退出码）
+2026-10-04-dryrun-no-side-effect.txt  第 10 节 11             919 B   queue/ 与 published/
+                                                                    的 sha256 测试前后对照
+2026-10-04-fetch-sources-probe.txt   第 10 节 8              2.0 KB  fetch.mjs 全局统计探针
+                                                                    两次运行输出
+2026-10-04-galgame-aggregator.txt    第 10 节 4–5            1.4 KB  聚合器容错 + 软警告
+                                                                    与去重 fixture 输出
+2026-10-04-galgame-fix.txt           第 10 节 3              1.1 KB  galgame 无站点配置时的
+                                                                    优雅退出输出
+
+这些文件是当时终端输出的原样重定向（含 emoji 与退出码行），未做编辑美化，
+第 10 节表格里的每个数字都能在其中找到出处。本目录（evidence/*.txt）已纳入版本控制；
+reports/ 顶层的 <来源>-<日期>.html / .md 是 review.mjs 的运行时产物，被 .gitignore 忽略、
+不入库。
+
+================================================================================
+ 报告结束
+================================================================================
+一致性声明：本报告中的文件行数、日志片段、统计数字均取自本次实机运行输出，
+未做推测性描述。后续改动请同步更新本报告。
+
+本报告文件：automation/项目报告.txt（UTF-8 纯文本）
+证据附件目录：automation/reports/evidence/（文件索引见第 15 节）
+
+
+
+

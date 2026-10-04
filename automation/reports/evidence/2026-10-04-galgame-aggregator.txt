@@ -1,0 +1,32 @@
+[galgame] 发现 5 个子站点：siteA、siteBadNoEntry、siteOk、siteShape、siteThrow
+[galgame/siteA] 本模板还没配置（LIST_URL 为空），本次跳过；按同目录 README.md 填上真实站点即可
+[galgame] ✅ siteA：返回 0 条，入库 0 条
+[galgame] ⚠️ siteBadNoEntry：目录里没有 index.mjs，已跳过
+[galgame]   ⚠️ siteOk 第 3 条格式不合法，已跳过：id「bad-id」必须以 galgame- 开头（建议 galgame-siteOk-<唯一标识>）
+[galgame] ✅ siteOk：返回 3 条，入库 1 条
+[galgame] ⚠️ siteShape 抓取失败，已跳过：fetchGames 必须返回数组，实际返回 object
+[galgame] ⚠️ siteThrow 抓取失败，已跳过：模拟：这个站点挂了
+[galgame] 聚合结束：子站点 5 个（成功 2 个，失败 3 个），入库 1 条（丢弃格式不合法的 1 条，跳过重复 id 1 条）
+
+>>> 聚合器最终返回条数: 1
+[
+  {
+    "id": "galgame-siteOk-aaa",
+    "source": "galgame",
+    "site": "siteOk",
+    "name": "示例帖子A",
+    "desc": "正文A\n第二行",
+    "images": [
+      "https://img.example/a.jpg",
+      "https://img.example/b.jpg"
+    ],
+    "links": [
+      "https://pan.baidu.com/s/1abc"
+    ],
+    "url": "https://site-ok.example/post/1",
+    "fetched_at": "2026-10-04 10:00",
+    "cover": "https://img.example/a.jpg",
+    "tags": []
+  }
+]
+退出码=0

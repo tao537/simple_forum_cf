@@ -1,0 +1,14 @@
+# 2026-10-04 publish-game.mjs --dry-run 副作用对照
+
+## 基线（测试前，queue/ 与 published/ 全部文件的 sha256）
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  published/.gitkeep
+a23810899a0122a1fc20f29ad64245292a1ae0ae5f06de581e07b817008cddb2  queue/_example-game.json
+4b045026522abe72b1add1f860b6b5154e09dde598f5b56efb342195282737bd  queue/zz-probe-game.json
+
+## 测试后（已删除临时探针 zz-probe-game.json）
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  published/.gitkeep
+a23810899a0122a1fc20f29ad64245292a1ae0ae5f06de581e07b817008cddb2  queue/_example-game.json
+
+## 结论
+published/.gitkeep 与 queue/_example-game.json 哈希与基线完全一致 → --dry-run 未改动任何文件（不移动、不写 publishedAt/postId/postUrl）。
+唯一差异是本次为让输出有意义而临时创建、测试后即删除的 queue/zz-probe-game.json。

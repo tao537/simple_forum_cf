@@ -6,3 +6,12 @@ queue/screenshots/
 published/*.json
 # 运行日志
 publish.log
+.env
+# 复核报告（review.mjs 每次运行都会重新生成的运行时产物，不入库）
+reports/*.html
+reports/*.md
+# 但测试证据要入库：用反转规则把 reports/evidence/ 下的 .txt 日志重新包含进来
+!reports/evidence/
+!reports/evidence/*.txt
+# 抓取产物（每天跑一次就变，性质同 published/）
+candidates/*.json
