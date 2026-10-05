@@ -100,3 +100,7 @@ crontab -e
 - Node 18+ 内置 fetch，**无需 npm install**
 - 只调用现有网站 API，不改动后端代码
 - 不直接上传 APK，下载用网盘链接（正文内）
+- **网盘链接缺提取码不中止发布**：链接照常写进帖子，并且**正文会插入一段「提取码暂缺」
+  说明**（不静默），同时在 `queue/_no-code-warnings.json` 留一条警告等人工补码。
+  说明文案可用 `config.json` 的 `noCodeNotice` 覆盖，设为空字符串则不加说明。
+  （直链、商店页不算网盘，不告警。）见 `node publish-game.mjs --help`

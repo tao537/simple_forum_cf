@@ -18,5 +18,6 @@
     "baseUrl": "https://api.deepseek.com/v1",
     "apiKey": "",
     "model": "deepseek-chat"
-  }
+  },
+  "noCodeNotice": "> ⚠️ **提取码暂缺**：本帖资源收录时未取得提取码，需要提取码请在评论区留言，补齐后会更新本帖。"
 }

@@ -10,6 +10,10 @@
  *          下载落在 /tmp/publish-game-cache/，单张失败只跳过不中止，每条最多 5 张。
  * 运行：node publish-game.mjs
  * 环境：Node 18+（内置 fetch），无需安装依赖
+ *
+ * 缺提取码：网盘链接没填 panCode 时不中止，链接照发；但正文会插入一段
+ * 「提取码暂缺」说明（config.json 的 noCodeNotice 可覆盖文案），并在
+ * queue/_no-code-warnings.json 留档等人工补码。
  */
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, renameSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
@@ -21,11 +25,18 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const QUEUE_DIR = join(ROOT, 'queue');
 const PUB_DIR = join(ROOT, 'published');
 const CACHE_DIR = '/tmp/publish-game-cache';   // 远程截图下载缓存（临时产物，可随时删）
+// 缺提取码警告文件（`_` 开头 → 不会被当作待发布清单；queue/*.json 已被 .gitignore 忽略，链接不外泄）
+const WARN_FILE = join(QUEUE_DIR, '_no-code-warnings.json');
 const DEFAULT_PROXY = 'http://127.0.0.1:7890'; // 与 fetch.mjs 的内置默认一致
 const MAX_SHOTS = 5;                           // 每条清单最多上传多少张截图
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;       // 服务端 /api/posts/upload 的 5MB 上限
 const DIRECT_TIMEOUT_MS = 10000;               // 远程图直连下载超时
 const PROXY_TIMEOUT_MS = 30000;                // 远程图代理下载超时
+
+// 缺提取码时插进正文的解释（放行但必须说明，不能静默）。
+// 可在 config.json 用 "noCodeNotice" 覆盖；设为空字符串则完全不插入。
+const DEFAULT_NO_CODE_NOTICE =
+  '> ⚠️ **提取码暂缺**：本帖资源收录时未取得提取码，需要提取码请在评论区留言，补齐后会更新本帖。';
 
 // ---------- 通用 HTTP ----------
 async function httpJson(url, opts = {}) {
@@ -243,7 +254,7 @@ function buildUserPrompt(g) {
     g.tags?.length ? `标签：${g.tags.join('、')}` : '',
     g.notes ? `站长备注（可参考，不要原样照抄）：${g.notes}` : '',
     `网盘链接：${g.panUrl}`,
-    g.panCode ? `提取码：${g.panCode}` : '提取码：无',
+    g.panCode ? `提取码：${g.panCode}` : '提取码：暂缺（收录时未取得；正文里写「暂缺」，不要编造）',
   ].filter(Boolean).join('\n');
 }
 
@@ -301,6 +312,88 @@ function insertScreenshots(content, block) {
   return content + block;
 }
 
+/** 缺提取码时给读者的解释文案；config.json 的 noCodeNotice 可覆盖，空串＝不插 */
+function noCodeNoticeText() {
+  const custom = config?.noCodeNotice;
+  if (typeof custom === 'string') return custom.trim();
+  return DEFAULT_NO_CODE_NOTICE;
+}
+
+/** 把解释插在「下载信息」之后（有截图区块就插在它前面），没有定位点则追加到末尾 */
+function insertNotice(content, block) {
+  const idx = content.search(/##\s*🖼\s*游戏截图/);
+  if (idx !== -1) return content.slice(0, idx) + block + '\n\n' + content.slice(idx);
+  return content + '\n\n' + block + '\n';
+}
+
+// ---------- 缺提取码规则（有链接没码 → 照发 + 本地留警告）----------
+// 规则：panUrl 是网盘但没有提取码时「不阻塞发布」——链接照常推到网站上，只在本地留一条警告等人工补码。
+// 常见网盘域名（host 精确匹配或 .子域 匹配，避免 xxx-123pan.com 这种域名被误判成网盘）
+const PAN_HOST_SUFFIXES = [
+  'pan.baidu.com', 'yun.baidu.com', 'pan.quark.cn', 'pan.xunlei.com',
+  '123pan.com', '123684.com', 'aliyundrive.com', 'alipan.com',
+  'cloud.189.cn', 'caiyun.139.com', '115.com', '115cdn.com',
+  'lanzou.com', 'lanzoui.com', 'lanzoux.com', 'lanzouw.com', 'lanzoup.com',
+  'ctfile.com', '545c.com', 'mypikpak.com', 'pan.wo.cn',
+];
+
+/** panUrl 是不是网盘链接（这类链接通常必须带提取码才能下载） */
+function isPanUrl(url) {
+  let host = '';
+  try { host = new URL(url).hostname.toLowerCase(); } catch { return false; }
+  return PAN_HOST_SUFFIXES.some((s) => host === s || host.endsWith(`.${s}`));
+}
+
+/** 「没填 / 不知道提取码」的各种写法 → 视为缺码，要告警 */
+const NO_CODE_RE = /^(无|没有|未提供|未知|none|null|n\/a|-+|—+|－+|\?+|？+)$/i;
+
+/** 明确表示「这个分享本来就不需要提取码」→ 不缺码，不告警 */
+const NO_NEED_CODE_RE = /^(无需|不需要|不用|免提取码|no\s*need(ed)?)$/i;
+
+/**
+ * 判定是否缺提取码：是网盘链接 + 没填 panCode（或填了「无 / 未知 / ?」这类占位写法）。
+ * 填「无需 / 不需要」表示该分享本来就不需要提取码 → 不算缺，不告警（避免假警）。
+ * 只警告，不阻断发布。
+ */
+function panCodeMissing(g) {
+  if (!g || !g.panUrl) return false;
+  if (!isPanUrl(g.panUrl)) return false; // 直链 / 商店页本来就不需要提取码
+  const code = String(g.panCode ?? '').trim();
+  if (!code) return true; // 压根没填 → 缺码
+  if (NO_NEED_CODE_RE.test(code)) return false; // 明确写「无需」→ 不缺码
+  return NO_CODE_RE.test(code); // 「无 / 未知 / ?」→ 视为缺码
+}
+
+/** 把「缺提取码」记进 queue/_no-code-warnings.json（同 name+panUrl 合并成一条并累加次数） */
+function recordNoCodeWarning(g, listFile) {
+  const now = new Date().toISOString();
+  let all = [];
+  if (existsSync(WARN_FILE)) {
+    try {
+      const parsed = JSON.parse(readFileSync(WARN_FILE, 'utf8'));
+      if (Array.isArray(parsed)) all = parsed;
+    } catch { all = []; } // 文件损坏就重来，绝不因为警告文件而阻断发布
+  }
+  const hit = all.find((r) => r.name === g.name && r.panUrl === g.panUrl);
+  if (hit) {
+    hit.lastSeen = now;
+    hit.times = (hit.times || 1) + 1;
+  } else {
+    all.push({
+      name: g.name,
+      panUrl: g.panUrl,
+      panCode: g.panCode ?? '',
+      list: basename(listFile),
+      firstSeen: now,
+      lastSeen: now,
+      times: 1,
+      note: '缺提取码：链接照发且正文已插入说明，需人工补码',
+    });
+  }
+  writeFileSync(WARN_FILE, JSON.stringify(all, null, 2), 'utf8');
+  return all.length;
+}
+
 // ---------- 清单校验（正式发布与 --dry-run 共用同一套规则）----------
 /** 返回清单里不合规的字段（空数组 = 通过）。processGame 与 previewGame 都调它，避免两套规则 */
 function validateGame(g) {
@@ -346,6 +439,14 @@ const HELP_TEXT = `
   --dry-run       不登录、不上传截图、不调用云端 AI、不写 published/，
                   只打印每条清单的校验结果和将要说出的字段（本地模型照跑）
   -h, --help      显示本帮助
+
+缺提取码规则：
+  panUrl 是网盘（百度 / 夸克 / 迅雷 / 123pan / 蓝奏 等）但没填 panCode 时，不中止本条：
+  网盘链接照常写进帖子，同时在 queue/${basename(WARN_FILE)} 里留下一条警告，等人工补码。
+  并且**会在正文里插入一段解释**（默认：“提取码暂缺，需要请在评论区留言”）——放行不等于静默。
+  文案可在 config.json 用 "noCodeNotice" 覆盖；设为空字符串则完全不插入。
+  （直链、商店页不算网盘，本来就不需要提取码，不告警。）--dry-run 只提示、不写文件。
+  panCode 填「无需 / 不需要」表示该分享本来就不需要提取码：不告警，帖子里照原样写「提取码：无需」。
 
 截图来源：
   清单里 screenshots 的每一项都可以是「本地路径（相对清单文件）」或「http(s) URL」。
@@ -404,6 +505,11 @@ async function previewGame(file) {
     `  · 字段校验：${problems.length ? `❌ 缺少/不合规 ${problems.join('、')}（正式发布会中止）` : '✅ name / panUrl 齐全'}`
   );
   console.log(`  · 网盘：${g.panUrl || '(空)'}${g.panCode ? `　提取码：${g.panCode}` : ''}`);
+  if (panCodeMissing(g)) {
+    console.log('  · ⚠️ 没有提取码：这是网盘链接但清单里没填 panCode。正式发布会照常把链接发出去，');
+    console.log(`     并在 ${basename(WARN_FILE)} 里留下警告（--dry-run 不写文件）`);
+    console.log(`     同时在正文插入说明：${noCodeNoticeText() || '（noCodeNotice 为空，不插入）'}`);
+  }
 
   // 2. 截图：本地只查文件是否存在；URL 不下载（--dry-run 保持零副作用）
   const allShots = shotList(g);
@@ -459,6 +565,12 @@ async function processGame(file) {
   const problems = validateGame(g);
   if (problems.length) throw new Error(`清单缺少必需字段：${problems.join('、')}`);
   console.log(`\n▶ ${g.name}`);
+
+  // 缺提取码不阻塞发布：链接照发，只在本地留下警告（规则见 HELP_TEXT「缺提取码规则」）
+  if (panCodeMissing(g)) {
+    const warned = recordNoCodeWarning(g, file);
+    console.log(`  · ⚠️ 没有提取码：网盘链接照常发布，已在本地留下警告（${basename(WARN_FILE)}，累计 ${warned} 条待补码）`);
+  }
 
   // 1. ollama 生成
   process.stdout.write('  · 本地模型生成文案…');
@@ -521,6 +633,17 @@ async function processGame(file) {
     content = insertScreenshots(content, block);
   } else if (allShots.length) {
     console.log('  · ⚠️ 没有可用截图（全部跳过），本条按无图发布');
+  }
+
+  // 3.5 缺提取码：放行，但正文里必须给读者一个解释，不能静默发出去
+  if (panCodeMissing(g)) {
+    const notice = noCodeNoticeText();
+    if (notice) {
+      content = insertNotice(content, notice);
+      console.log('  · ⚠️ 缺提取码：已在正文插入说明（config.json 的 noCodeNotice 可改文案）');
+    } else {
+      console.log('  · ⚠️ 缺提取码：noCodeNotice 为空 → 正文里不加说明');
+    }
   }
 
   // 4. 游戏站门禁 + 管理员登录 + 发帖
