@@ -240,6 +240,138 @@ export function renderMentions(text) {
   return html;
 }
 
+// ================================================================
+//  轻量 Markdown 渲染（帖子正文）
+//
+//  为什么需要：AI/云端生成的正文本就是 Markdown（## 小节、- 列表、
+//  ![](图)），而页面此前只做 escapeHtml → 整段 Markdown 以源码形式
+//  显示出来（`## 🖼 游戏截图`、`![](https://.../img/xxx)` 全是字面量）。
+//
+//  安全原则：**先整体转义，再只还原白名单语法**。
+//  绝不能写成 innerHTML = content —— 那会重新打开 359e712 修掉的
+//  存储型 XSS。这里所有输出标签都是本函数自己生成的固定结构，
+//  文本内容一律来自转义后的串。
+// ================================================================
+
+// 图片白名单：与后端 sanitizeImages / GET /img/:id 用同一套规则，
+// 不在白名单里的图片一律降级成纯文本（连请求都不发出去）。
+const MD_IMG_RE = /^(\/img\/|https:\/\/api\.kuhai\.de5\.net\/img\/)[A-Za-z0-9._-]{1,120}$/;
+
+/** 只放行 http(s) / 站内相对路径 / mailto，挡掉 javascript:、data: 之类 */
+function mdSafeHref(url) {
+  if (/^https?:\/\//i.test(url)) return url;
+  if (/^mailto:/i.test(url)) return url;
+  if (/^\/[^/]/.test(url)) return url;
+  return '';
+}
+
+// 行内语法。顺序要紧：图片排在链接前面（`![` 里也含 `[`），加粗排在斜体前面，
+// 裸 URL（如「网盘链接：https://…」）放最后，避免抢先匹配。
+const MD_INLINE_RE = /!\[(?<imgAlt>[^\]]*)\]\((?<imgUrl>[^)\s]+)\)|\[(?<linkText>[^\]]*)\]\((?<linkUrl>[^)\s]+)\)|`(?<code>[^`\n]+)`|\*\*(?<boldA>[^*]+)\*\*|__(?<boldB>[^_]+)__|~~(?<del>[^~]+)~~|\*(?<emA>[^*\n]+)\*|_(?<emB>[^_\n]+)_|@(?<mention>[\u4e00-\u9fa5\w]{2,30})|(?<auto>https?:\/\/[A-Za-z0-9\-._~:\/?#\[\]@!$&'()*+,;=%]+)/g;
+
+/** 裸 URL 结尾常跟着中文标点或右括号，这些不算链接的一部分 */
+const MD_URL_TAIL_RE = /[.,;:!?，。；：！？、）)】」』'"]+$/;
+
+/** 渲染一行里的行内语法；入参必须已经是转义过的文本 */
+function mdInline(escaped, mentions) {
+  let out = '';
+  let last = 0;
+  let m;
+  MD_INLINE_RE.lastIndex = 0;
+  while ((m = MD_INLINE_RE.exec(escaped)) !== null) {
+    if (m.index > last) out += escaped.slice(last, m.index);
+    const g = m.groups;
+    if (g.imgUrl !== undefined) {
+      out += MD_IMG_RE.test(g.imgUrl)
+        ? `<img src="${g.imgUrl}" alt="${g.imgAlt}" loading="lazy">`
+        : (g.imgAlt || g.imgUrl);
+    } else if (g.linkUrl !== undefined) {
+      const href = mdSafeHref(g.linkUrl);
+      out += href
+        ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${g.linkText || href}</a>`
+        : `${g.linkText || ''}${g.linkUrl}`;
+    } else if (g.code !== undefined) {
+      out += `<code>${g.code}</code>`;
+    } else if (g.boldA !== undefined || g.boldB !== undefined) {
+      out += `<strong>${g.boldA ?? g.boldB}</strong>`;
+    } else if (g.del !== undefined) {
+      out += `<del>${g.del}</del>`;
+    } else if (g.emA !== undefined || g.emB !== undefined) {
+      out += `<em>${g.emA ?? g.emB}</em>`;
+    } else if (g.mention !== undefined && mentions) {
+      out += `<span class="mention">@${g.mention}</span>`;
+    } else if (g.auto !== undefined) {
+      const tail = (g.auto.match(MD_URL_TAIL_RE) || [''])[0];
+      const url = tail ? g.auto.slice(0, -tail.length) : g.auto;
+      out += url && mdSafeHref(url)
+        ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${tail}`
+        : m[0];
+    } else {
+      out += m[0];
+    }
+    last = m.index + m[0].length;
+  }
+  return out + escaped.slice(last);
+}
+
+/**
+ * 把 Markdown 正文渲染成安全 HTML。
+ * 支持：`#` 标题、`-` / `1.` 列表、`>` 引用、``` 代码块、`---` 分隔线、
+ *       **粗体**、*斜体*、~~删除线~~、`` `行内代码` ``、[文字](链接)、![](图片)
+ * @param {string} text 原始正文
+ * @param {{ mentions?: boolean }} [opts] mentions=true 时高亮 @某人（论坛用）
+ * @returns {string} 可直接放进 innerHTML 的安全 HTML
+ */
+export function renderMarkdown(text, opts = {}) {
+  const mentions = !!(opts && opts.mentions);
+  const src = escapeHtml(String(text ?? '')).replace(/\r\n?/g, '\n');
+  if (!src.trim()) return '';
+
+  const out = [];
+  let list = '';          // '' | 'ul' | 'ol'
+  let fence = false;      // 是否在 ``` 代码块里
+  let code = [];
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = ''; } };
+  const openList = (t) => { if (list !== t) { closeList(); out.push(`<${t}>`); list = t; } };
+
+  for (const line of src.split('\n')) {
+    if (/^\s*```/.test(line)) {
+      if (fence) { out.push(`<pre><code>${code.join('\n')}</code></pre>`); code = []; fence = false; }
+      else { closeList(); fence = true; }
+      continue;
+    }
+    if (fence) { code.push(line); continue; }
+    if (!line.trim()) { closeList(); continue; }
+
+    // 标题：只从 h2 起，避免和页面自己的 h1（帖子标题）抢层级
+    const h = line.match(/^(#{1,6})\s+(.+?)\s*$/);
+    if (h) {
+      closeList();
+      const lv = Math.min(Math.max(h[1].length, 2), 6);
+      out.push(`<h${lv}>${mdInline(h[2], mentions)}</h${lv}>`);
+      continue;
+    }
+
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { closeList(); out.push('<hr>'); continue; }
+
+    const ul = line.match(/^\s*[-*+]\s+(.+)$/);
+    if (ul) { openList('ul'); out.push(`<li>${mdInline(ul[1], mentions)}</li>`); continue; }
+
+    const ol = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (ol) { openList('ol'); out.push(`<li>${mdInline(ol[1], mentions)}</li>`); continue; }
+
+    // `>` 已被 escapeHtml 转成 `&gt;`
+    const bq = line.match(/^\s*&gt;\s?(.*)$/);
+    if (bq) { closeList(); out.push(`<blockquote>${mdInline(bq[1], mentions)}</blockquote>`); continue; }
+
+    closeList();
+    out.push(`<p>${mdInline(line, mentions)}</p>`);
+  }
+  if (fence) out.push(`<pre><code>${code.join('\n')}</code></pre>`);
+  closeList();
+  return out.join('');
+}
+
 // 统一导航栏渲染：登录态 + 通知铃铛
 export function renderNav(elId = 'navRight', opts = {}) {
   // 首次渲染时自动加载并应用全站显示设置

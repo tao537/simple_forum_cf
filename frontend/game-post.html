@@ -48,7 +48,29 @@
   .gallery img { width: 160px; height: 160px; object-fit: cover; border-radius: 10px;
                  cursor: zoom-in; transition: .15s; border: 1px solid #f1f5f9; }
   .gallery img:hover { transform: scale(1.03); box-shadow: 0 6px 18px rgba(124,58,237,.25); }
-  .content { font-size: 15px; line-height: 1.8; color: #374151; white-space: pre-wrap; word-break: break-word; }
+  /* 正文：Markdown 渲染后的排版（渲染前是 pre-wrap 纯文本） */
+  .content { font-size: 15px; line-height: 1.8; color: #374151; word-break: break-word; }
+  .content > :first-child { margin-top: 0; }
+  .content > :last-child { margin-bottom: 0; }
+  .content p { margin: 0 0 12px; }
+  .content h2, .content h3, .content h4, .content h5, .content h6 {
+    margin: 22px 0 10px; line-height: 1.45; color: #1e293b; font-weight: 700; }
+  .content h2 { font-size: 19px; }
+  .content h3 { font-size: 17px; }
+  .content h4, .content h5, .content h6 { font-size: 15px; }
+  .content ul, .content ol { margin: 0 0 12px; padding-left: 24px; }
+  .content li { margin: 3px 0; }
+  .content img { display: block; max-width: 100%; height: auto; margin: 12px 0;
+                 border-radius: 10px; border: 1px solid #f1f5f9; }
+  .content a { color: #2563eb; text-decoration: underline; word-break: break-all; }
+  .content code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 13px;
+                  font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .content pre { background: #0f172a; color: #e2e8f0; padding: 12px 14px; border-radius: 10px;
+                 overflow-x: auto; margin: 0 0 12px; }
+  .content pre code { background: none; color: inherit; padding: 0; }
+  .content blockquote { margin: 0 0 12px; padding: 6px 14px; border-left: 3px solid #cbd5e1;
+                        background: #f8fafc; color: #475569; border-radius: 0 8px 8px 0; }
+  .content hr { border: none; border-top: 1px solid #e2e8f0; margin: 18px 0; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; padding-top: 14px;
              border-top: 1px solid #f1f5f9; }
 
@@ -260,7 +282,7 @@
 
 <script type="module">
   import { auth, gameAuth, gameApi, escapeHtml, parseImages, initAnimatedBackground,
-           initMusicPlayer, processImageForUpload } from './common.js';
+           initMusicPlayer, processImageForUpload, renderMarkdown } from './common.js';
 
   const postId = Number(new URLSearchParams(location.search).get('id'));
   let currentPost = null;
@@ -435,9 +457,13 @@
       const isAuthor = (p.author_visitor === gameAuth.visitorId())
                     || (!!guser && p.author_user_id === guser.id);
       const canEdit = me || isAuthor;
-      const gallery = imgs.length ? `
+      const contentHtml = renderMarkdown(p.content);
+      // 正文里已经渲染出来的图不在顶部画廊重复一遍；
+      // 手动发帖（正文没写图）时画廊照常兜底，不会丢图。
+      const galleryImgs = imgs.filter((u) => !contentHtml.includes(u));
+      const gallery = galleryImgs.length ? `
         <div class="gallery">
-          ${imgs.map(i => `<img src="${escapeHtml(i)}" alt="" loading="lazy" data-full="${escapeHtml(i)}" />`).join('')}
+          ${galleryImgs.map(i => `<img src="${escapeHtml(i)}" alt="" loading="lazy" data-full="${escapeHtml(i)}" />`).join('')}
         </div>` : '';
       document.getElementById('post').innerHTML = `
         <div class="card">
@@ -457,7 +483,7 @@
             ${p.updated_at !== p.created_at ? `<span style="color:#a78bfa">✏️ 已编辑</span>` : ''}
           </div>
           ${gallery}
-          <div class="content">${escapeHtml(p.content)}</div>
+          <div class="content">${contentHtml}</div>
           <div class="actions">
             ${canEdit ? `<button class="btn btn-ghost" onclick="openEdit()">✏️ 编辑</button>` : ''}
             ${me ? `<button class="btn btn-warn btn-sm" onclick="togglePin()">${p.pinned ? '取消置顶' : '📌 置顶'}</button>` : ''}
