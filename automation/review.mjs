@@ -1,6 +1,8 @@
 // review.mjs - 复核工具
-// 用法: node review.mjs <source> [--date YYYY-MM-DD] [--no-open]
+// 用法: node review.mjs <source> [--date YYYY-MM-DD] [--no-open] [--local-covers]
 // 输出: reports/<source>-<date>.html 和 reports/<source>-<date>.md
+// --local-covers: 把封面下载到 reports/evidence/covers-<source>-<date>/ 再用本地路径显示。
+//                 本地 file:// 页面发不出 Referer，遇到防盗链站点（如游戏鸟 pic1.youxiniao.com）图会 403 裂图。
 
 import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -17,6 +19,7 @@ if (!source) { console.error('用法: node review.mjs <source> [--date YYYY-MM-D
 const dateIdx = args.indexOf('--date');
 const dateArg = dateIdx !== -1 ? args[dateIdx + 1] : null;
 const autoOpen = !args.includes('--no-open');
+const localCovers = args.includes('--local-covers');
 
 let filePath, date;
 if (dateArg) {
@@ -42,12 +45,74 @@ const coverOf = item => item.cover || (Array.isArray(item.images) ? item.images[
 const hasCover = item => !!coverOf(item);
 const noCoverCount = items.filter(i => !hasCover(i)).length;
 
+// ---- （可选）封面本地化：--local-covers ----
+// 本地报告是 file:// 页面，发不出站点域名的 Referer，遇到 Referer 防盗链（游戏鸟实测 403）图全裂。
+// 做法：带「图片自己 origin」当 Referer 下载到 reports/evidence/covers-<source>-<date>/，
+// 报告改用相对路径引用；单张失败只警告并保留远程 URL，不影响其余条目。
+const COVERS_SUBDIR = `evidence/covers-${source}-${date}`;
+const coverSrc = new Map(); // 原始 URL → 报告里实际使用的 src
+
+/** 猜图片扩展名：先看魔数，再退回 URL 后缀 */
+function coverExt(buf, url) {
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (buf.subarray(0, 8).equals(PNG)) return 'png';
+  if (buf.subarray(0, 4).toString('latin1') === 'RIFF') return 'webp';
+  const m = String(url).match(/\.(jpe?g|png|webp|gif)(?:$|\?)/i);
+  return m ? m[1].toLowerCase().replace(/^jpeg$/, 'jpg') : 'jpg';
+}
+
+/** 下载一张封面（10s 超时）；成功返回 Buffer，失败返回 { error } */
+async function grabCover(url) {
+  try {
+    const r = await fetch(url, {
+      signal: AbortSignal.timeout(10000),
+      redirect: 'follow',
+      // 防盗链白名单基本就是站点自身域名，用图片自己的 origin 当 Referer 即可（游戏鸟实测 200）
+      headers: { Referer: new URL(url).origin + '/' },
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (!buf.length) throw new Error('空响应');
+    return buf;
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+const srcOf = url => coverSrc.get(url) || url;
+
+if (localCovers) {
+  const dir = join(REPORTS_DIR, COVERS_SUBDIR);
+  mkdirSync(dir, { recursive: true });
+  const urls = [...new Set(items.map(coverOf).filter(u => /^https?:\/\//i.test(u)))];
+  console.log(`🖼️  封面本地化：${urls.length} 张 → ${dir}`);
+  let ok = 0;
+  for (const [i, url] of urls.entries()) {
+    const buf = await grabCover(url);
+    if (buf.error) { console.log(`   ⚠️ ${i + 1}/${urls.length} 失败（报告仍用远程 URL）：${buf.error}`); continue; }
+    const file = `${String(i + 1).padStart(2, '0')}.${coverExt(buf, url)}`;
+    writeFileSync(join(dir, file), buf);
+    coverSrc.set(url, `${COVERS_SUBDIR}/${file}`);
+    ok += 1;
+    console.log(`   ✅ ${i + 1}/${urls.length} ${file}（${(buf.length / 1024).toFixed(0)} KB）`);
+  }
+  console.log(`🖼️  本地化完成：${ok}/${urls.length} 张，报告改用本地路径`);
+}
+
+/** 报告卡片里的封面图：本地化过的可点击看原图 */
+const coverImg = cover => {
+  if (!coverSrc.has(cover)) return `<img src="${esc(cover)}" loading="lazy" referrerpolicy="no-referrer">`;
+  const src = esc(coverSrc.get(cover));
+  return `<a href="${src}" target="_blank" title="点击看原图" style="display:block;width:100%;height:100%"><img src="${src}" loading="lazy"></a>`;
+};
+
 // ---- HTML ----
 const cards = items.map((item, i) => {
   const cover = coverOf(item);
   const tags = Array.isArray(item.tags) ? item.tags : [];
   return `<div class="card" data-has-cover="${hasCover(item)}">
-    <div class="cover">${cover ? `<img src="${esc(cover)}" loading="lazy" referrerpolicy="no-referrer">` : '<div class="no-img">无封面</div>'}</div>
+    <div class="cover">${cover ? coverImg(cover) : '<div class="no-img">无封面</div>'}</div>
     <div class="body">
       <div class="idx">#${i+1}</div>
       <h3>${esc(item.name)}</h3>
@@ -121,7 +186,7 @@ md.push('', '---', '', '## 详细');
 items.forEach((item, i) => {
   const cover = coverOf(item);
   md.push('', `### ${i+1}. ${item.name}`, '');
-  if (cover) md.push(`![cover](${cover})`, '');
+  if (cover) md.push(`![cover](${srcOf(cover)})`, '');
   else md.push('> ⚠️ **无封面图**', '');
   md.push(`- **id**: \`${item.id}\``);
   md.push(`- **url**: ${item.url}`);
@@ -140,6 +205,7 @@ console.log(`📂 源文件: ${filePath}`);
 console.log(`✅ HTML: ${htmlPath}`);
 console.log(`✅ MD:   ${mdPath}`);
 console.log(`📊 共 ${items.length} 条，无图 ${noCoverCount} 条`);
+if (localCovers) console.log(`🖼️  封面目录: ${join(REPORTS_DIR, COVERS_SUBDIR)}`);
 
 if (autoOpen) exec(`firefox "${htmlPath}"`, err => { if (err) console.log(`⚠️ 手动打开: xdg-open "${htmlPath}"`); });
 else console.log(`💡 手动打开: xdg-open "${htmlPath}"`);
