@@ -13,8 +13,12 @@ reports/*.md
 # 但测试证据要入库：用反转规则把 reports/evidence/ 下的 .txt 日志重新包含进来
 !reports/evidence/
 !reports/evidence/*.txt
+# 封面本地化缓存（review.mjs --local-covers 下载的图，运行时产物，性质同 reports/*.html）
+reports/evidence/covers-*/
 # 抓取产物（每天跑一次就变，性质同 published/）
 candidates/*.json
+# 新增抓取站点时存下来的原始 HTML 样本（见 AGENTS.md 第九节，体积大且是一次性素材）
+_samples/
 
 # 发布清单（含网盘链接/提取码，不入库）
 queue/*.json
