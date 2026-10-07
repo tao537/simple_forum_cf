@@ -83,6 +83,28 @@ node publish-game.mjs
 - 常见原因：网络不通（重试即可）、模型输出解析失败（重跑，或换更大的模型）、账号密码错误
 - 纯本地测试文案（不发布）：`curl http://localhost:11434/api/chat ...` 或直接重跑脚本观察
 
+## 一键抓取新源（run-new-source.mjs）
+
+把 `sources/galgame/` 下配置的子站抓取 → 入库 candidates → 自动生成 queue 清单 →
+逐条交给 publish-game.mjs，全程不用手写清单：
+
+```bash
+cd automation
+node run-new-source.mjs              # 抓取 + 生成清单 + 逐条 dry-run（安全预览，不发布）
+node run-new-source.mjs --publish    # 同上，但真实发布
+node run-new-source.mjs --limit 2    # 临时改每站条数
+```
+
+行为由 **`auto-publish.config.json`** 控制：抓哪些源（`sources`）、每站条数、
+panUrl 域名优先级、genre/platform 映射、`publish` 开关。细节见文件内注释。
+
+- 清单写到 `queue/auto-<站点>-<hash>.json`，同名已存在就跳过（可安全重跑）
+- 一条链接都没有的候选不生成清单（publish 要求 panUrl 必填），候选仍留在 candidates/
+- 发布逐条进行（`--file`），一条失败不影响其它条；**失败的清单保留在 queue/**，
+  修复后可直接 `node publish-game.mjs --file queue/auto-xxx.json` 重试
+- shinnku 的下载是 B2 公开直链（无提取码），清单里 panCode 自动填「无需」；
+  kungal 的网盘链接没码时走上面的「提取码暂缺」流程
+
 ## 定时自动发布（验证稳定后）
 
 例如每天上午 9 点自动处理 queue：

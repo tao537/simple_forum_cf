@@ -1,0 +1,28 @@
+{
+  "_说明": "run-new-source.mjs 的配置文件：自动抓取 galgame 子站 → 生成 queue 清单 → （可选）直接发布。改完这个文件即可换行为，不用动脚本。",
+
+  "sources": ["kungal", "shinnku"],
+
+  "limitPerSource": 3,
+  "_limitPerSource说明": "每个子站单次抓取条数；也是每次生成清单（=发帖数）的上限",
+
+  "publish": false,
+  "_publish说明": "false = 只抓取+生成清单+逐条 dry-run（安全预览）；true = 生成清单后真实发布",
+
+  "notesMaxChars": 1200,
+  "_notesMaxChars说明": "清单 notes（AI 文案参考）截断长度。本机 ollama 上下文只有 4096，别调太大",
+
+  "panHostPriority": [
+    "pan.baidu.com", "pan.quark.cn", "pan.xunlei.com", "123pan.com",
+    "alipan.com", "aliyundrive.com", "115.com", "lanzou.com",
+    "mypikpak.com", "mega.nz", "imoe.uk"
+  ],
+  "_panHostPriority说明": "从候选 links 里挑 panUrl 的域名优先级（命中靠前的优先），都不命中就取第一条 http(s) 链接",
+
+  "noNeedCodeMark": "无需",
+  "_noNeedCodeMark说明": "panUrl 不是网盘（直链/商店页）时 panCode 填这个，publish-game.mjs 视为「本来就不需要提取码」",
+
+  "genre": { "default": "galgame", "安卓": "安卓游戏" },
+  "platform": { "default": "PC", "安卓": "安卓" },
+  "_genrePlatform说明": "按候选 tags 里是否含「安卓」映射，其余用 default；publish-game.mjs 对这两个字段是自由文本"
+}
