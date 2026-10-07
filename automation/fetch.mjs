@@ -13,7 +13,9 @@
  * 设计要点：
  *   1. sources/ 下每个「含 index.mjs 的子目录」就是一个来源，不硬编码任何来源名；
  *   2. 动态 import 该来源的 index.mjs，取其中的 fetchGames 函数调用；
- *   3. 输出到 candidates/<来源名>-YYYY-MM-DD.json，已存在则按 id 去重后追加；
+ *   3. 输出到 candidates/<来源名>-YYYY-MM-DD.json，已存在则去重后追加；
+ *      去重按两层：id 精确匹配 + 归一化名称（防同一游戏被站点发了多个帖子、
+ *      或跨日期重复抓到）；「已见过」的范围包括同来源历史候选文件和 published/ 归档；
  *   4. 任何异常立即报错并以退出码 1 结束，不做静默重试。
  *
  * 依赖：仅 Node 内置模块（fs / path / url），无需 npm install，Node 18+。
@@ -229,31 +231,101 @@ function hasNoImage(item) {
 }
 
 // ==================== 去重合并 ====================
-function mergeById(existing, incoming) {
+/**
+ * 归一化游戏名，用于「同一游戏不同帖子」的去重：
+ * NFKC 折叠全角/半角（如「：」→":"）、转小写、去掉所有空白和标点符号。
+ * 例：'Demon Lord： Clicker' 与 'Demon Lord: Clicker' 归一化后相同。
+ */
+function normName(name) {
+  return String(name || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\p{P}\p{S}\s]+/gu, '');
+}
+
+/**
+ * 汇集「历史上已见过」的归一化名称，作为跨文件去重黑名单：
+ *   1. candidates/ 下同来源的所有历史文件（排除本次输出文件自己）；
+ *   2. published/ 归档（已发过帖的绝对不能再进候选）。
+ * 单个坏文件只跳过，不阻断抓取。
+ */
+function loadKnownNames(sourceName, excludeFile) {
+  const known = new Set();
+  const add = (name) => {
+    const key = normName(name);
+    if (key) known.add(key);
+  };
+
+  if (existsSync(CANDIDATES_DIR)) {
+    for (const f of readdirSync(CANDIDATES_DIR)) {
+      if (!f.startsWith(`${sourceName}-`) || !f.endsWith('.json')) continue;
+      if (join(CANDIDATES_DIR, f) === excludeFile) continue;
+      try {
+        const arr = JSON.parse(readFileSync(join(CANDIDATES_DIR, f), 'utf8'));
+        if (Array.isArray(arr)) for (const item of arr) add(item && item.name);
+      } catch {
+        console.warn(`⚠️  历史候选文件不是合法 JSON，跳过：${f}`);
+      }
+    }
+  }
+
+  const pubDir = join(AUTOMATION_DIR, 'published');
+  if (existsSync(pubDir)) {
+    for (const f of readdirSync(pubDir)) {
+      if (!f.endsWith('.json')) continue;
+      try {
+        add(JSON.parse(readFileSync(join(pubDir, f), 'utf8')).name);
+      } catch {
+        /* 归档坏文件跳过 */
+      }
+    }
+  }
+
+  return known;
+}
+
+/**
+ * 去重合并。三层：
+ *   1. existing 内部按 id 去重（兼容历史文件里可能存在的重复）；
+ *   2. existing 内部按归一化名称去重（同一游戏被站点发了多个帖子时只留第一条）；
+ *   3. incoming 逐条对照「id + 归一化名称 + 历史黑名单」，命中即跳过。
+ * 返回 merged 及各类计数，便于日志汇报。
+ */
+function mergeById(existing, incoming, knownNames = new Set()) {
   const merged = [];
-  const seen = new Set();
+  const seenIds = new Set();
+  const seenNames = new Set();
 
   for (const item of existing) {
-    if (seen.has(item.id)) continue;
-    seen.add(item.id);
+    const key = normName(item.name);
+    if (seenIds.has(item.id) || (key && seenNames.has(key))) continue;
+    seenIds.add(item.id);
+    if (key) seenNames.add(key);
     merged.push(item);
   }
 
   let added = 0;
-  let duplicated = 0;
-  const addedItems = [];
+  let duplicated = 0; // id 或名称与本次/已有文件重复
+  let blacklisted = 0; // 命中历史候选或已发布归档
+  const addedItems = []; // 本次真正入库的条目（用于日志里的「无图」统计）
   for (const item of incoming) {
-    if (seen.has(item.id)) {
+    const key = normName(item.name);
+    if (seenIds.has(item.id) || (key && seenNames.has(key))) {
       duplicated += 1;
       continue;
     }
-    seen.add(item.id);
+    if ((key && knownNames.has(key)) || knownNames.has(item.id)) {
+      blacklisted += 1;
+      continue;
+    }
+    seenIds.add(item.id);
+    if (key) seenNames.add(key);
     merged.push(item);
     addedItems.push(item);
     added += 1;
   }
 
-  return { merged, added, duplicated, addedItems };
+  return { merged, added, duplicated, blacklisted, addedItems };
 }
 // ==================== 主流程 ====================
 async function main() {
@@ -327,10 +399,17 @@ async function main() {
     console.log(`📄 已存在 ${basename(outFile)}（${existing.length} 条），按 id 去重后追加`);
   }
 
-  const { merged, added, duplicated, addedItems } = mergeById(existing, items);
+  const knownNames = loadKnownNames(source.name, outFile);
+  if (knownNames.size) {
+    console.log(`🧹 去重黑名单已就绪：历史候选 + 已发布归档共 ${knownNames.size} 个名称`);
+  }
+
+  const { merged, added, duplicated, blacklisted, addedItems } = mergeById(existing, items, knownNames);
   writeFileSync(outFile, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
 
-  console.log(`\n✅ 抓取完成：来源返回 ${items.length} 条，新增 ${added} 条，跳过重复 ${duplicated} 条，文件共 ${merged.length} 条`);
+  console.log(`\n✅ 抓取完成：来源返回 ${items.length} 条，新增 ${added} 条，文件共 ${merged.length} 条`);
+  console.log(`   ├─ 跳过重复（与本次/本文件撞 id 或名称）：${duplicated} 条`);
+  console.log(`   └─ 跳过历史（在历史候选或已发布归档里出现过）：${blacklisted} 条`);
   console.log(`📊 本次入库 ${added} 条，其中无图 ${addedItems.filter(hasNoImage).length} 条（建议人工复核）`);
   console.log(`📁 ${outFile}`);
   console.log(`⏱️ 耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)} 秒`);
