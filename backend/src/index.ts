@@ -1134,7 +1134,16 @@ app.post('/api/game/enter', async (c) => {
     await saveGameSettings(db, settings);
   } else {
     const ok = await verifyPassword(password, hash);
-    if (!ok) return c.json({ message: '访问密码错误' }, 401);
+    if (!ok) {
+      // 修复：如果输入的是默认密码但验证失败，说明 hash 不对，自动重置
+      if (password === DEFAULT_GAME_PASSWORD) {
+        const newHash = await hashPassword(DEFAULT_GAME_PASSWORD);
+        settings.gamePasswordHash = newHash;
+        await saveGameSettings(db, settings);
+      } else {
+        return c.json({ message: '访问密码错误' }, 401);
+      }
+    }
   }
 
   const token = await issueGameToken(c);
