@@ -177,6 +177,14 @@ body {
     <button onclick="searchMusic()">搜索</button>
   </div>
 
+  <!-- 热门推荐 -->
+  <div id="hotRecommend">
+    <div class="section-title">🔥 热门推荐</div>
+    <ul class="song-list" id="hotList">
+      <div class="empty">加载热门歌曲中...</div>
+    </ul>
+  </div>
+
   <!-- 搜索结果 -->
   <div id="searchResult" style="display:none">
     <div class="section-title">🔍 搜索结果</div>
@@ -203,8 +211,50 @@ const playBtn = document.getElementById('playBtn');
 let playlist = JSON.parse(localStorage.getItem('music_playlist') || '[]');
 let currentIndex = -1;
 
-// 初始化：加载歌单
+// 初始化：加载歌单和热门推荐
 renderPlaylist();
+loadHotRecommend();
+
+// 加载热门推荐
+async function loadHotRecommend() {
+  const hotKeywords = ['周杰伦', '林俊杰', '邓紫棋', '流行歌曲'];
+  const list = document.getElementById('hotList');
+  try {
+    const resp = await fetch(`${resolveBaseUrl()}/api/music/search?keyword=${encodeURIComponent(hotKeywords[0])}`);
+    const data = await resp.json();
+    if (!data.songs?.length) {
+      list.innerHTML = '<div class="empty">暂无推荐歌曲</div>';
+      return;
+    }
+    window._hotResults = data.songs;
+    list.innerHTML = data.songs.slice(0, 10).map((s, i) => `
+      <li class="song-item">
+        <div class="song-info">
+          <div class="song-name">${escapeHtml(s.name)}</div>
+          <div class="song-artist">${escapeHtml(s.artist)} - ${escapeHtml(s.album)}</div>
+        </div>
+        <div class="song-actions">
+          <button onclick="playHot(${i})">▶ 播放</button>
+          <button onclick="addHot(${i})">+ 添加</button>
+        </div>
+      </li>
+    `).join('');
+  } catch (e) {
+    list.innerHTML = `<div class="empty">加载失败：${e.message}</div>`;
+  }
+}
+
+// 热门推荐播放
+window.playHot = function(i) {
+  const s = window._hotResults[i];
+  playSong(s);
+};
+
+// 热门推荐添加到歌单
+window.addHot = function(i) {
+  const s = window._hotResults[i];
+  addToPlaylist(s);
+};
 
 // 搜索
 window.searchMusic = async function() {

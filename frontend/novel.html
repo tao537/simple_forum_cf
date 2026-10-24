@@ -93,9 +93,18 @@ body {
     <button onclick="searchNovel()">搜索</button>
   </div>
 
+  <!-- 热门推荐 -->
+  <div id="hotRecommend" style="margin-bottom:24px">
+    <h3 style="margin-bottom:12px;font-size:16px;color:#e2e8f0">🔥 热门推荐</h3>
+    <div class="book-list" id="hotList">
+      <div class="empty">加载热门小说中...</div>
+    </div>
+  </div>
+
   <!-- 搜索结果 -->
-  <div id="searchResult">
-    <div class="empty">搜索小说开始阅读</div>
+  <div id="searchResult" style="display:none">
+    <h3 style="margin-bottom:12px;font-size:16px;color:#e2e8f0">🔍 搜索结果</h3>
+    <div id="searchBooks"></div>
   </div>
 
   <!-- 章节列表 -->
@@ -122,6 +131,40 @@ import { resolveBaseUrl } from '/common.js';
 
 let currentChapters = [];
 let currentChapterIndex = 0;
+let hotBooks = [];
+
+// 页面加载时自动加载热门推荐
+loadHotRecommend();
+
+async function loadHotRecommend() {
+  const list = document.getElementById('hotList');
+  try {
+    const resp = await fetch(`${resolveBaseUrl()}/api/novel/search?keyword=${encodeURIComponent('斗破苍穹')}`);
+    const data = await resp.json();
+    if (!data.books?.length) {
+      list.innerHTML = '<div class="empty">暂无推荐小说</div>';
+      return;
+    }
+    hotBooks = data.books;
+    list.innerHTML = data.books.slice(0, 8).map((b, i) => `
+      <div class="book-card" onclick="openBook(${i})">
+        <div class="book-cover">📖</div>
+        <div class="book-title">${escapeHtml(b.title)}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:4px">${escapeHtml(b.author)}</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    list.innerHTML = `<div class="empty">加载失败：${e.message}</div>`;
+  }
+}
+
+// 打开书籍
+window.openBook = function(i) {
+  const b = hotBooks[i];
+  document.getElementById('hotRecommend').style.display = 'none';
+  document.getElementById('searchResult').style.display = 'none';
+  loadChapters(b.id);
+}
 
 // 搜索小说
 window.searchNovel = async function() {
