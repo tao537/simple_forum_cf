@@ -456,6 +456,7 @@
       gameAuth.setToken(data.token);
       document.getElementById('gate').style.display = 'none';
       document.getElementById('main').style.display = '';
+      document.getElementById('kw').value = ''; // 清空浏览器自动填充的搜索框
       toast('欢迎进入游戏站 🎮');
       renderNav();
       load(1);
@@ -485,8 +486,13 @@
     });
   } else {
     ensureEntered().then((ok) => {
-      if (ok) { document.getElementById('gate').style.display = 'none'; renderNav(); load(1); }
-      else { document.getElementById('main').style.display = 'none'; }
+      if (ok) {
+        document.getElementById('gate').style.display = 'none';
+        document.getElementById('main').style.display = '';
+        document.getElementById('kw').value = ''; // 清空浏览器自动填充的搜索框
+        renderNav();
+        load(1);
+      } else { document.getElementById('main').style.display = 'none'; }
     });
   }
 
