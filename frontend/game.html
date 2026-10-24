@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%232a1a4a'/%3E%3Ctext x='50' y='71' font-size='54' text-anchor='middle' fill='%23c9a9ff' font-family='sans-serif'%3E%E6%B8%B8%3C/text%3E%3C/svg%3E">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>娱乐游戏 · 二次元游戏分享站</title>
@@ -319,7 +320,7 @@
   <div class="card">
     <div class="em">🔐</div>
     <h2>进入游戏站</h2>
-    <p>本站为独立游戏分享社区<br/>请输入访问密码进入（与苦海论坛账号互不相通）</p>
+    <p>本站为游戏分享社区<br/>请输入访问密码进入（登录账号与苦海论坛通用）</p>
     <p id="gate-hint" style="font-size:13px;color:#94a3b8;margin:0 0 12px;text-align:center"></p>
     <div class="pw-wrap">
       <input id="gate-pw" type="text" placeholder="访问密码" autocomplete="off" autocapitalize="off" spellcheck="false" />
@@ -335,13 +336,14 @@
 
 <script type="module">
   import { gameAuth, gameApi, escapeHtml, parseImages, initAnimatedBackground,
-           initMusicPlayer, processImageForUpload } from './common.js';
+           initMusicPlayer, processImageForUpload, GAME_WALLPAPERS, setGateWallpaper } from './common.js';
 
   const API = '/api/game/posts';
   const state = { page: 1, size: 12, total: 0, sort: 'new', keyword: '' };
   let pendingImages = [];
 
-  initAnimatedBackground({ images: ['/wallpapers/game-anime.jpg'] });
+  initAnimatedBackground({ images: GAME_WALLPAPERS, interval: 12000 });
+  setGateWallpaper('.gate');
   initMusicPlayer({
     tracks: [
       { name: 'Follow', url: '/music/01.mp3' },
@@ -414,8 +416,7 @@
         document.getElementById('a-password').value = '';
       } else {
         const r = await gameApi('/api/game/login', { method: 'POST', body: JSON.stringify({ username, password }) });
-        gameAuth.setToken(r.token);
-        gameAuth.setUser(r.user);
+        gameAuth.setLogin(r.token, r.user); // 统一登录态（SSO）
         closeAuth();
         renderNav();
         toast(`欢迎回来，${r.user.nickname || r.user.username}`);
@@ -468,7 +469,7 @@
     if (!gameAuth.isEntered()) return false;
     try {
       const me = await gameApi('/api/game/me');
-      if (me.user) gameAuth.setUser(me.user); // 刷新账号信息（昵称/角色可能变更）
+      if (me.user) gameAuth.refreshUser(me.user); // 刷新账号信息（昵称/角色可能变更）
       return true;
     } catch {
       gameAuth.clear();

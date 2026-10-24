@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%2316324f'/%3E%3Ctext x='50' y='71' font-size='54' text-anchor='middle' fill='%23e8d5a0' font-family='serif'%3E%E6%B5%B7%3C/text%3E%3C/svg%3E">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>苦海论坛</title>
@@ -474,7 +475,13 @@
       render(data.rows);
       renderPager();
       refreshUnread();
-    } catch (e) { toast(e.message, true); }
+    } catch (e) {
+      toast(e.message, true);
+      document.getElementById('list').innerHTML =
+        `<div class="empty">内容加载失败：${escapeHtml(e.message)}<br/>
+          <button class="retry-btn" onclick="load(${state.page})" style="margin-top:12px;padding:6px 18px;border:1px solid var(--accent);background:transparent;color:var(--accent);border-radius:8px;cursor:pointer">点击重试</button>
+        </div>`;
+    }
   }
   window.load = load;
 
@@ -684,9 +691,9 @@
   });
 
   renderNav();
+  // 核心列表先加载；精选/站点文案延后 350ms，避免首屏请求同时挤占（代理弱网下更稳）
   load(1);
-  loadFeatured();
-  loadSiteContent();
+  setTimeout(() => { loadFeatured(); loadSiteContent(); }, 350);
 </script>
 </body>
 </html>

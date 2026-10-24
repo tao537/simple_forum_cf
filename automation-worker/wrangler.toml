@@ -1,0 +1,21 @@
+name = "forum-automation"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+# 每天北京时间 9:00（UTC 1:00）自动跑一次
+[triggers]
+crons = ["0 1 * * *"]
+
+# 已发游戏去重 KV（部署后用 `wrangler kv:namespace create PUBLISHED` 创建并填 id）
+[[kv_namespaces]]
+binding = "PUBLISHED"
+id = "REPLACE_WITH_YOUR_KV_ID"
+
+[vars]
+# 论坛 API 地址
+API_BASE = "https://api.kuhai.de5.net"
+# 云端 AI 配置（OpenAI 兼容格式）
+AI_BASE_URL = "https://api.deepseek.com/v1"
+AI_MODEL = "deepseek-chat"
+# 每次最多发几条
+MAX_PER_RUN = 3

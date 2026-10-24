@@ -1,0 +1,547 @@
+{
+  "source": "galgame",
+  "date": "2026-10-07",
+  "generatedAt": "2026-10-23T14:50:04.779Z",
+  "total": 28,
+  "pass": 3,
+  "warn": 15,
+  "reject": 10,
+  "linkChecked": false,
+  "results": [
+    {
+      "index": 0,
+      "id": "galgame-kungal-r67994",
+      "name": "STEINS;GATE RE:BOOT（REBOOT 版本 PC 官中）",
+      "url": "https://www.kungal.com/galgame/resource/67994",
+      "cover": "https://image.kungal.iloveren.link/2b/21/2b21df0f360efdb6a5b0497db0ba398df9e3d69cff2f5236ee696f143e983e2e.webp",
+      "verdict": "reject",
+      "issues": [
+        {
+          "level": "pass",
+          "code": "PAN_LINK",
+          "msg": "网盘链接：1 个"
+        },
+        {
+          "level": "reject",
+          "code": "DUP_PUBLISHED",
+          "msg": "与已发布内容重复"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "id": "galgame-kungal-r67993",
+      "name": "吸血鬼の花嫁 The Novel Game（PC/盖世/Winlator）",
+      "url": "https://www.kungal.com/galgame/resource/67993",
+      "cover": "https://image.kungal.iloveren.link/3f/6c/3f6c0f7bf0e8b49f36809702dbb65ded98e87432b35209e6dcc2d9ea7ccb7f6e.webp",
+      "verdict": "reject",
+      "issues": [
+        {
+          "level": "pass",
+          "code": "PAN_LINK",
+          "msg": "网盘链接：1 个"
+        },
+        {
+          "level": "reject",
+          "code": "DUP_PUBLISHED",
+          "msg": "与已发布内容重复"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "id": "galgame-shinnku-bd2526144f6a",
+      "name": "Perennial Dusk -Kinsenka-",
+      "url": "https://www.shinnku.com/files/shinnku/0/win/Perennial%20Dusk%20-Kinsenka-.7z",
+      "cover": "",
+      "verdict": "reject",
+      "issues": [
+        {
+          "level": "reject",
+          "code": "ADULT",
+          "msg": "命中成人/色情内容词：18禁、成人"
+        },
+        {
+          "level": "warn",
+          "code": "NO_COVER",
+          "msg": "无封面图"
+        },
+        {
+          "level": "reject",
+          "code": "DUP_PUBLISHED",
+          "msg": "与已发布内容重复"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "id": "galgame-shinnku-f9456d4c1fad",
+      "name": "[090424][エウシュリー] 姫狩りダンジョンマイスター",
+      "url": "https://www.shinnku.com/files/shinnku/zd/0001-0500/%5B090424%5D%5B%E3%82%A8%E3%82%A6%E3%82%B7%E3%83%A5%E3%83%AA%E3%83%BC%5D%20%E5%A7%AB%E7%8B%A9%E3%82%8A%E3%83%80%E3%83%B3%E3%82%B8%E3%83%A7%E3%83%B3%E3%83%9E%E3%82%A4%E3%82%B9%E3%82%BF%E3%83%BC.rar",
+      "cover": "",
+      "verdict": "reject",
+      "issues": [
+        {
+          "level": "reject",
+          "code": "ADULT",
+          "msg": "命中成人/色情内容词：r18、成人、调教、凌辱"
+        },
+        {
+          "level": "warn",
+          "code": "NO_COVER",
+          "msg": "无封面图"
+        },
+        {
+          "level": "reject",
+          "code": "DUP_PUBLISHED",
+          "msg": "与已发布内容重复"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "id": "galgame-shinnku-aa8bdbf0e5e3",
+      "name": "[070330][PULLTOP] 夏少女",
+      "url": "https://www.shinnku.com/files/shinnku/zd/0001-0500/%5B070330%5D%5BPULLTOP%5D%20%E5%A4%8F%E5%B0%91%E5%A5%B3.rar",
+      "cover": "",
+      "verdict": "reject",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "PIRACY",
+          "msg": "命中盗版/版权风险词，需确认授权：汉化、免安装"
+        },
+        {
+          "level": "warn",
+          "code": "NO_COVER",
+          "msg": "无封面图"
+        },
+        {
+          "level": "reject",
+          "code": "DUP_PUBLISHED",
+          "msg": "与已发布内容重复"
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "id": "galgame-kungal-r68103",
+      "name": "はなひらっ！（PC+ONS+安卓直装）",
+      "url": "https://www.kungal.com/galgame/resource/68103",
+      "cover": "https://image.kungal.iloveren.link/92/de/92de463dc49ac9504b2c4865e776f185a0127665e1b86882a36fbec94b6c9141.webp",
+      "verdict": "reject",
+      "issues": [
+        {
+          "level": "reject",
+          "code": "ADULT",
+          "msg": "命中成人/色情内容词：成人"
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "id": "galgame-kungal-r68097",
+      "name": "花吻在上8~亲吻那片花瓣~天使的花之吻痕（PC+ONS+安卓直装）",
+      "url": "https://www.kungal.com/galgame/resource/68097",
+      "cover": "https://image.kungal.iloveren.link/e1/21/e1211ebcbb7aea73f905695869a7d211a6bf59558c74ac95a0ad549ff5132ded.webp",
+      "verdict": "pass",
+      "issues": [
+        {
+          "level": "pass",
+          "code": "PAN_LINK",
+          "msg": "网盘链接：1 个"
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "id": "galgame-shinnku-7325ef535db0",
+      "name": "[040326][工画堂スタジオ] 交响乐之雨[硬盘]",
+      "url": "https://www.shinnku.com/files/shinnku/zd/0001-0500/%5B040326%5D%5B%E5%B7%A5%E7%94%BB%E5%A0%82%E3%82%B9%E3%82%BF%E3%82%B8%E3%82%AA%5D%20%E4%BA%A4%E5%93%8D%E4%B9%90%E4%B9%8B%E9%9B%A8%5B%E7%A1%AC%E7%9B%98%5D%20(files).rar",
+      "cover": "",
+      "verdict": "reject",
+      "issues": [
+        {
+          "level": "reject",
+          "code": "ADULT",
+          "msg": "命中成人/色情内容词：h版"
+        },
+        {
+          "level": "warn",
+          "code": "NO_COVER",
+          "msg": "无封面图"
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "id": "galgame-shinnku-1bea7cb0e040",
+      "name": "[201127][Citrus] 保健室のセンセーとシャボン玉中毒の助手",
+      "url": "https://www.shinnku.com/files/shinnku/zd/1501-2000/%5B201127%5D%5BCitrus%5D%20%E4%BF%9D%E5%81%A5%E5%AE%A4%E3%81%AE%E3%82%BB%E3%83%B3%E3%82%BB%E3%83%BC%E3%81%A8%E3%82%B7%E3%83%A3%E3%83%9C%E3%83%B3%E7%8E%89%E4%B8%AD%E6%AF%92%E3%81%AE%E5%8A%A9%E6%89%8B.rar",
+      "cover": "",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_COVER",
+          "msg": "无封面图"
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "id": "galgame-shinnku-2fb25b8cef96",
+      "name": "[201112][白露社] 夜永 Eternal Love steam版",
+      "url": "https://www.shinnku.com/files/shinnku/zd/1501-2000/%5B201112%5D%5B%E7%99%BD%E9%9C%B2%E7%A4%BE%5D%20%E5%A4%9C%E6%B0%B8%20Eternal%20Love%20steam%E7%89%88%20(files).rar",
+      "cover": "",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_COVER",
+          "msg": "无封面图"
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "id": "galgame-shinnku-591c4c6b407e",
+      "name": "[201112][OTAKU Plan] 噬欲之书 ~谎言与复仇的抒情诗~ steam版",
+      "url": "https://www.shinnku.com/files/shinnku/zd/1501-2000/%5B201112%5D%5BOTAKU%20Plan%5D%20%E5%99%AC%E6%AC%B2%E4%B9%8B%E4%B9%A6%20~%E8%B0%8E%E8%A8%80%E4%B8%8E%E5%A4%8D%E4%BB%87%E7%9A%84%E6%8A%92%E6%83%85%E8%AF%97~%20steam%E7%89%88%20(files).rar",
+      "cover": "",
+      "verdict": "reject",
+      "issues": [
+        {
+          "level": "reject",
+          "code": "ADULT",
+          "msg": "命中成人/色情内容词：成人"
+        },
+        {
+          "level": "warn",
+          "code": "PIRACY",
+          "msg": "命中盗版/版权风险词，需确认授权：汉化"
+        },
+        {
+          "level": "warn",
+          "code": "NO_COVER",
+          "msg": "无封面图"
+        }
+      ]
+    },
+    {
+      "index": 11,
+      "id": "galgame-shinnku-f4d7ae664390",
+      "name": "[201030][GLOVETY] アインシュタインより愛を込めて",
+      "url": "https://www.shinnku.com/files/shinnku/zd/1501-2000/%5B201030%5D%5BGLOVETY%5D%20%E3%82%A2%E3%82%A4%E3%83%B3%E3%82%B7%E3%83%A5%E3%82%BF%E3%82%A4%E3%83%B3%E3%82%88%E3%82%8A%E6%84%9B%E3%82%92%E8%BE%BC%E3%82%81%E3%81%A6.rar",
+      "cover": "",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_COVER",
+          "msg": "无封面图"
+        }
+      ]
+    },
+    {
+      "index": 12,
+      "id": "galgame-shinnku-fac330f863e2",
+      "name": "[200907][Winged Cloud] Sakura Knight 3 steam版",
+      "url": "https://www.shinnku.com/files/shinnku/zd/1501-2000/%5B200907%5D%5BWinged%20Cloud%5D%20Sakura%20Knight%203%20steam%E7%89%88%20(files).rar",
+      "cover": "",
+      "verdict": "reject",
+      "issues": [
+        {
+          "level": "reject",
+          "code": "ADULT",
+          "msg": "命中成人/色情内容词：成人、巨乳"
+        },
+        {
+          "level": "warn",
+          "code": "NO_COVER",
+          "msg": "无封面图"
+        }
+      ]
+    },
+    {
+      "index": 13,
+      "id": "galgame-shinnku-cfd7db88b3be",
+      "name": "[200626][Key] Summer Pockets REFLECTION BLUE",
+      "url": "https://www.shinnku.com/files/shinnku/zd/1501-2000/%5B200626%5D%5BKey%5D%20Summer%20Pockets%20REFLECTION%20BLUE.rar",
+      "cover": "",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_COVER",
+          "msg": "无封面图"
+        }
+      ]
+    },
+    {
+      "index": 14,
+      "id": "galgame-youxiniao-04c8f35de380",
+      "name": "地铁逃生国际服下载正版手游",
+      "url": "https://www.youxiniao.com/game/dttsgjfxzgfzb3/",
+      "cover": "https://pic1.youxiniao.com/yxn/img2022/6/29/10/2022062910585241062.jpg",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_TAGS",
+          "msg": "无标签"
+        },
+        {
+          "level": "warn",
+          "code": "DUP_HISTORY",
+          "msg": "与历史候选重复（galgame-2026-10-04.json）"
+        }
+      ]
+    },
+    {
+      "index": 15,
+      "id": "galgame-youxiniao-affcc7afc0b9",
+      "name": "异界大陆正版游戏下载安装2023",
+      "url": "https://www.youxiniao.com/game/yjdlzbyx7/",
+      "cover": "https://pic1.youxiniao.com/yxn/img2021/6/23/9/2021062301765326.jpg",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_TAGS",
+          "msg": "无标签"
+        },
+        {
+          "level": "pass",
+          "code": "PAN_LINK",
+          "msg": "网盘链接：1 个"
+        },
+        {
+          "level": "warn",
+          "code": "DUP_HISTORY",
+          "msg": "与历史候选重复（galgame-2026-10-04.json）"
+        }
+      ]
+    },
+    {
+      "index": 16,
+      "id": "galgame-youxiniao-4741529a9187",
+      "name": "关于我转生变成史莱姆这档事樱花动漫第二季最新版游戏",
+      "url": "https://www.youxiniao.com/game/gywzsbcslmzdsdej1/",
+      "cover": "https://pic1.youxiniao.com/yxn/img2020/12/22/15/2020122240936407.jpg",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_TAGS",
+          "msg": "无标签"
+        },
+        {
+          "level": "pass",
+          "code": "PAN_LINK",
+          "msg": "网盘链接：1 个"
+        },
+        {
+          "level": "warn",
+          "code": "DUP_HISTORY",
+          "msg": "与历史候选重复（galgame-2026-10-04.json）"
+        }
+      ]
+    },
+    {
+      "index": 17,
+      "id": "galgame-youxiniao-5d2225834f13",
+      "name": "鬼灭之刃樱花动漫第二季中文版游戏最新版",
+      "url": "https://www.youxiniao.com/game/gmzryhdmdej/",
+      "cover": "https://pic1.youxiniao.com/yxn/img2020/12/22/14/2020122214034068395.jpg",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_TAGS",
+          "msg": "无标签"
+        },
+        {
+          "level": "warn",
+          "code": "DUP_HISTORY",
+          "msg": "与历史候选重复（galgame-2026-10-04.json）"
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "id": "galgame-youxiniao-e6f68929b909",
+      "name": "灵剑online手游正版下载",
+      "url": "https://www.youxiniao.com/game/ljonline/",
+      "cover": "https://pic1.youxiniao.com/yxn/img2021/6/3/14/2021060362536940.jpg",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_TAGS",
+          "msg": "无标签"
+        },
+        {
+          "level": "warn",
+          "code": "DUP_HISTORY",
+          "msg": "与历史候选重复（galgame-2026-10-04.json）"
+        }
+      ]
+    },
+    {
+      "index": 19,
+      "id": "galgame-youxiniao-d640f655dba5",
+      "name": "元素裂变国际服",
+      "url": "https://www.youxiniao.com/game/koudaiyaoguairy/",
+      "cover": "https://pic1.youxiniao.com/youxiniao/imgfile/20261005/05111659o57d.png",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_TAGS",
+          "msg": "无标签"
+        }
+      ]
+    },
+    {
+      "index": 20,
+      "id": "galgame-youxiniao-8785f472fa68",
+      "name": "危鸡之夜正式版手游最新版下载",
+      "url": "https://www.youxiniao.com/game/weijizhiye/",
+      "cover": "https://pic1.youxiniao.com/yxn/img2018/7/12/9/2018071292738061.jpg",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_TAGS",
+          "msg": "无标签"
+        },
+        {
+          "level": "warn",
+          "code": "DUP_HISTORY",
+          "msg": "与历史候选重复（galgame-2026-10-04.json）"
+        }
+      ]
+    },
+    {
+      "index": 21,
+      "id": "galgame-youxiniao-78f991e9493f",
+      "name": "rust腐蚀手机版游戏下载国服中文版",
+      "url": "https://www.youxiniao.com/game/rust/",
+      "cover": "https://pic1.youxiniao.com/yxn/img2018/6/25/10/2018062502931299.jpg",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_TAGS",
+          "msg": "无标签"
+        },
+        {
+          "level": "warn",
+          "code": "DUP_HISTORY",
+          "msg": "与历史候选重复（galgame-2026-10-04.json）"
+        }
+      ]
+    },
+    {
+      "index": 22,
+      "id": "galgame-youxiniao-f92f9197aea6",
+      "name": "第五人格国际版",
+      "url": "https://www.youxiniao.com/game/identityvzsb/",
+      "cover": "https://pic1.youxiniao.com/yxn/img2021/3/18/9/2021031846561075.jpg",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_TAGS",
+          "msg": "无标签"
+        },
+        {
+          "level": "warn",
+          "code": "DUP_HISTORY",
+          "msg": "与历史候选重复（galgame-2026-10-04.json）"
+        }
+      ]
+    },
+    {
+      "index": 23,
+      "id": "galgame-youxiniao-dc1032a500d2",
+      "name": "第五人格安卓下载电脑版pc端安装",
+      "url": "https://www.youxiniao.com/game/dwrgdnb/",
+      "cover": "https://pic1.youxiniao.com/yxn/img2021/3/18/9/2021031806183929.jpg",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "NO_TAGS",
+          "msg": "无标签"
+        },
+        {
+          "level": "warn",
+          "code": "DUP_HISTORY",
+          "msg": "与历史候选重复（galgame-2026-10-04.json）"
+        }
+      ]
+    },
+    {
+      "index": 24,
+      "id": "galgame-kungal-r68110",
+      "name": "ライムライト・レモネードジャム",
+      "url": "https://www.kungal.com/galgame/resource/68110",
+      "cover": "https://image.kungal.iloveren.link/ef/d3/efd37e06b6e13ba684a8fdfc36727d278ef88d33ecb0119630e656c12407cb33.webp",
+      "verdict": "pass",
+      "issues": [
+        {
+          "level": "pass",
+          "code": "PAN_LINK",
+          "msg": "网盘链接：10 个"
+        }
+      ]
+    },
+    {
+      "index": 25,
+      "id": "galgame-kungal-r68106",
+      "name": "あやかし遊郭 ～花魁道中～",
+      "url": "https://www.kungal.com/galgame/resource/68106",
+      "cover": "https://image.kungal.iloveren.link/a6/ec/a6ec17d79a3fa163a6cd4dd700dae50556f6052b4dbfde46a063d805769868e9.webp",
+      "verdict": "reject",
+      "issues": [
+        {
+          "level": "reject",
+          "code": "ADULT",
+          "msg": "命中成人/色情内容词：色情"
+        }
+      ]
+    },
+    {
+      "index": 26,
+      "id": "galgame-kungal-r68105",
+      "name": "ライムライト・レモネードジャム（PC+安卓直装+最新版1.22KRKR）",
+      "url": "https://www.kungal.com/galgame/resource/68105",
+      "cover": "https://image.kungal.iloveren.link/ef/d3/efd37e06b6e13ba684a8fdfc36727d278ef88d33ecb0119630e656c12407cb33.webp",
+      "verdict": "warn",
+      "issues": [
+        {
+          "level": "warn",
+          "code": "PIRACY",
+          "msg": "命中盗版/版权风险词，需确认授权：汉化"
+        }
+      ]
+    },
+    {
+      "index": 27,
+      "id": "galgame-kungal-r68111",
+      "name": "天使☆騒々 RE-BOOT!",
+      "url": "https://www.kungal.com/galgame/resource/68111",
+      "cover": "https://image.kungal.iloveren.link/58/35/5835f11fa917b6f568faecda0f2f13c52bb9a0fc4dcfb78ea7db5a8a2eb13cff.webp",
+      "verdict": "pass",
+      "issues": [
+        {
+          "level": "pass",
+          "code": "PAN_LINK",
+          "msg": "网盘链接：10 个"
+        }
+      ]
+    }
+  ]
+}

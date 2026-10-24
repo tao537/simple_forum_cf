@@ -12,12 +12,15 @@
       "binding": "DB",
       "database_name": "forum-db",
       "database_id": "c71a2c00-f5ba-49f8-90bd-8fe0d8a26b39"
-    },
-    {
-      "binding": "GAME_DB",
-      "database_name": "game-db",
-      "database_id": "916c3765-4b1c-494b-b7d9-e1b82a6b048b"
     }
+    // 数据库合并后游戏站也使用 forum-db（统一账号），GAME_DB 绑定已停用。
+    // 旧 game-db 数据保留未删，确认合并稳定后可在 Cloudflare 控制台删除。
+    // 如需回滚，恢复以下绑定：
+    // {
+    //   "binding": "GAME_DB",
+    //   "database_name": "game-db",
+    //   "database_id": "916c3765-4b1c-494b-b7d9-e1b82a6b048b"
+    // }
   ],
   // ============================================================
   // 图片存储（Cloudflare KV，替代 R2 与第三方图床）

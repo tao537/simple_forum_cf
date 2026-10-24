@@ -1054,10 +1054,11 @@ async function issueGameToken(c: any, userId?: number) {
   return await sign(payload, c.env.JWT_SECRET, 'HS256');
 }
 
-// 校验游戏访问 token（只认 scope=game，与论坛 token 隔离）
-// 返回 payload（可能含 id=账号id），无效返回 null
-async function getGameAuth(c: any): Promise<{ scope: string; id?: number } | null> {
-  const token = c.req.header('Authorization')?.replace('Bearer ', '');
+// 校验游戏站【门禁】：只读 X-Gate-Token（scope=game，由 /api/game/enter 签发）。
+// 登录态（Authorization）与门禁分离：合并后账号统一，但门禁仍独立保留。
+// 返回门禁 payload，未通过返回 null。
+async function getGameAuth(c: any): Promise<{ scope: string } | null> {
+  const token = c.req.header('X-Gate-Token')?.replace('Bearer ', '');
   if (!token) return null;
   try {
     const p = await verify(token, c.env.JWT_SECRET, 'HS256');
@@ -1067,15 +1068,24 @@ async function getGameAuth(c: any): Promise<{ scope: string; id?: number } | nul
   }
 }
 
-// 获取当前游戏站登录账号（未登录或访客 token 返回 null）
+// 获取当前游戏站【登录账号】：读 Authorization 统一 token（SSO，论坛登录也认）。
+// 未登录返回 null。账号来自统一 users 表（forum-db）。
 async function getGameUser(c: any): Promise<{ id: number; username: string; nickname: string; role: string; is_banned: number } | null> {
-  const auth = await getGameAuth(c);
-  if (!auth || !auth.id) return null;
-  const user = await c.env.GAME_DB
-    .prepare('SELECT id, username, nickname, role, is_banned FROM users WHERE id = ?')
-    .bind(auth.id)
-    .first<{ id: number; username: string; nickname: string; role: string; is_banned: number }>();
-  return user || null;
+  const token = c.req.header('Authorization')?.replace('Bearer ', '');
+  if (!token) return null;
+  try {
+    const p = await verify(token, c.env.JWT_SECRET, 'HS256');
+    const id = Number(p.id);
+    if (!Number.isInteger(id)) return null;
+    const user = await c.env.DB
+      .prepare('SELECT id, username, nickname, role, is_banned FROM users WHERE id = ?')
+      .bind(id)
+      .first<{ id: number; username: string; nickname: string; role: string; is_banned: number }>();
+    if (!user || user.is_banned) return null;
+    return user;
+  } catch {
+    return null;
+  }
 }
 
 // 判断当前是否为游戏站管理员（登录账号且 role=admin 且未封禁）
@@ -1100,7 +1110,7 @@ async function saveGameSettings(db: D1Database, data: any) {
 
 // 游戏站门禁提示词（公开接口，未进站也可读；显示在密码框上方）
 app.get('/api/game/hint', async (c) => {
-  const settings = await getGameSettings(c.env.GAME_DB);
+  const settings = await getGameSettings(c.env.DB);
   return c.json({ hint: settings.gamePasswordHint || '本站为独立游戏分享社区，进入密码由站长管理，忘记密码请向站长索取。' });
 });
 
@@ -1110,7 +1120,7 @@ app.post('/api/game/enter', async (c) => {
   if (typeof password !== 'string' || !password) {
     return c.json({ message: '请输入访问密码' }, 400);
   }
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const settings = await getGameSettings(db);
   const hash = settings.gamePasswordHash;
 
@@ -1139,10 +1149,11 @@ app.get('/api/game/me', async (c) => {
   return c.json({ ok: true, user });
 });
 
-// 游戏站注册（独立账号体系，与苦海论坛完全隔离；先进站后可注册）
+// 游戏站注册（账号已与论坛统一，写入 forum-db.users；先进站后可注册）
+// 合并后不再"首账号自动 admin"：游戏管理员即统一 role=admin 用户（论坛管理员天然可管理游戏站）
 app.post('/api/game/register', async (c) => {
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
-  const { username, password, nickname } = await c.req.json();
+  const { username, password, nickname, email } = await c.req.json();
   const name = String(username || '').trim();
   const pw = String(password || '');
   const nick = String(nickname || '').trim().slice(0, 20) || name;
@@ -1150,26 +1161,39 @@ app.post('/api/game/register', async (c) => {
     return c.json({ message: '用户名需 2-20 位（字母/数字/下划线/中文）' }, 400);
   }
   if (pw.length < 6) return c.json({ message: '密码至少 6 位' }, 400);
-  const db = c.env.GAME_DB;
-  const row = await db.prepare('SELECT COUNT(*) AS n FROM users').first<{ n: number }>();
-  const role = (row?.n ?? 0) === 0 ? 'admin' : 'user'; // 首个注册账号自动成为游戏站管理员
+  // email：用户填了就校验，没填自动生成占位（以后可在个人资料补）
+  let mail = String(email || '').trim();
+  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+    return c.json({ message: '邮箱格式不正确' }, 400);
+  }
+  const db = c.env.DB;
+  if (!mail) {
+    const randHex = (n) => {
+      const b = new Uint8Array(n);
+      crypto.getRandomValues(b);
+      return [...b].map((x) => x.toString(16).padStart(2, '0')).join('').slice(0, n);
+    };
+    do { mail = `game_${randHex(8)}@kuhai.local`; }
+    while (await db.prepare('SELECT id FROM users WHERE email = ?').bind(mail).first());
+  }
+  const role = 'user';
   const hash = await hashPassword(pw);
   try {
     await db
-      .prepare('INSERT INTO users (username, password_hash, nickname, role) VALUES (?, ?, ?, ?)')
-      .bind(name, hash, nick, role)
+      .prepare('INSERT INTO users (username, email, password_hash, nickname, role) VALUES (?, ?, ?, ?, ?)')
+      .bind(name, mail, hash, nick, role)
       .run();
   } catch {
-    return c.json({ message: '用户名已被注册' }, 409);
+    return c.json({ message: '用户名或邮箱已被注册' }, 409);
   }
-  return c.json({ ok: true, role, message: role === 'admin' ? '🎉 首个账号已成为游戏站管理员' : '注册成功，请登录' });
+  return c.json({ ok: true, role, message: '注册成功，请登录' });
 });
 
-// 游戏站登录（独立账号，与苦海论坛账号互不相通）
+// 游戏站登录（账号已与论坛统一；成功后签发统一 token，可在论坛/游戏站通用）
 app.post('/api/game/login', async (c) => {
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
   const { username, password } = await c.req.json();
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const user = await db
     .prepare('SELECT * FROM users WHERE username = ?')
     .bind(String(username || '').trim())
@@ -1178,10 +1202,10 @@ app.post('/api/game/login', async (c) => {
     return c.json({ message: '账号或密码错误' }, 401);
   }
   if (user.is_banned) return c.json({ message: '账号已被封禁' }, 403);
-  const token = await issueGameToken(c, user.id);
+  const token = await issueToken(c, user); // 统一 token（SSO）
   return c.json({
     token,
-    expiresIn: GAME_TOKEN_TTL,
+    expiresIn: TOKEN_TTL_SECONDS,
     user: { id: user.id, username: user.username, nickname: user.nickname, role: user.role },
   });
 });
@@ -1190,7 +1214,7 @@ app.post('/api/game/login', async (c) => {
 app.get('/api/game/posts', async (c) => {
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const page = Math.max(1, Number(c.req.query('page')) || 1);
   const size = Math.min(Number(c.req.query('size')) || 12, 100);
   const offset = (page - 1) * size;
@@ -1215,10 +1239,10 @@ app.get('/api/game/posts', async (c) => {
       `SELECT p.id, p.title, p.content, p.images, p.views,
               p.is_pinned AS pinned, p.is_featured AS featured,
               p.author_name, substr(p.content, 1, 140) AS summary,
-              (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS upvotes,
-              (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
+              (SELECT COUNT(*) FROM game_post_likes pl WHERE pl.post_id = p.id) AS upvotes,
+              (SELECT COUNT(*) FROM game_comments c WHERE c.post_id = p.id) AS comment_count,
               p.created_at, p.updated_at
-       FROM posts p
+       FROM game_posts p
        ${whereSql}
        ORDER BY ${order} LIMIT ? OFFSET ?`
     )
@@ -1226,7 +1250,7 @@ app.get('/api/game/posts', async (c) => {
     .all();
 
   const total = await db
-    .prepare(`SELECT COUNT(*) AS n FROM posts p ${whereSql}`)
+    .prepare(`SELECT COUNT(*) AS n FROM game_posts p ${whereSql}`)
     .bind(...binds)
     .first<{ n: number }>();
 
@@ -1235,28 +1259,28 @@ app.get('/api/game/posts', async (c) => {
 
 app.get('/api/game/posts/featured', async (c) => {
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
-  const { results } = await c.env.GAME_DB
+  const { results } = await c.env.DB
     .prepare(
       `SELECT p.id, p.title, substr(p.content, 1, 120) AS summary, p.author_name,
-              (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS upvotes,
-              (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
-       FROM posts p WHERE p.is_featured = 1 ORDER BY p.id DESC LIMIT 6`
+              (SELECT COUNT(*) FROM game_post_likes pl WHERE pl.post_id = p.id) AS upvotes,
+              (SELECT COUNT(*) FROM game_comments c WHERE c.post_id = p.id) AS comment_count
+       FROM game_posts p WHERE p.is_featured = 1 ORDER BY p.id DESC LIMIT 6`
     )
     .all();
   return c.json({ rows: results });
 });
 
 // 游戏站搜索联想（按标题模糊匹配，返回 id+title 供前端下拉）
-// 必须在 /api/game/posts/:id 之前注册，避免被当作 id 匹配
+// 必须在 /api/game/game_posts/:id 之前注册，避免被当作 id 匹配
 app.get('/api/game/posts/suggest', async (c) => {
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
   const keyword = (c.req.query('keyword') || '').trim();
   const limit = Math.max(1, Math.min(8, Number(c.req.query('limit')) || 6));
   if (!keyword) return c.json({ rows: [] });
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const kw = `%${keyword}%`;
   const { results } = await db
-    .prepare('SELECT id, title FROM posts WHERE title LIKE ? ORDER BY views DESC, id DESC LIMIT ?')
+    .prepare('SELECT id, title FROM game_posts WHERE title LIKE ? ORDER BY views DESC, id DESC LIMIT ?')
     .bind(kw, limit)
     .all<{ id: number; title: string }>();
   return c.json({ rows: results });
@@ -1295,8 +1319,8 @@ app.post('/api/game/posts', async (c) => {
   const vid = !guser && typeof visitorId === 'string' && VISITOR_RE.test(visitorId) ? visitorId : '';
   const safeImages = sanitizeImages(images);
 
-  const result = await c.env.GAME_DB
-    .prepare('INSERT INTO posts (title, content, author_name, author_visitor, author_user_id, images) VALUES (?, ?, ?, ?, ?, ?)')
+  const result = await c.env.DB
+    .prepare('INSERT INTO game_posts (title, content, author_name, author_visitor, author_user_id, images) VALUES (?, ?, ?, ?, ?, ?)')
     .bind(title, content, nick, vid, guser ? guser.id : null, JSON.stringify(safeImages))
     .run();
 
@@ -1309,14 +1333,14 @@ app.get('/api/game/posts/:id', async (c) => {
 
   const id = Number(c.req.param('id'));
   if (!Number.isInteger(id) || id <= 0) return c.json({ message: '帖子不存在' }, 404);
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const visitorId = String(c.req.query('visitorId') || '');
 
   const post = await db
     .prepare(
       `SELECT p.*, p.is_pinned AS pinned, p.is_featured AS featured,
-              (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS upvotes
-       FROM posts p WHERE p.id = ?`
+              (SELECT COUNT(*) FROM game_post_likes pl WHERE pl.post_id = p.id) AS upvotes
+       FROM game_posts p WHERE p.id = ?`
     )
     .bind(id)
     .first<any>();
@@ -1324,24 +1348,24 @@ app.get('/api/game/posts/:id', async (c) => {
   if (!post) return c.json({ message: '帖子不存在' }, 404);
 
   post.liked = VISITOR_RE.test(visitorId)
-    ? !!(await db.prepare('SELECT id FROM post_likes WHERE post_id = ? AND visitor_id = ?').bind(id, visitorId).first())
+    ? !!(await db.prepare('SELECT id FROM game_post_likes WHERE post_id = ? AND visitor_id = ?').bind(id, visitorId).first())
     : false;
 
-  const { results: comments } = await db
+  const { results: game_comments } = await db
     .prepare(
       `SELECT c.id, c.post_id, c.author_name, c.author_visitor, c.author_user_id, c.content, c.created_at,
-              (SELECT COUNT(*) FROM comment_likes cl WHERE cl.comment_id = c.id) AS upvotes
-       FROM comments c WHERE c.post_id = ? ORDER BY c.id ASC`
+              (SELECT COUNT(*) FROM game_comment_likes cl WHERE cl.comment_id = c.id) AS upvotes
+       FROM game_comments c WHERE c.post_id = ? ORDER BY c.id ASC`
     )
     .bind(id)
     .all();
 
-  const crows = comments as any[];
+  const crows = game_comments as any[];
   if (VISITOR_RE.test(visitorId) && crows.length) {
     const cids = crows.map((x) => x.id);
     const ph = cids.map(() => '?').join(',');
     const { results: likes } = await db
-      .prepare(`SELECT comment_id FROM comment_likes WHERE visitor_id = ? AND comment_id IN (${ph})`)
+      .prepare(`SELECT comment_id FROM game_comment_likes WHERE visitor_id = ? AND comment_id IN (${ph})`)
       .bind(visitorId, ...cids)
       .all();
     const set = new Set((likes as any[]).map((l) => l.comment_id));
@@ -1349,9 +1373,9 @@ app.get('/api/game/posts/:id', async (c) => {
   } else {
     crows.forEach((x) => (x.liked = false));
   }
-  post.comments = crows;
+  post.game_comments = crows;
 
-  await db.prepare('UPDATE posts SET views = views + 1 WHERE id = ?').bind(id).run();
+  await db.prepare('UPDATE game_posts SET views = views + 1 WHERE id = ?').bind(id).run();
   return c.json(post);
 });
 
@@ -1363,22 +1387,22 @@ app.post('/api/game/posts/:id/like', async (c) => {
   const { visitorId } = await c.req.json();
   if (!VISITOR_RE.test(String(visitorId || ''))) return c.json({ message: '缺少访客标识' }, 400);
 
-  const db = c.env.GAME_DB;
-  const post = await db.prepare('SELECT id FROM posts WHERE id = ?').bind(id).first<{ id: number }>();
+  const db = c.env.DB;
+  const post = await db.prepare('SELECT id FROM game_posts WHERE id = ?').bind(id).first<{ id: number }>();
   if (!post) return c.json({ message: '帖子不存在' }, 404);
 
   const liked = await db
-    .prepare('SELECT id FROM post_likes WHERE post_id = ? AND visitor_id = ?')
+    .prepare('SELECT id FROM game_post_likes WHERE post_id = ? AND visitor_id = ?')
     .bind(id, visitorId)
     .first<{ id: number }>();
 
   if (liked) {
-    await db.prepare('DELETE FROM post_likes WHERE post_id = ? AND visitor_id = ?').bind(id, visitorId).run();
+    await db.prepare('DELETE FROM game_post_likes WHERE post_id = ? AND visitor_id = ?').bind(id, visitorId).run();
   } else {
-    await db.prepare('INSERT INTO post_likes (post_id, visitor_id) VALUES (?, ?)').bind(id, visitorId).run();
+    await db.prepare('INSERT INTO game_post_likes (post_id, visitor_id) VALUES (?, ?)').bind(id, visitorId).run();
   }
 
-  const total = await db.prepare('SELECT COUNT(*) AS n FROM post_likes WHERE post_id = ?').bind(id).first<{ n: number }>();
+  const total = await db.prepare('SELECT COUNT(*) AS n FROM game_post_likes WHERE post_id = ?').bind(id).first<{ n: number }>();
   return c.json({ liked: !liked, upvotes: total?.n ?? 0 });
 });
 
@@ -1393,12 +1417,12 @@ app.post('/api/game/posts/:id/comments', async (c) => {
   const nick = guser ? (guser.nickname || guser.username) : (String(nickname || '').trim().slice(0, 20) || '匿名玩家');
   const vid = !guser && typeof visitorId === 'string' && VISITOR_RE.test(visitorId) ? visitorId : '';
 
-  const db = c.env.GAME_DB;
-  const post = await db.prepare('SELECT id FROM posts WHERE id = ?').bind(postId).first<{ id: number }>();
+  const db = c.env.DB;
+  const post = await db.prepare('SELECT id FROM game_posts WHERE id = ?').bind(postId).first<{ id: number }>();
   if (!post) return c.json({ message: '帖子不存在' }, 404);
 
   const result = await db
-    .prepare('INSERT INTO comments (post_id, author_name, author_visitor, author_user_id, content) VALUES (?, ?, ?, ?, ?)')
+    .prepare('INSERT INTO game_comments (post_id, author_name, author_visitor, author_user_id, content) VALUES (?, ?, ?, ?, ?)')
     .bind(postId, nick, vid, guser ? guser.id : null, content)
     .run();
 
@@ -1414,25 +1438,25 @@ app.post('/api/game/posts/:postId/comments/:commentId/like', async (c) => {
   const { visitorId } = await c.req.json();
   if (!VISITOR_RE.test(String(visitorId || ''))) return c.json({ message: '缺少访客标识' }, 400);
 
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const comment = await db
-    .prepare('SELECT id FROM comments WHERE id = ? AND post_id = ?')
+    .prepare('SELECT id FROM game_comments WHERE id = ? AND post_id = ?')
     .bind(commentId, postId)
     .first<{ id: number }>();
   if (!comment) return c.json({ message: '评论不存在' }, 404);
 
   const liked = await db
-    .prepare('SELECT id FROM comment_likes WHERE comment_id = ? AND visitor_id = ?')
+    .prepare('SELECT id FROM game_comment_likes WHERE comment_id = ? AND visitor_id = ?')
     .bind(commentId, visitorId)
     .first<{ id: number }>();
 
   if (liked) {
-    await db.prepare('DELETE FROM comment_likes WHERE comment_id = ? AND visitor_id = ?').bind(commentId, visitorId).run();
+    await db.prepare('DELETE FROM game_comment_likes WHERE comment_id = ? AND visitor_id = ?').bind(commentId, visitorId).run();
   } else {
-    await db.prepare('INSERT INTO comment_likes (comment_id, visitor_id) VALUES (?, ?)').bind(commentId, visitorId).run();
+    await db.prepare('INSERT INTO game_comment_likes (comment_id, visitor_id) VALUES (?, ?)').bind(commentId, visitorId).run();
   }
 
-  const total = await db.prepare('SELECT COUNT(*) AS n FROM comment_likes WHERE comment_id = ?').bind(commentId).first<{ n: number }>();
+  const total = await db.prepare('SELECT COUNT(*) AS n FROM game_comment_likes WHERE comment_id = ?').bind(commentId).first<{ n: number }>();
   return c.json({ liked: !liked, upvotes: total?.n ?? 0 });
 });
 
@@ -1442,11 +1466,11 @@ app.put('/api/game/posts/:id', async (c) => {
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const id = Number(c.req.param('id'));
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const { title, content, nickname, visitorId, images } = await c.req.json();
   if (!title || !content) return c.json({ message: '标题和内容不能为空' }, 400);
 
-  const post = await db.prepare('SELECT id, author_visitor, author_user_id FROM posts WHERE id = ?').bind(id).first<{ id: number; author_visitor: string; author_user_id: number | null }>();
+  const post = await db.prepare('SELECT id, author_visitor, author_user_id FROM game_posts WHERE id = ?').bind(id).first<{ id: number; author_visitor: string; author_user_id: number | null }>();
   if (!post) return c.json({ message: '帖子不存在' }, 404);
 
   const guser = await getGameUser(c);
@@ -1457,7 +1481,7 @@ app.put('/api/game/posts/:id', async (c) => {
 
   const safeImages = sanitizeImages(images);
   await db
-    .prepare("UPDATE posts SET title = ?, content = ?, images = ?, updated_at = datetime('now','localtime') WHERE id = ?")
+    .prepare("UPDATE game_posts SET title = ?, content = ?, images = ?, updated_at = datetime('now','localtime') WHERE id = ?")
     .bind(title, content, JSON.stringify(safeImages), id)
     .run();
 
@@ -1469,11 +1493,11 @@ app.delete('/api/game/posts/:id', async (c) => {
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const id = Number(c.req.param('id'));
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const body = await c.req.json().catch(() => ({}));
   const visitorId = String(body?.visitorId || '');
 
-  const post = await db.prepare('SELECT id, author_visitor, author_user_id FROM posts WHERE id = ?').bind(id).first<{ id: number; author_visitor: string; author_user_id: number | null }>();
+  const post = await db.prepare('SELECT id, author_visitor, author_user_id FROM game_posts WHERE id = ?').bind(id).first<{ id: number; author_visitor: string; author_user_id: number | null }>();
   if (!post) return c.json({ message: '帖子不存在' }, 404);
 
   const guser = await getGameUser(c);
@@ -1482,7 +1506,7 @@ app.delete('/api/game/posts/:id', async (c) => {
   const isAdminUser = (!!adminPayload && (await isAdmin(c, adminPayload.id))) || (await isGameAdminUser(c));
   if (!isAuthor && !isAdminUser) return c.json({ message: '无权删除' }, 403);
 
-  await db.prepare('DELETE FROM posts WHERE id = ?').bind(id).run();
+  await db.prepare('DELETE FROM game_posts WHERE id = ?').bind(id).run();
   return c.json({ ok: true });
 });
 
@@ -1494,12 +1518,12 @@ app.post('/api/game/posts/:id/pin', async (c) => {
   if (!isGameAdmin && !isForumAdmin) return c.json({ message: '需要管理员权限' }, 403);
 
   const id = Number(c.req.param('id'));
-  const result = await c.env.GAME_DB
-    .prepare('UPDATE posts SET is_pinned = CASE is_pinned WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
+  const result = await c.env.DB
+    .prepare('UPDATE game_posts SET is_pinned = CASE is_pinned WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
     .bind(id)
     .run();
   if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
-  const row = await c.env.GAME_DB.prepare('SELECT is_pinned FROM posts WHERE id = ?').bind(id).first<{ is_pinned: number }>();
+  const row = await c.env.DB.prepare('SELECT is_pinned FROM game_posts WHERE id = ?').bind(id).first<{ is_pinned: number }>();
   return c.json({ pinned: !!row?.is_pinned });
 });
 
@@ -1511,12 +1535,12 @@ app.post('/api/game/posts/:id/feature', async (c) => {
   if (!isGameAdmin && !isForumAdmin) return c.json({ message: '需要管理员权限' }, 403);
 
   const id = Number(c.req.param('id'));
-  const result = await c.env.GAME_DB
-    .prepare('UPDATE posts SET is_featured = CASE is_featured WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
+  const result = await c.env.DB
+    .prepare('UPDATE game_posts SET is_featured = CASE is_featured WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
     .bind(id)
     .run();
   if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
-  const row = await c.env.GAME_DB.prepare('SELECT is_featured FROM posts WHERE id = ?').bind(id).first<{ is_featured: number }>();
+  const row = await c.env.DB.prepare('SELECT is_featured FROM game_posts WHERE id = ?').bind(id).first<{ is_featured: number }>();
   return c.json({ featured: !!row?.is_featured });
 });
 
@@ -1525,11 +1549,11 @@ app.delete('/api/game/comments/:id', async (c) => {
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const id = Number(c.req.param('id'));
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const body = await c.req.json().catch(() => ({}));
   const visitorId = String(body?.visitorId || '');
 
-  const comment = await db.prepare('SELECT id, author_visitor, author_user_id FROM comments WHERE id = ?').bind(id).first<{ id: number; author_visitor: string; author_user_id: number | null }>();
+  const comment = await db.prepare('SELECT id, author_visitor, author_user_id FROM game_comments WHERE id = ?').bind(id).first<{ id: number; author_visitor: string; author_user_id: number | null }>();
   if (!comment) return c.json({ message: '评论不存在' }, 404);
 
   const guser = await getGameUser(c);
@@ -1538,7 +1562,7 @@ app.delete('/api/game/comments/:id', async (c) => {
   const isAdminUser = (!!adminPayload && (await isAdmin(c, adminPayload.id))) || (await isGameAdminUser(c));
   if (!isAuthor && !isAdminUser) return c.json({ message: '无权删除' }, 403);
 
-  await db.prepare('DELETE FROM comments WHERE id = ?').bind(id).run();
+  await db.prepare('DELETE FROM game_comments WHERE id = ?').bind(id).run();
   return c.json({ ok: true });
 });
 
@@ -1629,15 +1653,15 @@ app.get('/api/admin/game/stats', async (c) => {
   if (!payload) return c.json({ message: '请先登录' }, 401);
   if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
 
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const count = async (sql: string): Promise<number> =>
     (await db.prepare(sql).first<{ n: number }>())?.n ?? 0;
 
-  const posts = await count('SELECT COUNT(*) AS n FROM posts');
-  const comments = await count('SELECT COUNT(*) AS n FROM comments');
-  const postLikes = await count('SELECT COUNT(*) AS n FROM post_likes');
-  const commentLikes = await count('SELECT COUNT(*) AS n FROM comment_likes');
-  const newPostsToday = await count("SELECT COUNT(*) AS n FROM posts WHERE date(created_at) = date('now','localtime')");
+  const posts = await count('SELECT COUNT(*) AS n FROM game_posts');
+  const comments = await count('SELECT COUNT(*) AS n FROM game_comments');
+  const postLikes = await count('SELECT COUNT(*) AS n FROM game_post_likes');
+  const commentLikes = await count('SELECT COUNT(*) AS n FROM game_comment_likes');
+  const newPostsToday = await count("SELECT COUNT(*) AS n FROM game_posts WHERE date(created_at) = date('now','localtime')");
 
   const settings = await getGameSettings(db);
   return c.json({
@@ -1651,7 +1675,7 @@ app.get('/api/admin/game/posts', async (c) => {
   if (!payload) return c.json({ message: '请先登录' }, 401);
   if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
 
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const page = Math.max(1, Number(c.req.query('page')) || 1);
   const size = Math.min(Number(c.req.query('size')) || 20, 100);
   const offset = (page - 1) * size;
@@ -1665,16 +1689,16 @@ app.get('/api/admin/game/posts', async (c) => {
   const { results } = await db
     .prepare(
       `SELECT id, title, author_name, views,
-              (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS upvotes,
-              (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
+              (SELECT COUNT(*) FROM game_post_likes pl WHERE pl.post_id = p.id) AS upvotes,
+              (SELECT COUNT(*) FROM game_comments c WHERE c.post_id = p.id) AS comment_count,
               is_pinned AS pinned, is_featured AS featured, created_at
-       FROM posts p ${whereSql} ORDER BY id DESC LIMIT ? OFFSET ?`
+       FROM game_posts p ${whereSql} ORDER BY id DESC LIMIT ? OFFSET ?`
     )
     .bind(...binds, size, offset)
     .all();
 
   const total = await db
-    .prepare(`SELECT COUNT(*) AS n FROM posts p ${whereSql}`)
+    .prepare(`SELECT COUNT(*) AS n FROM game_posts p ${whereSql}`)
     .bind(...binds)
     .first<{ n: number }>();
 
@@ -1687,7 +1711,7 @@ app.delete('/api/admin/game/posts/:id', async (c) => {
   if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
 
   const id = Number(c.req.param('id'));
-  const result = await c.env.GAME_DB.prepare('DELETE FROM posts WHERE id = ?').bind(id).run();
+  const result = await c.env.DB.prepare('DELETE FROM game_posts WHERE id = ?').bind(id).run();
   if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
   return c.json({ ok: true });
 });
@@ -1699,12 +1723,12 @@ app.post('/api/admin/game/posts/:id/pin', async (c) => {
   if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
 
   const id = Number(c.req.param('id'));
-  const result = await c.env.GAME_DB
-    .prepare('UPDATE posts SET is_pinned = CASE is_pinned WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
+  const result = await c.env.DB
+    .prepare('UPDATE game_posts SET is_pinned = CASE is_pinned WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
     .bind(id)
     .run();
   if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
-  const row = await c.env.GAME_DB.prepare('SELECT is_pinned FROM posts WHERE id = ?').bind(id).first<{ is_pinned: number }>();
+  const row = await c.env.DB.prepare('SELECT is_pinned FROM game_posts WHERE id = ?').bind(id).first<{ is_pinned: number }>();
   return c.json({ pinned: !!row?.is_pinned });
 });
 
@@ -1714,12 +1738,12 @@ app.post('/api/admin/game/posts/:id/feature', async (c) => {
   if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
 
   const id = Number(c.req.param('id'));
-  const result = await c.env.GAME_DB
-    .prepare('UPDATE posts SET is_featured = CASE is_featured WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
+  const result = await c.env.DB
+    .prepare('UPDATE game_posts SET is_featured = CASE is_featured WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
     .bind(id)
     .run();
   if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
-  const row = await c.env.GAME_DB.prepare('SELECT is_featured FROM posts WHERE id = ?').bind(id).first<{ is_featured: number }>();
+  const row = await c.env.DB.prepare('SELECT is_featured FROM game_posts WHERE id = ?').bind(id).first<{ is_featured: number }>();
   return c.json({ featured: !!row?.is_featured });
 });
 
@@ -1734,7 +1758,7 @@ app.put('/api/admin/game/password', async (c) => {
     return c.json({ message: '访问密码长度需 4-50 位' }, 400);
   }
 
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const settings = await getGameSettings(db);
   settings.gamePasswordHash = await hashPassword(password);
   await saveGameSettings(db, settings);
@@ -1750,7 +1774,7 @@ app.put('/api/admin/game/hint', async (c) => {
 
   const { hint } = await c.req.json();
   const text = String(hint || '').trim().slice(0, 200);
-  const db = c.env.GAME_DB;
+  const db = c.env.DB;
   const settings = await getGameSettings(db);
   settings.gamePasswordHint = text;
   await saveGameSettings(db, settings);

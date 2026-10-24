@@ -194,18 +194,51 @@ async function loadShot(shot, listFile) {
 async function ollamaGenerate(system, user) {
   // --dry-run 允许没有 config.json，这时用内置默认值（本机 ollama 默认地址 + README 推荐模型）
   const c = config.ollama || { baseUrl: 'http://localhost:11434', model: 'qwen2.5:7b' };
-  const d = await httpJson(`${c.baseUrl}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: c.model,
-      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-      stream: false,
-      format: 'json',
-      options: { temperature: 0.75 },
-    }),
-  });
-  return d.message.content;
+  const base = c.baseUrl.replace(/\/$/, '');
+  try {
+    const d = await httpJson(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: c.model,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+        stream: false,
+        format: 'json',
+        options: { temperature: 0.75 },
+      }),
+    });
+    return d.message.content;
+  } catch (e) {
+    // 把底层报错翻译成可操作的中文诊断，避免只看到 "fetch failed"
+    if (e.status === 404) {
+      throw new Error(`本地 ollama 找不到模型「${c.model}」：请先运行 ollama pull ${c.model}（或 ollama list 查看已下载模型）`);
+    }
+    const cause = String(e.cause?.code || e.message || '');
+    if (/ECONNREFUSED|fetch failed|ENOTFOUND|EAI_AGAIN|timeout|Timeout/i.test(cause)) {
+      throw new Error(`无法连接本地 ollama（${base}）：请确认已运行「ollama serve」，模型已下载（ollama list）。原始错误：${cause}`);
+    }
+    throw e;
+  }
+}
+
+/**
+ * 预检本地 ollama 环境：服务是否在运行 + 模型是否已下载。
+ * 返回 { ok, message }；不抛异常，方便在真正发布前一次性确认。
+ */
+async function checkOllama() {
+  const c = config.ollama || { baseUrl: 'http://localhost:11434', model: 'qwen2.5:7b' };
+  const base = c.baseUrl.replace(/\/$/, '');
+  try {
+    const tags = await httpJson(`${base}/api/tags`, { signal: AbortSignal.timeout(6000) });
+    const models = Array.isArray(tags.models) ? tags.models.map(m => m.name) : [];
+    const has = models.some(m => m === c.model || m.startsWith(c.model.split(':')[0] + ':'));
+    if (!models.length) return { ok: false, message: `ollama 已连接，但没有任何模型，请运行 ollama pull ${c.model}` };
+    if (!has) return { ok: false, message: `ollama 已连接，但缺少模型「${c.model}」（已有：${models.join(', ')}）。请运行 ollama pull ${c.model}` };
+    return { ok: true, message: `ollama 正常（${base}），模型「${c.model}」可用` };
+  } catch (e) {
+    const cause = String(e.cause?.code || e.message || '');
+    return { ok: false, message: `无法连接本地 ollama（${base}）：请确认已运行「ollama serve」。原始错误：${cause}` };
+  }
 }
 
 // ---------- 云端 AI 润色（OpenAI 兼容，可选）----------
@@ -433,8 +466,10 @@ const HELP_TEXT = `
   node publish-game.mjs                 发布 queue/ 里全部的清单
   node publish-game.mjs --file <路径>    只处理指定的一个清单
   node publish-game.mjs --dry-run       空跑：走完整流程但不发帖、不归档
+  node publish-game.mjs --check-ollama  只检查本地 ollama 服务与模型，不发布
 
 可选参数：
+  --check-ollama  探测 ollama 是否在运行、config.json 指定模型是否已下载
   --file <路径>   相对 automation/ 或绝对路径；显式指定时不跳过 _ 开头的模板文件
   --dry-run       不登录、不上传截图、不调用云端 AI、不写 published/，
                   只打印每条清单的校验结果和将要说出的字段（本地模型照跑）
@@ -467,11 +502,15 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const args = { file: '', dryRun: false, help: false };
+  const args = { file: '', dryRun: false, help: false, checkOllama: false };
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (token === '-h' || token === '--help') {
       args.help = true;
+      continue;
+    }
+    if (token === '--check-ollama') {
+      args.checkOllama = true;
       continue;
     }
     if (token === '--dry-run') {
@@ -696,6 +735,13 @@ if (existsSync(configPath)) {
 mkdirSync(QUEUE_DIR, { recursive: true });
 mkdirSync(PUB_DIR, { recursive: true });
 
+// 只做 ollama 预检，不进入发布流程
+if (args.checkOllama) {
+  const r = await checkOllama();
+  console.log(r.ok ? `✅ ${r.message}` : `❌ ${r.message}`);
+  process.exit(r.ok ? 0 : 1);
+}
+
 let files;
 if (args.file) {
   const target = resolveListFile(args.file);
@@ -725,6 +771,14 @@ if (args.dryRun) {
   console.log(`\n🔍 空跑结束：共 ${files.length} 个清单，其中 ${previewed} 个成功生成文案预览（空跑只体检、不阻断）`);
   process.exit(0);
 }
+
+// 正式发布前先确认本地 ollama 可用，避免发帖流程走到一半才因模型问题失败
+const ollamaReady = await checkOllama();
+if (!ollamaReady.ok) {
+  console.error(`❌ ${ollamaReady.message}`);
+  process.exit(1);
+}
+console.log(`✅ ${ollamaReady.message}`);
 
 console.log(`发现 ${files.length} 个待发布游戏，开始处理…`);
 const results = [];

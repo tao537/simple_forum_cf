@@ -13,6 +13,10 @@ export const auth = {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
   },
+  // 仅刷新用户资料（昵称/角色），保留现有 token
+  updateUser(user) {
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+  },
   clear() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
@@ -39,32 +43,53 @@ function resolveBaseUrl() {
 }
 
 // 统一的请求封装：自动附带 token
-export async function api(url, opts = {}) {
-  const baseUrl = resolveBaseUrl();
-  const fullUrl = `${baseUrl}${url}`;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  const headers = { ...(opts.headers || {}) };
-  const token = auth.getToken();
+// 统一请求内核：15 秒超时；对幂等的 GET/HEAD 请求在「网络错误/超时/5xx/429」时自动重试，
+// 退避 600ms、1500ms。写操作（POST/PUT/PATCH/DELETE）绝不重试，避免重复提交。
+// 这样首屏因代理抖动/冷启动而偶发失败时能自动恢复，不必手动刷新页面。
+async function requestCore(fullUrl, opts, headers, token, gateToken) {
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (gateToken) headers['X-Gate-Token'] = `Bearer ${gateToken}`;
   if (opts.body && !(opts.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
-  // 15 秒超时：接口异常时明确报错，而不是页面无限"加载中"
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-  let res;
-  try {
-    res = await fetch(fullUrl, { ...opts, headers, signal: controller.signal });
-  } catch (e) {
+  const method = (opts.method || 'GET').toUpperCase();
+  const canRetry = method === 'GET' || method === 'HEAD';
+  const delays = [600, 1500];
+  let lastErr = new Error('请求失败');
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    let res;
+    try {
+      res = await fetch(fullUrl, { ...opts, headers, signal: controller.signal });
+    } catch (e) {
+      clearTimeout(timer);
+      lastErr = controller.signal.aborted ? new Error('请求超时，请稍后重试') : e;
+      if (canRetry && attempt < delays.length) { await sleep(delays[attempt]); continue; }
+      throw lastErr;
+    }
     clearTimeout(timer);
-    if (controller.signal.aborted) throw new Error('请求超时，请稍后重试');
-    throw e;
+    // 服务端临时错误（5xx/429）才重试；4xx（401/403/404 等）直接按失败处理
+    if (canRetry && (res.status >= 500 || res.status === 429) && attempt < delays.length) {
+      try { if (res.body && res.body.cancel) await res.body.cancel(); } catch { /* 忽略 */ }
+      await sleep(delays[attempt]);
+      continue;
+    }
+    if (res.status === 204) return null;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+    return data;
   }
-  clearTimeout(timer);
-  if (res.status === 204) return null;
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
-  return data;
+  throw lastErr;
+}
+
+export async function api(url, opts = {}) {
+  const baseUrl = resolveBaseUrl();
+  const fullUrl = `${baseUrl}${url}`;
+  const headers = { ...(opts.headers || {}) };
+  return requestCore(fullUrl, opts, headers, auth.getToken());
 }
 
 export function escapeHtml(s) {
@@ -80,30 +105,29 @@ export function parseImages(images) {
 }
 
 // ================================================================
-//  娱乐游戏站（与苦海论坛账号完全隔离）
-//  进入：统一访问密码 → 服务端签发 scope=game 的 token
-//  站内无账号，发帖/评论用访客昵称，点赞用本地访客标识
+//  娱乐游戏站（账号已与苦海论坛统一：SSO）
+//  门禁：统一访问密码 → 服务端签发 scope=game 的门禁 token（X-Gate-Token）
+//  登录态：复用统一 auth（forum_token / forum_user），论坛登录后游戏站自动识别
+//  未登录发帖/评论用访客昵称，点赞用本地访客标识
 // ================================================================
 const GAME_TOKEN_KEY = 'game_token';
 const GAME_NICK_KEY = 'game_nick';
 const GAME_VISITOR_KEY = 'game_visitor';
-const GAME_USER_KEY = 'game_user';
 
 export const gameAuth = {
+  // 门禁 token（scope=game）
   getToken() { return localStorage.getItem(GAME_TOKEN_KEY) || ''; },
   isEntered() { return !!this.getToken(); },
   setToken(t) { localStorage.setItem(GAME_TOKEN_KEY, t); },
-  // 登录账号信息（{id,username,nickname,role}），访客为 null
-  user() { try { return JSON.parse(localStorage.getItem(GAME_USER_KEY)) || null; } catch { return null; } },
-  setUser(u) {
-    if (u) localStorage.setItem(GAME_USER_KEY, JSON.stringify(u));
-    else localStorage.removeItem(GAME_USER_KEY);
-  },
-  isLoggedIn() { return !!this.user(); },
-  isAdmin() { const u = this.user(); return !!u && u.role === 'admin'; },
-  // 退出：清 token + 账号信息，保留访客标识
-  clear() { localStorage.removeItem(GAME_TOKEN_KEY); localStorage.removeItem(GAME_USER_KEY); },
-  nickname() { return this.user()?.nickname || this.user()?.username || localStorage.getItem(GAME_NICK_KEY) || ''; },
+  // 登录态：统一 auth（SSO）
+  user() { return auth.getUser(); },
+  setLogin(token, user) { auth.set(token, user); },
+  refreshUser(u) { auth.updateUser(u); },
+  isLoggedIn() { return auth.isLoggedIn(); },
+  isAdmin() { const u = auth.getUser(); return !!u && u.role === 'admin'; },
+  // 退出游戏站：只清门禁，保留统一登录态（论坛仍登录）
+  clear() { localStorage.removeItem(GAME_TOKEN_KEY); },
+  nickname() { return auth.nickname() || localStorage.getItem(GAME_NICK_KEY) || ''; },
   setNickname(n) { localStorage.setItem(GAME_NICK_KEY, String(n || '').slice(0, 20)); },
   visitorId() {
     let v = localStorage.getItem(GAME_VISITOR_KEY);
@@ -115,20 +139,14 @@ export const gameAuth = {
   },
 };
 
-// 游戏站请求封装：自动附带游戏 token（与论坛 api() 完全独立）
+// 游戏站请求封装：
+//   X-Gate-Token 带门禁 token（game_token，scope=game）；
+//   Authorization 带统一登录 token（SSO：论坛登录或游戏登录都存 forum_token）。
 export async function gameApi(url, opts = {}) {
   const baseUrl = resolveBaseUrl();
   const fullUrl = `${baseUrl}${url}`;
   const headers = { ...(opts.headers || {}) };
-  const token = gameAuth.getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (opts.body && !(opts.body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
-  }
-  const res = await fetch(fullUrl, { ...opts, headers });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
-  return data;
+  return requestCore(fullUrl, opts, headers, auth.getToken(), gameAuth.getToken());
 }
 
 // ==================== 界面显示设置（管理员后台可配置）====================
@@ -430,6 +448,25 @@ const BG_IMAGES = [
 ];
 
 // 动态背景：多张壁纸缓慢交叉淡入轮播
+// 游戏站动漫壁纸（GAL 风格原创少女，梦幻动漫天空）
+export const GAME_WALLPAPERS = [
+  'https://aka.doubaocdn.com/s/BVF9UjeF0Z',
+  'https://aka.doubaocdn.com/s/BcuNLgh1f7',
+  'https://aka.doubaocdn.com/s/Fqa78kXVFI',
+  'https://aka.doubaocdn.com/s/qsUV2xK1SE',
+];
+
+// 门禁页随机选一张壁纸（覆盖 CSS 里的默认背景）
+export function setGateWallpaper(selector = '.gate') {
+  const el = document.querySelector(selector);
+  if (!el) return;
+  const url = GAME_WALLPAPERS[Math.floor(Math.random() * GAME_WALLPAPERS.length)];
+  el.style.backgroundImage =
+    `radial-gradient(ellipse at 50% 30%, rgba(109,40,217,.55), rgba(15,10,35,.82)), url('${url}')`;
+  el.style.backgroundSize = 'cover';
+  el.style.backgroundPosition = 'center';
+}
+
 export function initAnimatedBackground(opts = {}) {
   let bgEl = document.getElementById('animated-bg');
   if (bgEl && bgEl.dataset.init === '1') return; // 已初始化
