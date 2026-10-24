@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>黑客工具箱 · 苦海游戏站</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Courier New', Consolas, monospace;
+  background: #0a0e1a;
+  min-height: 100vh;
+  color: #00ff41;
+}
+.container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+
+.header { text-align: center; padding: 30px 0; }
+.header h1 { font-size: 28px; margin-bottom: 8px; text-shadow: 0 0 20px rgba(0,255,65,.5); }
+.header p { color: #00ff41; opacity: .7; font-size: 14px; }
+
+.back-link { display: inline-block; margin-bottom: 20px; color: #00ff41; text-decoration: none; font-size: 14px; opacity: .7; }
+.back-link:hover { opacity: 1; }
+
+.terminal {
+  background: rgba(0,255,65,.05);
+  border: 1px solid rgba(0,255,65,.3);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.terminal::before { content: '$ ./hack_tools.sh --list'; display: block; color: #00ff41; opacity: .5; margin-bottom: 16px; }
+
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.tool-card {
+  background: rgba(0,255,65,.05);
+  border: 1px solid rgba(0,255,65,.2);
+  border-radius: 8px;
+  padding: 16px;
+  transition: all .2s;
+}
+.tool-card:hover {
+  background: rgba(0,255,65,.1);
+  border-color: rgba(0,255,65,.5);
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(0,255,65,.2);
+}
+.tool-name { font-size: 16px; font-weight: bold; margin-bottom: 6px; color: #00ff41; }
+.tool-desc { font-size: 12px; opacity: .7; margin-bottom: 10px; line-height: 1.5; }
+.tool-cat { font-size: 11px; opacity: .5; margin-bottom: 8px; }
+.tool-link { font-size: 12px; }
+.tool-link a { color: #00ff41; text-decoration: none; opacity: .8; }
+.tool-link a:hover { opacity: 1; text-decoration: underline; }
+
+.cat-title { font-size: 16px; margin: 24px 0 12px; color: #00ff41; opacity: .8; }
+.cat-title::before { content: '## '; }
+
+.warning { text-align: center; margin-top: 30px; padding: 16px;
+           border: 1px solid rgba(255,100,100,.3); border-radius: 8px;
+           color: #ff6464; font-size: 12px; opacity: .7; }
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="/game.html" class="back-link">← 返回游戏站</a>
+
+  <div class="header">
+    <h1>⚡ 黑客工具箱</h1>
+    <p>// 开源渗透工具导航 //</p>
+  </div>
+
+  <div class="terminal">
+    <!-- 信息收集 -->
+    <div class="cat-title">信息收集</div>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-name">Nmap</div>
+        <div class="tool-cat">端口扫描 / 网络探测</div>
+        <div class="tool-desc">最著名的网络扫描和审计工具，用于主机发现、端口扫描、服务探测和版本检测。</div>
+        <div class="tool-link"><a href="https://nmap.org" target="_blank">nmap.org →</a></div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">Maltego</div>
+        <div class="tool-cat">信息收集 / OSINT</div>
+        <div class="tool-desc">开源情报收集工具，可视化链接分析，用于关联人员、组织、域名等信息。</div>
+        <div class="tool-link"><a href="https://www.maltego.com" target="_blank">maltego.com →</a></div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">theHarvester</div>
+        <div class="tool-cat">邮箱收集 / 子域名</div>
+        <div class="tool-desc">从公开来源收集邮箱、子域名、IP 和域名信息的侦察工具。</div>
+        <div class="tool-link"><a href="https://github.com/laramies/theHarvester" target="_blank">GitHub →</a></div>
+      </div>
+    </div>
+
+    <!-- 渗透测试 -->
+    <div class="cat-title">渗透测试框架</div>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-name">Metasploit</div>
+        <div class="tool-cat">渗透测试框架</div>
+        <div class="tool-desc">世界最常用的渗透测试框架，包含数千个漏洞利用模块，支持完整渗透流程。</div>
+        <div class="tool-link"><a href="https://www.metasploit.com" target="_blank">metasploit.com →</a></div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">Burp Suite</div>
+        <div class="tool-cat">Web 安全测试</div>
+        <div class="tool-desc">Web 应用安全测试集成平台，抓包、重放、扫描、暴力破解一应俱全。</div>
+        <div class="tool-link"><a href="https://portswigger.net/burp" target="_blank">portswigger.net →</a></div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">SQLMap</div>
+        <div class="tool-cat">SQL 注入检测</div>
+        <div class="tool-desc">自动化 SQL 注入检测和利用工具，支持多种数据库和注入技术。</div>
+        <div class="tool-link"><a href="https://sqlmap.org" target="_blank">sqlmap.org →</a></div>
+      </div>
+    </div>
+
+    <!-- 密码破解 -->
+    <div class="cat-title">密码破解</div>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-name">Hashcat</div>
+        <div class="tool-cat">密码破解 / GPU 加速</div>
+        <div class="tool-desc">世界最快的密码恢复工具，支持 GPU 加速，破解数百种哈希算法。</div>
+        <div class="tool-link"><a href="https://hashcat.net" target="_blank">hashcat.net →</a></div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">John the Ripper</div>
+        <div class="tool-cat">密码破解</div>
+        <div class="tool-desc">经典的密码破解工具，支持多种哈希格式，可自定义字典和规则。</div>
+        <div class="tool-link"><a href="https://www.openwall.com/john" target="_blank">openwall.com →</a></div>
+      </div>
+    </div>
+
+    <!-- 网络分析 -->
+    <div class="cat-title">网络分析</div>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-name">Wireshark</div>
+        <div class="tool-cat">网络抓包 / 协议分析</div>
+        <div class="tool-desc">世界最流行的网络协议分析器，实时捕获和浏览网络数据包。</div>
+        <div class="tool-link"><a href="https://www.wireshark.org" target="_blank">wireshark.org →</a></div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">Aircrack-ng</div>
+        <div class="tool-cat">WiFi 安全 / 破解</div>
+        <div class="tool-desc">无线网络安全审计工具套件，用于监控、攻击、测试和破解 WiFi 网络。</div>
+        <div class="tool-link"><a href="https://www.aircrack-ng.org" target="_blank">aircrack-ng.org →</a></div>
+      </div>
+    </div>
+
+    <!-- 漏洞扫描 -->
+    <div class="cat-title">漏洞扫描</div>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-name">Nessus</div>
+        <div class="tool-cat">漏洞扫描器</div>
+        <div class="tool-desc">世界最流行的漏洞扫描器，检测系统、应用和网络中的安全漏洞。</div>
+        <div class="tool-link"><a href="https://www.tenable.com/products/nessus" target="_blank">tenable.com →</a></div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">OpenVAS</div>
+        <div class="tool-cat">开源漏洞扫描</div>
+        <div class="tool-desc">开源漏洞扫描器和漏洞管理框架，Greenbone 生态系统的核心组件。</div>
+        <div class="tool-link"><a href="https://www.openvas.org" target="_blank">openvas.org →</a></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="warning">
+    ⚠ 警告：以上工具仅授权用于安全研究和授权测试。未经授权的渗透测试是违法行为。
+  </div>
+</div>
+</body>
+</html>
