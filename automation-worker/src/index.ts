@@ -159,6 +159,22 @@ async function generatePost(env: Env, game: GameItem): Promise<{ title: string; 
   };
 }
 
+// ---------- 3.5 搜索 Steam 封面图 ----------
+async function findSteamCover(gameName: string): Promise<string | null> {
+  try {
+    const r = await fetch(
+      `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(gameName)}&l=schinese&cc=cn`
+    );
+    if (!r.ok) return null;
+    const data = await r.json() as { items: { id: number; name: string }[] };
+    if (!data.items?.length) return null;
+    const appid = data.items[0].id;
+    return `https://cdn.akamai.steamstatic.com/steam/apps/${appid}/header.jpg`;
+  } catch {
+    return null;
+  }
+}
+
 // ---------- 4. 发帖 ----------
 async function postToGameStation(
   env: Env,
@@ -166,9 +182,13 @@ async function postToGameStation(
   game: GameItem,
   post: { title: string; content: string },
 ) {
+  // 自动搜索 Steam 封面图
+  const cover = await findSteamCover(game.name);
+  const images = cover ? [cover] : [];
+
   const r = await postJson(
     `${env.API_BASE}/api/game/posts`,
-    { title: post.title, content: post.content },
+    { title: post.title, content: post.content, images },
     {
       'X-Gate-Token': tokens.gateToken,
       'Authorization': `Bearer ${tokens.authToken}`,
