@@ -46,6 +46,18 @@
   .hero p { font-size: 14px; opacity: .95; margin-bottom: 20px; text-shadow: 0 1px 6px rgba(0,0,0,.2); }
   .hero .btn { position: relative; z-index: 2; }
 
+  /* 快捷入口大按钮 */
+  .quick-links { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 18px 0; }
+  .ql-card {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 18px 12px; border-radius: 14px; text-decoration: none;
+    background: rgba(255,255,255,.85); backdrop-filter: blur(10px);
+    border: 1px solid rgba(124,58,237,.15); transition: all .2s;
+  }
+  .ql-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(124,58,237,.15); }
+  .ql-icon { font-size: 32px; margin-bottom: 8px; }
+  .ql-name { font-size: 13px; font-weight: 600; color: #4c1d95; }
+
   /* 精选资源宣传墙 */
   .featured-wall { margin: 18px 0; padding: 16px;
                    background: linear-gradient(135deg, rgba(251,191,36,.1), rgba(239,68,68,.08));
@@ -237,6 +249,26 @@
     <button class="btn btn-primary" onclick="openShare()">🎮 分享游戏</button>
   </div>
 
+  <!-- 快捷入口大按钮 -->
+  <div class="quick-links">
+    <a href="/forum.html" class="ql-card">
+      <div class="ql-icon">⌬</div>
+      <div class="ql-name">苦海论坛</div>
+    </a>
+    <a href="/novel.html" class="ql-card">
+      <div class="ql-icon">📚</div>
+      <div class="ql-name">苦海书院</div>
+    </a>
+    <a href="/tools.html" class="ql-card">
+      <div class="ql-icon">⚡</div>
+      <div class="ql-name">黑客工具箱</div>
+    </a>
+    <a href="/music.html" class="ql-card">
+      <div class="ql-icon">🎵</div>
+      <div class="ql-name">音乐电台</div>
+    </a>
+  </div>
+
   <!-- 精选资源宣传墙 -->
   <div class="featured-wall" id="featuredWall" style="display:none">
     <div class="fw-title">⭐ 精选推荐</div>
@@ -387,23 +419,16 @@
   function renderNav() {
     const box = document.getElementById('navRight');
     const u = gameAuth.user();
-    const links = `
-      <a class="link" href="/forum.html">⌬ 论坛</a>
-      <a class="link" href="/novel.html">📚 书院</a>
-      <a class="link" href="/tools.html">⚡ 工具箱</a>
-      <a class="link" href="/music.html">🎵 音乐</a>`;
     if (u) {
       const display = u.nickname || u.username;
       const initial = (display[0] || '?').toUpperCase();
       box.innerHTML = `
-        ${links}
         <span class="guest-chip"><span class="avatar">${escapeHtml(initial)}</span>${escapeHtml(display)}${u.role === 'admin' ? '<span style="color:#fbbf24;font-size:11px;margin-left:2px" title="游戏站管理员">🛡</span>' : ''}</span>
         <span class="logout" onclick="exitGame()">退出</span>`;
     } else {
       const nick = gameAuth.nickname() || '游客';
       const initial = (nick[0] || '?').toUpperCase();
       box.innerHTML = `
-        ${links}
         <span class="guest-chip"><span class="avatar">${escapeHtml(initial)}</span>${escapeHtml(nick)}</span>
         <a class="link" href="javascript:void(0)" onclick="openAuth('login')">登录</a>
         <a class="link" href="javascript:void(0)" onclick="openAuth('register')">注册</a>
