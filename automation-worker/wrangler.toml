@@ -7,10 +7,10 @@ compatibility_date = "2026-10-01"
 [triggers]
 crons = ["0 23,0,1,2 * * *"]
 
-# 已发游戏去重 KV（部署后用 `wrangler kv:namespace create PUBLISHED` 创建并填 id）
+# 已发游戏去重 KV
 [[kv_namespaces]]
 binding = "PUBLISHED"
-id = "REPLACE_WITH_YOUR_KV_ID"
+id = "e3038c72ad544306bc25e05e9bd40913"
 
 [vars]
 # 论坛 API 地址
