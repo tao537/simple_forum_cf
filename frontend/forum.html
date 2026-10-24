@@ -8,8 +8,19 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-         color: #1f2937; min-height: 100vh; }
-  .container { max-width: 860px; margin: 0 auto; padding: 0 16px 40px; }
+         color: #1f2937; min-height: 100vh;
+         background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #667eea 100%);
+         background-size: 400% 400%;
+         animation: gradientFlow 20s ease infinite;
+       }
+  @keyframes gradientFlow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .container { max-width: 860px; margin: 0 auto; padding: 0 16px 40px;
+               background: rgba(255,255,255,.92); backdrop-filter: blur(10px);
+               border-radius: 0 0 18px 18px; min-height: calc(100vh - 60px); }
 
   /* 顶部导航（磨砂） */
   nav { background: rgba(255,255,255,.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
