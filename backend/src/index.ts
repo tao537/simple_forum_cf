@@ -1612,22 +1612,22 @@ app.get('/api/music/url', async (c) => {
 //  小说阅读（追书神器 API 代理）
 // ================================================================
 
-// 搜索小说
+// 搜索小说（Open Library API）
 app.get('/api/novel/search', async (c) => {
   const keyword = String(c.req.query('keyword') || '').trim();
   if (!keyword) return c.json({ books: [] });
   try {
-    const resp = await fetch(`https://novel.kele8.cn/fuzzy-search?keyword=${encodeURIComponent(keyword)}`);
+    const resp = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(keyword)}&limit=20`);
     const data = await resp.json<any>();
-    const books = (data?.books || []).map((b: any) => ({
-      id: b.id,
+    const books = (data?.docs || []).map((b: any) => ({
+      id: b.key?.replace('/works/', '') || '',
       title: b.title,
-      author: b.author,
-      cover: b.cover,
-      category: b.cat,
-      description: b.shortIntro,
-      words: b.wordCount,
-      status: b.status,
+      author: b.author_name?.[0] || '未知作者',
+      cover: b.cover_i ? `https://covers.openlibrary.org/b/id/${b.cover_i}-M.jpg` : '',
+      category: b.subject?.[0] || '',
+      description: '',
+      words: 0,
+      status: b.first_publish_year ? `${b.first_publish_year}年出版` : '',
     }));
     return c.json({ books });
   } catch (e: any) {
