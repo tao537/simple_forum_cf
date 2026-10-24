@@ -224,15 +224,15 @@
 
 <nav>
   <div class="inner">
-    <a href="/game.html" class="brand"><span class="logo">◈</span><b>娱乐游戏</b></a>
+    <a href="/game.html" class="brand"><span class="logo">◈</span><b>次元游戏</b></a>
     <div class="nav-right" id="navRight"></div>
   </div>
 </nav>
 
 <div class="container" id="main">
   <div class="hero">
-    <h1>发现与分享好游戏</h1>
-    <p>二次元游戏分享站 —— 把你喜欢的游戏、封面截图和资源分享给大家</p>
+    <h1>次元游戏库</h1>
+    <p>发现 · 分享 · 交流 —— 你的二次元游戏集散地</p>
     <button class="btn btn-primary" onclick="openShare()">🎮 分享游戏</button>
   </div>
 
@@ -386,18 +386,23 @@
   function renderNav() {
     const box = document.getElementById('navRight');
     const u = gameAuth.user();
+    const links = `
+      <a class="link" href="/forum.html">⌬ 论坛</a>
+      <a class="link" href="/novel.html">📚 书院</a>
+      <a class="link" href="/tools.html">⚡ 工具箱</a>
+      <a class="link" href="/music.html">🎵 音乐</a>`;
     if (u) {
       const display = u.nickname || u.username;
       const initial = (display[0] || '?').toUpperCase();
       box.innerHTML = `
-        <a class="link" href="/forum.html">⌬ 苦海论坛</a>
+        ${links}
         <span class="guest-chip"><span class="avatar">${escapeHtml(initial)}</span>${escapeHtml(display)}${u.role === 'admin' ? '<span style="color:#fbbf24;font-size:11px;margin-left:2px" title="游戏站管理员">🛡</span>' : ''}</span>
         <span class="logout" onclick="exitGame()">退出</span>`;
     } else {
       const nick = gameAuth.nickname() || '游客';
       const initial = (nick[0] || '?').toUpperCase();
       box.innerHTML = `
-        <a class="link" href="/forum.html">⌬ 苦海论坛</a>
+        ${links}
         <span class="guest-chip"><span class="avatar">${escapeHtml(initial)}</span>${escapeHtml(nick)}</span>
         <a class="link" href="javascript:void(0)" onclick="openAuth('login')">登录</a>
         <a class="link" href="javascript:void(0)" onclick="openAuth('register')">注册</a>
