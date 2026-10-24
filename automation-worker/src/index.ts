@@ -34,6 +34,7 @@ interface GameItem {
   fileUrl: string;
   intro: string;
   section: string;
+  cover?: string;
 }
 
 // ---------- HTTP 工具 ----------
@@ -82,18 +83,30 @@ async function fetchShinnkuLatest(limit: number): Promise<GameItem[]> {
   });
   if (status !== 200) throw new Error(`shinnku 目录页抓取失败: ${status}`);
 
-  // 从 RSC 数据里抠文件对象（简化版：匹配 {"type":"file","name":...,"info":{"file_path":...,"upload_timestamp":...}}）
-  const fileRegex = /\{"type":"file","name":"([^"]+)","info":\{"file_path":"([^"]+)","upload_timestamp":(\d+)[^}]*\}/g;
+  // 从 RSC 数据里抠文件对象，把整个 info 对象都拿出来
+  const fileRegex = /\{"type":"file","name":"([^"]+)","info":\{([^}]+)\}\}/g;
   const items: GameItem[] = [];
   let m: RegExpExecArray | null;
 
   while ((m = fileRegex.exec(text)) !== null && items.length < limit * 3) {
-    const [, name, filePath, ts] = m;
-    // 清洗文件名（去掉 [日期][社团] 前缀和后缀）
+    const [, name, infoStr] = m;
+    // 解析 info 对象里的所有字段
+    const info: Record<string, string> = {};
+    const fieldRegex = /"([^"]+)":"([^"]*)"/g;
+    let fm: RegExpExecArray | null;
+    while ((fm = fieldRegex.exec(infoStr)) !== null) {
+      info[fm[1]] = fm[2];
+    }
+
+    const filePath = info.file_path || '';
+    // 清洗文件名
     const cleanName = name
       .replace(/\.(rar|7z|zip|apk)$/i, '')
       .replace(/^\[[^\]]+\]\s*/, '')
       .trim();
+
+    // 找封面图字段（尝试常见的字段名）
+    const cover = info.cover || info.image || info.thumb || info.thumbnail || info.icon || '';
 
     items.push({
       id: `shinnku-${filePath}`,
@@ -101,6 +114,7 @@ async function fetchShinnkuLatest(limit: number): Promise<GameItem[]> {
       fileUrl: DL_BASE + filePath.split('/').map(encodeURIComponent).join('/'),
       intro: '',
       section: '熟肉',
+      cover: cover,
     });
   }
 
@@ -182,9 +196,15 @@ async function postToGameStation(
   game: GameItem,
   post: { title: string; content: string },
 ) {
-  // 自动搜索 Steam 封面图
-  const cover = await findSteamCover(game.name);
-  const images = cover ? [cover] : [];
+  // 优先用 shinnku 抓下来的封面图
+  let images: string[] = [];
+  if (game.cover) {
+    images = [game.cover];
+  } else {
+    // 没有的话搜 Steam
+    const steamCover = await findSteamCover(game.name);
+    if (steamCover) images = [steamCover];
+  }
 
   const r = await postJson(
     `${env.API_BASE}/api/game/posts`,
