@@ -1567,6 +1567,41 @@ app.delete('/api/game/comments/:id', async (c) => {
 });
 
 // ================================================================
+//  网易云音乐搜索/解析（代理接口，避免前端 CORS）
+// ================================================================
+
+// 搜索歌曲
+app.get('/api/music/search', async (c) => {
+  const keyword = String(c.req.query('keyword') || '').trim();
+  if (!keyword) return c.json({ songs: [] });
+  try {
+    const resp = await fetch('https://music.163.com/api/search/get/web', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ s: keyword, type: '1', offset: '0', total: 'true', limit: '10' }).toString(),
+    });
+    const data = await resp.json<any>();
+    const songs = (data?.result?.songs || []).map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      artist: (s.artists || []).map((a: any) => a.name).join(' / '),
+      album: s.album?.name || '',
+      duration: s.duration ? Math.round(s.duration / 1000) : 0,
+    }));
+    return c.json({ songs });
+  } catch (e: any) {
+    return c.json({ songs: [], error: e.message });
+  }
+});
+
+// 获取歌曲播放地址（代理 302 跳转）
+app.get('/api/music/url', async (c) => {
+  const id = String(c.req.query('id') || '').trim();
+  if (!id) return c.json({ url: '' });
+  return c.redirect(`https://music.163.com/song/media/outer/url?id=${id}.mp3`);
+});
+
+// ================================================================
 //  管理后台增强接口（论坛管理员身份，走主库 DB）
 // ================================================================
 

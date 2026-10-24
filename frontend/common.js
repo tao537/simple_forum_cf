@@ -522,7 +522,12 @@ export function initMusicPlayer(opts = {}) {
         <b>播放列表</b>
         <button onclick="window.__musicTogglePanel()">×</button>
       </div>
+      <div class="music-search">
+        <input type="text" id="musicSearchInput" placeholder="搜索网易云歌曲..." />
+        <button onclick="window.__musicSearch()">搜索</button>
+      </div>
       <div class="music-tracks" id="musicTracks"></div>
+      <div class="music-search-result" id="musicSearchResult"></div>
     </div>`;
   document.body.appendChild(fab);
 
@@ -572,6 +577,19 @@ export function initMusicPlayer(opts = {}) {
                            border-radius: 8px; cursor: pointer; margin-bottom: 2px; }
     .music-tracks button:hover { background: rgba(255,255,255,.08); }
     .music-tracks button.active { background: rgba(59,130,246,.2); color: #60a5fa; }
+    .music-search { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid rgba(255,255,255,.08); }
+    .music-search input { flex: 1; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.15);
+                          background: rgba(255,255,255,.05); color: #fff; font-size: 12px; outline: none; }
+    .music-search input:focus { border-color: #3b82f6; }
+    .music-search button { padding: 6px 12px; border-radius: 8px; border: none; cursor: pointer;
+                           background: linear-gradient(135deg,#3b82f6,#2563eb); color: #fff; font-size: 12px; }
+    .music-search-result { max-height: 180px; overflow-y: auto; padding: 8px; }
+    .music-search-result button { display: block; width: 100%; text-align: left; padding: 8px 12px;
+                                  border: none; background: transparent; color: #e2e8f0; font-size: 12px;
+                                  border-radius: 8px; cursor: pointer; margin-bottom: 2px; }
+    .music-search-result button:hover { background: rgba(255,255,255,.08); }
+    .music-search-result .sr-name { color: #fff; }
+    .music-search-result .sr-artist { color: #94a3b8; font-size: 11px; margin-left: 6px; }
   `;
   document.head.appendChild(style);
 
@@ -602,6 +620,43 @@ export function initMusicPlayer(opts = {}) {
   window.__musicNext = () => { setTrack(idx + 1); if (!playing) setPlaying(true); };
   window.__musicPrev = () => { setTrack(idx - 1); if (!playing) setPlaying(true); };
   window.__musicTogglePanel = () => fab.classList.toggle('open');
+
+  // 网易云搜索
+  window.__musicSearch = async () => {
+    const kw = document.getElementById('musicSearchInput').value.trim();
+    if (!kw) return;
+    const resultBox = document.getElementById('musicSearchResult');
+    resultBox.innerHTML = '<div style="color:#94a3b8;padding:8px">搜索中...</div>';
+    try {
+      const apiBase = resolveBaseUrl();
+      const resp = await fetch(`${apiBase}/api/music/search?keyword=${encodeURIComponent(kw)}`);
+      const data = await resp.json();
+      if (!data.songs?.length) {
+        resultBox.innerHTML = '<div style="color:#94a3b8;padding:8px">没找到相关歌曲</div>';
+        return;
+      }
+      resultBox.innerHTML = data.songs.map((s: any) =>
+        `<button onclick="window.__musicPlayNetease(${s.id}, '${s.name.replace(/'/g, "\\'")}', '${s.artist.replace(/'/g, "\\'")}')">
+          <span class="sr-name">${s.name}</span><span class="sr-artist">${s.artist}</span>
+        </button>`
+      ).join('');
+    } catch (e: any) {
+      resultBox.innerHTML = `<div style="color:#f87171;padding:8px">搜索失败：${e.message}</div>`;
+    }
+  };
+
+  window.__musicPlayNetease = (id: number, name: string, artist: string) => {
+    const apiBase = resolveBaseUrl();
+    audio.src = `${apiBase}/api/music/url?id=${id}`;
+    document.getElementById('musicSong').textContent = '♫ ' + name + ' - ' + artist;
+    audio.play().catch(() => {});
+    setPlaying(true);
+  };
+
+  // 回车搜索
+  document.getElementById('musicSearchInput').addEventListener('keydown', (e: any) => {
+    if (e.key === 'Enter') window.__musicSearch();
+  });
   audio.addEventListener('ended', () => setTrack(idx + 1));
   audio.addEventListener('timeupdate', () => {
     if (audio.duration) {
