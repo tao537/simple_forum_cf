@@ -635,17 +635,17 @@ export function initMusicPlayer(opts = {}) {
         resultBox.innerHTML = '<div style="color:#94a3b8;padding:8px">没找到相关歌曲</div>';
         return;
       }
-      resultBox.innerHTML = data.songs.map((s: any) =>
+      resultBox.innerHTML = data.songs.map((s) =>
         `<button onclick="window.__musicPlayNetease(${s.id}, '${s.name.replace(/'/g, "\\'")}', '${s.artist.replace(/'/g, "\\'")}')">
           <span class="sr-name">${s.name}</span><span class="sr-artist">${s.artist}</span>
         </button>`
       ).join('');
-    } catch (e: any) {
+    } catch (e) {
       resultBox.innerHTML = `<div style="color:#f87171;padding:8px">搜索失败：${e.message}</div>`;
     }
   };
 
-  window.__musicPlayNetease = (id: number, name: string, artist: string) => {
+  window.__musicPlayNetease = (id, name, artist) => {
     const apiBase = resolveBaseUrl();
     audio.src = `${apiBase}/api/music/url?id=${id}`;
     document.getElementById('musicSong').textContent = '♫ ' + name + ' - ' + artist;
@@ -654,7 +654,7 @@ export function initMusicPlayer(opts = {}) {
   };
 
   // 回车搜索
-  document.getElementById('musicSearchInput').addEventListener('keydown', (e: any) => {
+  document.getElementById('musicSearchInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') window.__musicSearch();
   });
   audio.addEventListener('ended', () => setTrack(idx + 1));
