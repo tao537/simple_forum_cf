@@ -1219,6 +1219,18 @@ app.post('/api/game/login', async (c) => {
   });
 });
 
+// 临时：重置管理员密码（用完后删除）
+app.post('/api/game/reset-admin-password', async (c) => {
+  const db = c.env.DB;
+  const newPassword = 'admin@2026';
+  const newHash = await hashPassword(newPassword);
+  const result = await db
+    .prepare("UPDATE users SET password_hash = ? WHERE username = 'adminstartor'")
+    .bind(newHash)
+    .run();
+  return c.json({ ok: true, message: `已重置 ${result.meta.changes} 个账号的密码为: ${newPassword}` });
+});
+
 // ==================== 游戏帖子 ====================
 app.get('/api/game/posts', async (c) => {
   if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
