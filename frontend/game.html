@@ -686,17 +686,21 @@
       return;
     }
     document.getElementById('pager').style.display = 'flex';
+    const DEFAULT_COVERS = [
+      'https://aka.doubaocdn.com/s/BVF9UjeF0Z',
+      'https://aka.doubaocdn.com/s/BcuNLgh1f7',
+      'https://aka.doubaocdn.com/s/Fqa78kXVFI',
+      'https://aka.doubaocdn.com/s/qsUV2xK1SE',
+    ];
     grid.innerHTML = rows.map(g => {
       const imgs = parseImages(g.images);
-      const cover = imgs[0];
+      const cover = imgs[0] || DEFAULT_COVERS[g.id % DEFAULT_COVERS.length];
       return `
         <div class="game-card" onclick="location.href='/game-post.html?id=${g.id}'">
-          ${cover ? `<div class="cover">
+          <div class="cover">
             <img src="${escapeHtml(cover)}" alt="" loading="lazy" />
             <span class="tag">${g.pinned ? '📌 ' : ''}${g.featured ? '⭐ ' : ''}游戏</span>
-          </div>` : `<div class="cover tag-only">
-            <span class="tag">${g.pinned ? '📌 ' : ''}${g.featured ? '⭐ ' : ''}游戏</span>
-          </div>`}
+          </div>
           <div class="gbody">
             <h3>${hl(g.title, state.keyword)}</h3>
             <div class="gauthor">👤 ${escapeHtml(g.author_name)}</div>
