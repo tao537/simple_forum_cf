@@ -557,11 +557,14 @@ export function initMusicPlayer(opts = {}) {
                  border-radius: 2px; transition: width .2s linear; }
     .music-btns { display: flex; gap: 6px; }
     .music-btns button { width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer;
-                         background: rgba(255,255,255,.1); color: #fff; font-size: 14px; transition: .15s; }
-    .music-btns button:hover { background: rgba(255,255,255,.2); }
+                         background: rgba(255,255,255,.1); color: #fff; font-size: 14px;
+                         transition: all .15s cubic-bezier(.4,0,.2,1); }
+    .music-btns button:hover { background: rgba(255,255,255,.2); transform: scale(1.05); }
+    .music-btns button:active { transform: scale(.95); }
     #musicPlayBtn { background: linear-gradient(135deg,#3b82f6,#2563eb); width: 40px; height: 40px; font-size: 15px; }
+    #musicPlayBtn:hover { background: linear-gradient(135deg,#2563eb,#1d4ed8); }
     .music-expand { width: 28px; height: 28px; border-radius: 8px; border: none; cursor: pointer;
-                    background: transparent; color: #94a3b8; font-size: 14px; }
+                    background: transparent; color: #94a3b8; font-size: 14px; transition: all .15s; }
     .music-expand:hover { background: rgba(255,255,255,.1); color: #fff; }
     .music-panel { display: none; margin-top: 8px; background: rgba(15,23,42,.95);
                    backdrop-filter: blur(16px); border-radius: 14px; overflow: hidden;
