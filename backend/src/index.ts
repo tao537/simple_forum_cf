@@ -1859,6 +1859,24 @@ app.post('/api/admin/game/posts/:id/feature', async (c) => {
   return c.json({ featured: !!row?.is_featured });
 });
 
+// 更新帖子图片
+app.put('/api/admin/game/posts/:id/images', async (c) => {
+  const payload = await getAuth(c);
+  if (!payload) return c.json({ message: '请先登录' }, 401);
+  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
+
+  const id = Number(c.req.param('id'));
+  const { images } = await c.req.json();
+  if (!Array.isArray(images)) return c.json({ message: 'images 必须是数组' }, 400);
+
+  const result = await c.env.DB
+    .prepare('UPDATE game_posts SET images = ? WHERE id = ?')
+    .bind(JSON.stringify(images), id)
+    .run();
+  if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
+  return c.json({ ok: true, images });
+});
+
 // 游戏密码管理
 app.put('/api/admin/game/password', async (c) => {
   const payload = await getAuth(c);
