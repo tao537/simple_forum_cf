@@ -46,6 +46,21 @@
   .hero p { font-size: 14px; opacity: .95; margin-bottom: 20px; text-shadow: 0 1px 6px rgba(0,0,0,.2); }
   .hero .btn { position: relative; z-index: 2; }
 
+  /* 精选资源宣传墙 */
+  .featured-wall { margin: 18px 0; padding: 16px;
+                   background: linear-gradient(135deg, rgba(251,191,36,.1), rgba(239,68,68,.08));
+                   border-radius: 16px; border: 1px solid rgba(251,191,36,.2); }
+  .fw-title { font-size: 14px; font-weight: 600; color: #b45309; margin-bottom: 12px; }
+  .fw-scroll { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+  .fw-card { flex: 0 0 160px; background: rgba(255,255,255,.9); border-radius: 12px;
+             padding: 12px; cursor: pointer; transition: transform .2s; }
+  .fw-card:hover { transform: translateY(-3px); }
+  .fw-cover { width: 100%; height: 90px; border-radius: 8px; background: linear-gradient(135deg, #667eea, #764ba2);
+              display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 8px; }
+  .fw-name { font-size: 13px; font-weight: 600; color: #1f2937; margin-bottom: 4px;
+             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fw-meta { font-size: 11px; color: #94a3b8; }
+
   /* 工具栏 */
   .toolbar { display: flex; align-items: center; gap: 10px; margin: 22px 0 18px; flex-wrap: wrap; }
   .tabs { display: flex; background: rgba(255,255,255,.85); border-radius: 10px; padding: 4px;
@@ -219,6 +234,12 @@
     <h1>发现与分享好游戏</h1>
     <p>二次元游戏分享站 —— 把你喜欢的游戏、封面截图和资源分享给大家</p>
     <button class="btn btn-primary" onclick="openShare()">🎮 分享游戏</button>
+  </div>
+
+  <!-- 精选资源宣传墙 -->
+  <div class="featured-wall" id="featuredWall" style="display:none">
+    <div class="fw-title">⭐ 精选推荐</div>
+    <div class="fw-scroll" id="fwList"></div>
   </div>
 
   <div class="toolbar">
@@ -494,8 +515,30 @@
         document.getElementById('kw').value = ''; // 清空浏览器自动填充的搜索框
         renderNav();
         load(1);
+        loadFeatured();
       } else { document.getElementById('main').style.display = 'none'; }
     });
+  }
+
+  // 加载精选资源宣传墙
+  async function loadFeatured() {
+    try {
+      const data = await gameApi('/api/game/posts?size=6&sort=featured');
+      if (!data.rows?.length) {
+        document.getElementById('featuredWall').style.display = 'none';
+        return;
+      }
+      document.getElementById('featuredWall').style.display = '';
+      document.getElementById('fwList').innerHTML = data.rows.map((p, i) => `
+        <div class="fw-card" onclick="location.href='/game-post.html?id=${p.id}'">
+          <div class="fw-cover">🎮</div>
+          <div class="fw-name">${escapeHtml(p.title)}</div>
+          <div class="fw-meta">❤ ${p.likes||0} 💬 ${p.comments||0}</div>
+        </div>
+      `).join('');
+    } catch (e) {
+      document.getElementById('featuredWall').style.display = 'none';
+    }
   }
 
   window.setSort = function (s) {
