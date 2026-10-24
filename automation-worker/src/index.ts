@@ -203,21 +203,34 @@ async function runPipeline(env: Env) {
   try {
     logLine('=== 流水线开始 ===');
 
+    // 0. 检查今天是否已经发够 3 个
+    const today = new Date().toISOString().slice(0, 10);
+    const todayKey = `posted_count_${today}`;
+    const todayCount = parseInt((await env.PUBLISHED.get(todayKey)) || '0', 10);
+    const target = parseInt(env.MAX_PER_RUN || '3', 10);
+    if (todayCount >= target) {
+      logLine(`⏭️  今天已经发了 ${todayCount} 个，目标 ${target} 个，跳过`);
+      return { ok: true, skipped: true, posted: 0, reason: 'already_done', log };
+    }
+    logLine(`今天已发 ${todayCount}/${target} 个，继续抓`);
+
     // 1. 登录
     logLine('登录游戏站...');
     const tokens = await loginGameStation(env);
     logLine('✅ 登录成功');
 
-    // 2. 抓取
-    const max = parseInt(env.MAX_PER_RUN || '3', 10);
-    logLine(`抓取 shinnku 最新 ${max} 条...`);
-    const games = await fetchShinnkuLatest(max);
+    // 2. 抓取 20 条，从中选没发过的
+    const need = target - todayCount;
+    logLine(`抓取 shinnku 最新 20 条，需要选 ${need} 个新的...`);
+    const games = await fetchShinnkuLatest(20);
     logLine(`抓到 ${games.length} 个游戏`);
 
-    // 3. 逐个处理（去重）
+    // 3. 逐个处理（去重，发够 need 个就停）
     let posted = 0;
     let skipped = 0;
     for (const game of games) {
+      if (posted >= need) break; // 发够了就停
+
       // KV 去重
       const seen = await env.PUBLISHED.get(game.id);
       if (seen) {
@@ -238,8 +251,13 @@ async function runPipeline(env: Env) {
       logLine(`✅ 已发: ${game.name}`);
     }
 
-    logLine(`=== 完成：发 ${posted} 条，跳过 ${skipped} 条 ===`);
-    return { ok: true, posted, skipped, log };
+    // 4. 更新今天已发计数
+    const newCount = todayCount + posted;
+    await env.PUBLISHED.put(todayKey, String(newCount), { expirationTtl: 60 * 60 * 24 }); // 保留 1 天
+    logLine(`今日累计已发: ${newCount}/${target}`);
+
+    logLine(`=== 完成：本次发 ${posted} 条，跳过 ${skipped} 条 ===`);
+    return { ok: true, posted, skipped, todayCount: newCount, log };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logLine(`❌ 失败: ${msg}`);

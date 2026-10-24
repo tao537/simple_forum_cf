@@ -2,9 +2,10 @@ name = "forum-automation"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 
-# 每天北京时间 9:00（UTC 1:00）自动跑一次
+# 每天北京时间 7:00-10:00 每小时跑一次（UTC 23,0,1,2 点）
+# 发够 3 个就自动跳过
 [triggers]
-crons = ["0 1 * * *"]
+crons = ["0 23,0,1,2 * * *"]
 
 # 已发游戏去重 KV（部署后用 `wrangler kv:namespace create PUBLISHED` 创建并填 id）
 [[kv_namespaces]]
