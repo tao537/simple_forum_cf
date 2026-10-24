@@ -1584,18 +1584,16 @@ app.get('/api/music/search', async (c) => {
   const keyword = String(c.req.query('keyword') || '').trim();
   if (!keyword) return c.json({ songs: [] });
   try {
-    const resp = await fetch('https://music.163.com/api/search/get/web', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ s: keyword, type: '1', offset: '0', total: 'true', limit: '10' }).toString(),
-    });
+    const resp = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(keyword)}&media=music&limit=20`);
     const data = await resp.json<any>();
-    const songs = (data?.result?.songs || []).map((s: any) => ({
-      id: s.id,
-      name: s.name,
-      artist: (s.artists || []).map((a: any) => a.name).join(' / '),
-      album: s.album?.name || '',
-      duration: s.duration ? Math.round(s.duration / 1000) : 0,
+    const songs = (data?.results || []).map((s: any) => ({
+      id: s.trackId,
+      name: s.trackName,
+      artist: s.artistName,
+      album: s.collectionName || '',
+      artwork: s.artworkUrl100 || '',
+      preview: s.previewUrl || '',
+      duration: s.trackTimeMillis ? Math.round(s.trackTimeMillis / 1000) : 0,
     }));
     return c.json({ songs });
   } catch (e: any) {
