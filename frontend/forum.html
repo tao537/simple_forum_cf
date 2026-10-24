@@ -53,6 +53,18 @@
                             transition: .3s; }
   .banner .tabs-dots span.on { background: #fff; width: 18px; border-radius: 4px; }
 
+  /* 高考倒计时 */
+  .countdown { text-align: center; margin: 18px 0; padding: 20px;
+               background: linear-gradient(135deg, rgba(239,68,68,.1), rgba(245,158,11,.1));
+               border-radius: 16px; border: 1px solid rgba(239,68,68,.2); }
+  .countdown-title { font-size: 14px; color: #64748b; margin-bottom: 12px; }
+  .countdown-nums { display: flex; justify-content: center; align-items: center; gap: 12px; }
+  .cd-item { display: flex; flex-direction: column; align-items: center; }
+  .cd-item span { font-size: 36px; font-weight: 700; color: #ef4444;
+                  font-variant-numeric: tabular-nums; line-height: 1; }
+  .cd-item label { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+  .cd-sep { font-size: 24px; color: #cbd5e1; font-weight: 300; }
+
   /* 精选推荐区 */
   .featured-section { margin-top: 16px; }
   .section-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700;
@@ -233,6 +245,20 @@
     <div class="tabs-dots" id="bannerDots"></div>
   </div>
 
+  <!-- 高考倒计时 -->
+  <div class="countdown">
+    <div class="countdown-title">🎯 距离 2027 年高考还有</div>
+    <div class="countdown-nums">
+      <div class="cd-item"><span id="cdDays">--</span><label>天</label></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-item"><span id="cdHours">--</span><label>时</label></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-item"><span id="cdMins">--</span><label>分</label></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-item"><span id="cdSecs">--</span><label>秒</label></div>
+    </div>
+  </div>
+
   <div class="announcement" id="announcement" style="display:none"></div>
 
   <div class="featured-section" id="featuredSection" style="display:none">
@@ -346,6 +372,30 @@
       { name: 'Solaris', url: '/music/02.mp3' },
     ],
   });
+
+  // 高考倒计时（2027年6月7日 9:00）
+  const gaokaoDate = new Date('2027-06-07T09:00:00+08:00');
+  function updateCountdown() {
+    const now = new Date();
+    const diff = gaokaoDate - now;
+    if (diff <= 0) {
+      document.getElementById('cdDays').textContent = '0';
+      document.getElementById('cdHours').textContent = '0';
+      document.getElementById('cdMins').textContent = '0';
+      document.getElementById('cdSecs').textContent = '0';
+      return;
+    }
+    const days = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    document.getElementById('cdDays').textContent = days;
+    document.getElementById('cdHours').textContent = String(hours).padStart(2, '0');
+    document.getElementById('cdMins').textContent = String(mins).padStart(2, '0');
+    document.getElementById('cdSecs').textContent = String(secs).padStart(2, '0');
+  }
+  updateCountdown();
+  setInterval(updateCountdown, 1000);
 
   // 横幅轮播
   const BANNERS = [
