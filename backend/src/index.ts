@@ -21,7 +21,7 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 app.use('*', cors({
   origin: ['https://kuhai.de5.net', 'https://www.kuhai.de5.net', 'https://api.kuhai.de5.net'],
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Gate-Token'],
   maxAge: 600,
 }));
 
