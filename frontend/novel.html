@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>苦海书院</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  min-height: 100vh;
+  color: #fff;
+}
+.container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+.header { text-align: center; padding: 30px 0; }
+.header h1 { font-size: 28px; margin-bottom: 8px; }
+.header p { color: #94a3b8; font-size: 14px; }
+
+.back-link { display: inline-block; margin-bottom: 20px; color: #94a3b8; text-decoration: none; font-size: 14px; }
+.back-link:hover { color: #fff; }
+
+/* 搜索框 */
+.search-box { display: flex; gap: 12px; margin-bottom: 24px; }
+.search-box input {
+  flex: 1; padding: 14px 20px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(255,255,255,.05); color: #fff; font-size: 15px; outline: none;
+}
+.search-box input:focus { border-color: #667eea; }
+.search-box button {
+  padding: 14px 28px; border-radius: 12px; border: none;
+  background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; font-size: 15px; cursor: pointer;
+}
+
+/* 搜索结果 */
+.book-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+.book-card {
+  background: rgba(255,255,255,.05); border-radius: 12px; padding: 12px;
+  cursor: pointer; transition: transform .2s; border: 1px solid rgba(255,255,255,.1);
+}
+.book-card:hover { transform: translateY(-3px); background: rgba(255,255,255,.08); }
+.book-cover {
+  width: 100%; height: 200px; border-radius: 8px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  display: flex; align-items: center; justify-content: center; font-size: 48px;
+  margin-bottom: 10px;
+}
+.book-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.book-author { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
+.book-cat { font-size: 11px; color: #64748b; }
+
+/* 章节列表 */
+.chapter-list { max-width: 700px; margin: 0 auto; }
+.chapter-item {
+  display: block; padding: 14px 16px; margin-bottom: 6px;
+  background: rgba(255,255,255,.05); border-radius: 10px;
+  text-decoration: none; color: #e2e8f0; font-size: 14px;
+  transition: background .2s;
+}
+.chapter-item:hover { background: rgba(255,255,255,.1); }
+
+/* 阅读页 */
+.reader { max-width: 700px; margin: 0 auto; }
+.reader-title { font-size: 20px; font-weight: 600; margin-bottom: 20px; text-align: center; }
+.reader-content {
+  font-size: 16px; line-height: 1.9; color: #cbd5e1;
+  white-space: pre-wrap;
+}
+.reader-nav { display: flex; justify-content: space-between; margin-top: 30px; }
+.reader-nav button {
+  padding: 10px 20px; border-radius: 10px; border: none;
+  background: rgba(255,255,255,.1); color: #fff; cursor: pointer;
+}
+.reader-nav button:hover { background: rgba(255,255,255,.2); }
+
+.empty { text-align: center; color: #64748b; padding: 40px 0; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="/forum.html" class="back-link">← 返回论坛</a>
+
+  <div class="header">
+    <h1>📚 苦海书院</h1>
+    <p>在线小说阅读 —— 搜索你喜欢的小说</p>
+  </div>
+
+  <!-- 搜索框 -->
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="输入小说名或作者..." />
+    <button onclick="searchNovel()">搜索</button>
+  </div>
+
+  <!-- 搜索结果 -->
+  <div id="searchResult">
+    <div class="empty">搜索小说开始阅读</div>
+  </div>
+
+  <!-- 章节列表 -->
+  <div id="chapterList" style="display:none">
+    <button onclick="showSearch()" style="background:none;border:none;color:#94a3b8;cursor:pointer;margin-bottom:16px">← 返回搜索</button>
+    <h2 id="bookTitle" style="margin-bottom:16px"></h2>
+    <div class="chapter-list" id="chapters"></div>
+  </div>
+
+  <!-- 阅读页 -->
+  <div id="reader" style="display:none">
+    <button onclick="showChapters()" style="background:none;border:none;color:#94a3b8;cursor:pointer;margin-bottom:16px">← 返回目录</button>
+    <div class="reader-title" id="readerTitle"></div>
+    <div class="reader-content" id="readerContent">加载中...</div>
+    <div class="reader-nav">
+      <button onclick="prevChapter()">上一章</button>
+      <button onclick="nextChapter()">下一章</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { resolveBaseUrl } from '/common.js';
+
+let currentChapters = [];
+let currentChapterIndex = 0;
+
+// 搜索小说
+window.searchNovel = async function() {
+  const kw = document.getElementById('searchInput').value.trim();
+  if (!kw) return;
+  document.getElementById('chapterList').style.display = 'none';
+  document.getElementById('reader').style.display = 'none';
+  document.getElementById('searchResult').innerHTML = '<div class="empty">搜索中...</div>';
+  try {
+    const resp = await fetch(`${resolveBaseUrl()}/api/novel/search?keyword=${encodeURIComponent(kw)}`);
+    const data = await resp.json();
+    if (!data.books?.length) {
+      document.getElementById('searchResult').innerHTML = '<div class="empty">没找到相关小说</div>';
+      return;
+    }
+    document.getElementById('searchResult').innerHTML = '<div class="book-list">' + data.books.map((b, i) => `
+      <div class="book-card" onclick="showChaptersList('${b.id}', '${b.title.replace(/'/g, "\\'")}')">
+        <div class="book-cover">📖</div>
+        <div class="book-title">${b.title}</div>
+        <div class="book-author">${b.author}</div>
+        <div class="book-cat">${b.category} · ${b.status}</div>
+      </div>
+    `).join('') + '</div>';
+    window._searchBooks = data.books;
+  } catch (e) {
+    document.getElementById('searchResult').innerHTML = `<div class="empty">搜索失败：${e.message}</div>`;
+  }
+};
+
+// 显示章节列表
+window.showChaptersList = async function(bookId, bookTitle) {
+  document.getElementById('searchResult').style.display = 'none';
+  document.getElementById('reader').style.display = 'none';
+  document.getElementById('chapterList').style.display = '';
+  document.getElementById('bookTitle').textContent = bookTitle;
+  document.getElementById('chapters').innerHTML = '<div class="empty">加载章节中...</div>';
+  try {
+    const resp = await fetch(`${resolveBaseUrl()}/api/novel/chapters?id=${bookId}`);
+    const data = await resp.json();
+    currentChapters = data.chapters || [];
+    if (!currentChapters.length) {
+      document.getElementById('chapters').innerHTML = '<div class="empty">暂无章节</div>';
+      return;
+    }
+    document.getElementById('chapters').innerHTML = currentChapters.map((ch, i) =>
+      `<a class="chapter-item" onclick="readChapter(${i})">第${i+1}章 ${ch.title}</a>`
+    ).join('');
+  } catch (e) {
+    document.getElementById('chapters').innerHTML = `<div class="empty">加载失败：${e.message}</div>`;
+  }
+};
+
+// 阅读章节
+window.readChapter = async function(index) {
+  currentChapterIndex = index;
+  document.getElementById('chapterList').style.display = 'none';
+  document.getElementById('reader').style.display = '';
+  const ch = currentChapters[index];
+  document.getElementById('readerTitle').textContent = ch.title;
+  document.getElementById('readerContent').textContent = '加载中...';
+  try {
+    const resp = await fetch(`${resolveBaseUrl()}/api/novel/content?link=${encodeURIComponent(ch.link)}`);
+    const data = await resp.json();
+    document.getElementById('readerContent').textContent = data.content || '暂无内容';
+  } catch (e) {
+    document.getElementById('readerContent').textContent = `加载失败：${e.message}`;
+  }
+};
+
+// 上一章/下一章
+window.prevChapter = function() {
+  if (currentChapterIndex > 0) readChapter(currentChapterIndex - 1);
+};
+window.nextChapter = function() {
+  if (currentChapterIndex < currentChapters.length - 1) readChapter(currentChapterIndex + 1);
+};
+
+window.showSearch = function() {
+  document.getElementById('chapterList').style.display = 'none';
+  document.getElementById('searchResult').style.display = '';
+};
+window.showChapters = function() {
+  document.getElementById('reader').style.display = 'none';
+  document.getElementById('chapterList').style.display = '';
+};
+
+// 回车搜索
+document.getElementById('searchInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') searchNovel();
+});
+</script>
+</body>
+</html>

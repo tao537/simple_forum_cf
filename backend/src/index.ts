@@ -1602,6 +1602,64 @@ app.get('/api/music/url', async (c) => {
 });
 
 // ================================================================
+//  小说阅读（追书神器 API 代理）
+// ================================================================
+
+// 搜索小说
+app.get('/api/novel/search', async (c) => {
+  const keyword = String(c.req.query('keyword') || '').trim();
+  if (!keyword) return c.json({ books: [] });
+  try {
+    const resp = await fetch(`https://novel.kele8.cn/fuzzy-search?keyword=${encodeURIComponent(keyword)}`);
+    const data = await resp.json<any>();
+    const books = (data?.books || []).map((b: any) => ({
+      id: b.id,
+      title: b.title,
+      author: b.author,
+      cover: b.cover,
+      category: b.cat,
+      description: b.shortIntro,
+      words: b.wordCount,
+      status: b.status,
+    }));
+    return c.json({ books });
+  } catch (e: any) {
+    return c.json({ books: [], error: e.message });
+  }
+});
+
+// 小说章节列表
+app.get('/api/novel/chapters', async (c) => {
+  const id = String(c.req.query('id') || '').trim();
+  if (!id) return c.json({ chapters: [] });
+  try {
+    const resp = await fetch(`https://novel.kele8.cn/book-source?view=summary&book=${id}`);
+    const data = await resp.json<any>();
+    const chapters = (data?.chapters || []).map((ch: any, i: number) => ({
+      index: i,
+      title: ch.title,
+      link: ch.link,
+    }));
+    return c.json({ chapters, total: chapters.length });
+  } catch (e: any) {
+    return c.json({ chapters: [], error: e.message });
+  }
+});
+
+// 小说章节内容
+app.get('/api/novel/content', async (c) => {
+  const link = String(c.req.query('link') || '').trim();
+  if (!link) return c.json({ content: '' });
+  try {
+    const resp = await fetch(`https://novel.kele8.cn/chapter?link=${encodeURIComponent(link)}`);
+    const data = await resp.json<any>();
+    return c.json({ content: data?.chapter?.content || '' });
+  } catch (e: any) {
+    return c.json({ content: '', error: e.message });
+  }
+});
+
+// ================================================================
 //  管理后台增强接口（论坛管理员身份，走主库 DB）
 // ================================================================
 
