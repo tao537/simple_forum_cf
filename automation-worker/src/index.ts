@@ -219,10 +219,10 @@ async function runPipeline(env: Env) {
     const tokens = await loginGameStation(env);
     logLine('✅ 登录成功');
 
-    // 2. 抓取 20 条，从中选没发过的
+    // 2. 抓取 50 条，从中选没发过的
     const need = target - todayCount;
-    logLine(`抓取 shinnku 最新 20 条，需要选 ${need} 个新的...`);
-    const games = await fetchShinnkuLatest(20);
+    logLine(`抓取 shinnku 最新 50 条，需要选 ${need} 个新的...`);
+    const games = await fetchShinnkuLatest(50);
     logLine(`抓到 ${games.length} 个游戏`);
 
     // 3. 逐个处理（去重，发够 need 个就停）
