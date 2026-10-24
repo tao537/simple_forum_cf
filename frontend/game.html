@@ -464,17 +464,16 @@
     }
   };
 
-  // 校验已有 token；失效则重新弹密码门禁
+  // 校验已有 token；有 game_token 就信任本地登录态，不主动 clear（避免网络错误误清门禁）
   async function ensureEntered() {
     if (!gameAuth.isEntered()) return false;
     try {
       const me = await gameApi('/api/game/me');
       if (me.user) gameAuth.refreshUser(me.user); // 刷新账号信息（昵称/角色可能变更）
-      return true;
     } catch {
-      gameAuth.clear();
-      return false;
+      // 网络错误/超时不 clear token，保留本地登录态；token 真过期时 API 调用会 401
     }
+    return true;
   }
 
   // 未进入时隐藏主内容，只显示门禁

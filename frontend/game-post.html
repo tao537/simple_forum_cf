@@ -412,8 +412,10 @@
     try {
       const me = await gameApi('/api/game/me');
       if (me.user) gameAuth.refreshUser(me.user); // 刷新账号信息（昵称/角色可能变更）
-      return true;
-    } catch { gameAuth.clear(); return false; }
+    } catch {
+      // 网络错误不 clear token，保留本地登录态
+    }
+    return true;
   }
 
   if (!gameAuth.isEntered()) {
