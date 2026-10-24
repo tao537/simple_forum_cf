@@ -1591,21 +1591,19 @@ app.delete('/api/game/comments/:id', async (c) => {
 //  网易云音乐搜索/解析（代理接口，避免前端 CORS）
 // ================================================================
 
-// 搜索歌曲（网易云）
+// 搜索歌曲（Meting API 聚合）
 app.get('/api/music/search', async (c) => {
   const keyword = String(c.req.query('keyword') || '').trim();
   if (!keyword) return c.json({ songs: [] });
   try {
-    const resp = await fetch(`https://music.163.com/api/search/get?s=${encodeURIComponent(keyword)}&type=1&limit=20`, {
-      headers: { 'Referer': 'https://music.163.com/', 'User-Agent': 'Mozilla/5.0' }
-    });
-    const data = await resp.json<any>();
-    const songs = (data?.result?.songs || []).map((s: any) => ({
+    const resp = await fetch(`https://api.injahow.cn/meting/?type=search&source=netease&name=${encodeURIComponent(keyword)}`);
+    const data = await resp.json<any[]>();
+    const songs = (data || []).map((s: any) => ({
       id: s.id,
       name: s.name,
-      artist: s.artists?.map((a: any) => a.name).join(' / ') || '未知艺术家',
-      album: s.album?.name || '',
-      artwork: s.album?.picUrl ? s.album.picUrl + '?param=200y200' : '',
+      artist: s.artist || '未知艺术家',
+      album: s.album || '',
+      artwork: s.picUrl || '',
       preview: '',
       duration: s.duration ? Math.round(s.duration / 1000) : 0,
     }));
