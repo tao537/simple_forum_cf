@@ -1591,21 +1591,23 @@ app.delete('/api/game/comments/:id', async (c) => {
 //  网易云音乐搜索/解析（代理接口，避免前端 CORS）
 // ================================================================
 
-// 搜索歌曲
+// 搜索歌曲（网易云）
 app.get('/api/music/search', async (c) => {
   const keyword = String(c.req.query('keyword') || '').trim();
   if (!keyword) return c.json({ songs: [] });
   try {
-    const resp = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(keyword)}&media=music&limit=20`);
+    const resp = await fetch(`https://music.163.com/api/search/get?s=${encodeURIComponent(keyword)}&type=1&limit=20`, {
+      headers: { 'Referer': 'https://music.163.com/', 'User-Agent': 'Mozilla/5.0' }
+    });
     const data = await resp.json<any>();
-    const songs = (data?.results || []).map((s: any) => ({
-      id: s.trackId,
-      name: s.trackName,
-      artist: s.artistName,
-      album: s.collectionName || '',
-      artwork: s.artworkUrl100 || '',
-      preview: s.previewUrl || '',
-      duration: s.trackTimeMillis ? Math.round(s.trackTimeMillis / 1000) : 0,
+    const songs = (data?.result?.songs || []).map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      artist: s.artists?.map((a: any) => a.name).join(' / ') || '未知艺术家',
+      album: s.album?.name || '',
+      artwork: s.album?.picUrl ? s.album.picUrl + '?param=200y200' : '',
+      preview: '',
+      duration: s.duration ? Math.round(s.duration / 1000) : 0,
     }));
     return c.json({ songs });
   } catch (e: any) {
@@ -1624,22 +1626,22 @@ app.get('/api/music/url', async (c) => {
 //  小说阅读（追书神器 API 代理）
 // ================================================================
 
-// 搜索小说（Open Library API）
+// 搜索小说（kele8.cn API）
 app.get('/api/novel/search', async (c) => {
   const keyword = String(c.req.query('keyword') || '').trim();
   if (!keyword) return c.json({ books: [] });
   try {
-    const resp = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(keyword)}&limit=20`);
+    const resp = await fetch(`https://novel.kele8.cn/search?keyword=${encodeURIComponent(keyword)}`);
     const data = await resp.json<any>();
-    const books = (data?.docs || []).map((b: any) => ({
-      id: b.key?.replace('/works/', '') || '',
-      title: b.title,
-      author: b.author_name?.[0] || '未知作者',
-      cover: b.cover_i ? `https://covers.openlibrary.org/b/id/${b.cover_i}-M.jpg` : '',
-      category: b.subject?.[0] || '',
-      description: '',
-      words: 0,
-      status: b.first_publish_year ? `${b.first_publish_year}年出版` : '',
+    const books = (data?.books || data?.results || []).map((b: any) => ({
+      id: b.bookId || b.id || b._id,
+      title: b.bookName || b.title || b.name,
+      author: b.author || '未知作者',
+      cover: b.cover || b.coverUrl || '',
+      category: b.cat || b.category || '',
+      description: b.desc || b.description || '',
+      words: b.wordCount || 0,
+      status: b.status || '',
     }));
     return c.json({ books });
   } catch (e: any) {
