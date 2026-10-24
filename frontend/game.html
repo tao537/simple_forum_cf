@@ -455,6 +455,7 @@
       const data = await gameApi('/api/game/enter', { method: 'POST', body: JSON.stringify({ password: pw }) });
       gameAuth.setToken(data.token);
       document.getElementById('gate').style.display = 'none';
+      document.getElementById('main').style.display = '';
       toast('欢迎进入游戏站 🎮');
       renderNav();
       load(1);

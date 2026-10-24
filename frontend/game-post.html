@@ -402,6 +402,7 @@
       const data = await gameApi('/api/game/enter', { method: 'POST', body: JSON.stringify({ password: pw }) });
       gameAuth.setToken(data.token);
       document.getElementById('gate').style.display = 'none';
+      document.getElementById('main').style.display = '';
       renderNav();
       load();
     } catch (e) { err.textContent = e.message; }

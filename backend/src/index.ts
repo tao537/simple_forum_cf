@@ -1373,7 +1373,7 @@ app.get('/api/game/posts/:id', async (c) => {
   } else {
     crows.forEach((x) => (x.liked = false));
   }
-  post.game_comments = crows;
+  post.comments = crows;
 
   await db.prepare('UPDATE game_posts SET views = views + 1 WHERE id = ?').bind(id).run();
   return c.json(post);
