@@ -338,7 +338,7 @@ async function searchVideo() {
 
   try {
     // 调用后端 Worker 代理接口（解决跨域问题）
-    const resp = await fetch(`https://forum-api.tao537.workers.dev/api/video/search?keyword=${encodeURIComponent(kw)}`);
+    const resp = await fetch(`https://api.kuhai.de5.net/api/video/search?keyword=${encodeURIComponent(kw)}`);
     const data = await resp.json();
     console.log('[影视模块] 搜索返回:', data);
 
