@@ -4,29 +4,49 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>苦海影视</title>
+<!-- hls.js 用于播放 m3u8 视频 -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
   min-height: 100vh;
   color: #fff;
+  position: relative;
+  overflow-x: hidden;
 }
-.container { max-width: 900px; margin: 0 auto; padding: 20px; }
-
-.header { text-align: center; padding: 30px 0; }
-.header h1 { font-size: 28px; margin-bottom: 8px; }
-.header p { color: #94a3b8; font-size: 14px; }
+/* 电影胶片背景图案 */
+body::before {
+  content: '🎬 🎥 🍿 🎞️ 🎬 🎥 🍿 🎞️ 🎬 🎥 🍿 🎞️ 🎬 🎥 🍿 🎞️ 🎬 🎥 🍿 🎞️';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  font-size: 36px;
+  line-height: 72px;
+  color: rgba(59,130,246,.07);
+  pointer-events: none;
+  z-index: 0;
+  word-wrap: break-word;
+  overflow: hidden;
+}
+.container { max-width: 1000px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
 
 .back-link { display: inline-block; margin-bottom: 20px; color: #94a3b8; text-decoration: none; font-size: 14px; }
 .back-link:hover { color: #fff; }
 
-/* 搜索框 */
-.search-box {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
+.header { text-align: center; padding: 20px 0 30px; }
+.header h1 {
+  font-size: 28px;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #fff 0%, #93c5fd 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
+.header p { color: #94a3b8; font-size: 14px; }
+
+/* 搜索框 */
+.search-box { display: flex; gap: 12px; margin-bottom: 30px; }
 .search-box input {
   flex: 1;
   padding: 14px 20px;
@@ -36,6 +56,7 @@ body {
   color: #fff;
   font-size: 15px;
   outline: none;
+  transition: border-color .2s;
 }
 .search-box input:focus { border-color: #3b82f6; }
 .search-box button {
@@ -46,180 +67,302 @@ body {
   color: #fff;
   font-size: 15px;
   cursor: pointer;
+  transition: all .2s;
 }
+.search-box button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(59,130,246,.4); }
 
-/* 搜索结果 */
-.section-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #e2e8f0; }
+/* 搜索结果网格 */
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-title::before {
+  content: '';
+  width: 4px;
+  height: 16px;
+  background: linear-gradient(180deg, #3b82f6, #0ea5e9);
+  border-radius: 2px;
+}
 .movie-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 18px;
 }
 .movie-card {
   background: rgba(255,255,255,.05);
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
-  transition: all .2s;
+  transition: all .25s;
+  border: 1px solid rgba(255,255,255,.1);
 }
 .movie-card:hover {
-  background: rgba(255,255,255,.1);
-  transform: translateY(-3px);
+  transform: translateY(-5px);
+  background: rgba(59,130,246,.15);
+  border-color: rgba(59,130,246,.4);
+  box-shadow: 0 12px 30px rgba(0,0,0,.4);
 }
 .movie-poster {
   width: 100%;
-  height: 200px;
-  background: #333;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 40px;
+  height: 220px;
+  position: relative;
+  background: #1e293b;
 }
 .movie-poster img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.movie-info { padding: 12px; }
-.movie-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.movie-date { font-size: 12px; color: #94a3b8; }
-
-/* 播放弹窗 */
-.player-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.9);
-  z-index: 100;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
+.movie-status {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 10px;
+  background: rgba(30,58,138,.9);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
 }
-.player-modal.show { display: flex; }
-.player-container {
+.movie-info { padding: 12px; }
+.movie-name {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.movie-meta { font-size: 12px; color: #94a3b8; }
+
+/* 详情页 */
+.detail-page { display: none; }
+.detail-page.show { display: block; }
+.search-page.hide { display: none; }
+
+.detail-header {
+  display: flex;
+  gap: 24px;
+  background: rgba(255,255,255,.05);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(255,255,255,.1);
+}
+.detail-poster {
+  width: 180px;
+  height: 250px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.detail-poster img { width: 100%; height: 100%; object-fit: cover; }
+.detail-info { flex: 1; min-width: 0; }
+.detail-name { font-size: 24px; font-weight: 700; margin-bottom: 12px; }
+.detail-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.detail-tag {
+  padding: 4px 12px;
+  background: rgba(59,130,246,.2);
+  border-radius: 999px;
+  font-size: 12px;
+  color: #93c5fd;
+}
+.detail-blurb {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #cbd5e1;
+}
+
+/* 播放器 */
+.player-section {
+  background: rgba(0,0,0,.4);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(255,255,255,.1);
+}
+.player-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+.video-player {
   width: 100%;
-  max-width: 900px;
   aspect-ratio: 16/9;
   background: #000;
   border-radius: 12px;
   overflow: hidden;
-  position: relative;
 }
-.player-container iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-}
-.close-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: rgba(255,255,255,.2);
-  border: none;
-  color: #fff;
-  font-size: 18px;
-  cursor: pointer;
-  z-index: 10;
-}
-.close-btn:hover { background: rgba(255,255,255,.3); }
+.video-player video { width: 100%; height: 100%; }
 
-.empty { text-align: center; color: #64748b; padding: 40px 0; font-size: 14px; }
+/* 剧集列表 */
+.episodes-section {
+  background: rgba(255,255,255,.05);
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid rgba(255,255,255,.1);
+}
+.episodes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+.episode-btn {
+  padding: 10px 8px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  color: #e2e8f0;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .2s;
+  text-align: center;
+}
+.episode-btn:hover { background: rgba(59,130,246,.2); border-color: rgba(59,130,246,.4); }
+.episode-btn.active {
+  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.empty { text-align: center; color: #64748b; padding: 50px 0; font-size: 14px; }
+
+/* 滚动条样式 */
+.episodes-grid::-webkit-scrollbar { width: 6px; }
+.episodes-grid::-webkit-scrollbar-track { background: rgba(255,255,255,.05); border-radius: 3px; }
+.episodes-grid::-webkit-scrollbar-thumb { background: rgba(59,130,246,.4); border-radius: 3px; }
 
 /* 手机版响应式设计 */
 @media (max-width: 768px) {
   .container { padding: 12px; }
-  .header { padding: 20px 0; }
+  .header { padding: 15px 0 20px; }
   .header h1 { font-size: 22px; }
-  
+
   .search-box { flex-direction: column; gap: 10px; }
-  .search-box button { width: 100%; padding: 16px 28px; font-size: 16px; }
-  
+  .search-box button { width: 100%; padding: 16px; font-size: 16px; }
+
   .movie-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .movie-poster { height: 180px; }
+
+  .detail-header { flex-direction: column; gap: 16px; padding: 16px; }
+  .detail-poster { width: 130px; height: 180px; margin: 0 auto; }
+  .detail-name { font-size: 20px; text-align: center; }
+  .detail-tags { justify-content: center; }
+
+  .player-section { padding: 14px; }
+  .episodes-section { padding: 14px; }
+  .episodes-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
 }
 </style>
 </head>
 <body>
 <div class="container">
-  <a href="/game.html" class="back-link">← 返回游戏站</a>
+  <!-- 搜索页 -->
+  <div class="search-page" id="searchPage">
+    <a href="/game.html" class="back-link">← 返回游戏站</a>
 
-  <div class="header">
-    <h1>🎬 苦海影视</h1>
-    <p>在线搜索和观看电影、电视剧</p>
-  </div>
+    <div class="header">
+      <h1>🎬 苦海影视</h1>
+      <p>在线搜索和观看电影、电视剧、动漫、综艺</p>
+    </div>
 
-  <!-- 搜索框 -->
-  <div class="search-box">
-    <input type="text" id="searchInput" placeholder="输入电影名或电视剧名搜索..." />
-    <button onclick="searchMovie()">搜索</button>
-  </div>
+    <!-- 搜索框 -->
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="输入电影名、电视剧名搜索..." />
+      <button onclick="searchVideo()">搜索</button>
+    </div>
 
-  <!-- 搜索结果 -->
-  <div id="searchResult">
-    <div class="section-title">🔥 热门影视</div>
+    <!-- 搜索结果 -->
+    <div class="section-title" id="resultTitle">热门推荐</div>
     <div class="movie-grid" id="movieGrid">
-      <div class="empty">输入关键词搜索影视</div>
+      <div class="empty">输入关键词搜索影视资源</div>
+    </div>
+  </div>
+
+  <!-- 详情播放页 -->
+  <div class="detail-page" id="detailPage">
+    <a href="javascript:goBack()" class="back-link">← 返回搜索结果</a>
+
+    <!-- 影视详情 -->
+    <div class="detail-header">
+      <div class="detail-poster">
+        <img id="detailPoster" src="" alt="封面" />
+      </div>
+      <div class="detail-info">
+        <div class="detail-name" id="detailName"></div>
+        <div class="detail-tags" id="detailTags"></div>
+        <div class="detail-blurb" id="detailBlurb"></div>
+      </div>
+    </div>
+
+    <!-- 播放器 -->
+    <div class="player-section">
+      <div class="player-title" id="playerTitle">正在播放</div>
+      <div class="video-player">
+        <video id="videoPlayer" controls playsinline></video>
+      </div>
+    </div>
+
+    <!-- 剧集列表 -->
+    <div class="episodes-section">
+      <div class="player-title">选集播放</div>
+      <div class="episodes-grid" id="episodesGrid"></div>
     </div>
   </div>
 </div>
 
-<!-- 播放弹窗 -->
-<div class="player-modal" id="playerModal">
-  <button class="close-btn" onclick="closePlayer()">✕</button>
-  <div class="player-container">
-    <iframe id="playerFrame" src="" allowfullscreen></iframe>
-  </div>
-</div>
-
 <script>
-// TMDB API 配置（使用公开 demo key，仅供测试）
-const TMDB_API_KEY = 'demo';
-const TMDB_BASE = 'https://api.themoviedb.org/3';
-const TMDB_IMG = 'https://image.tmdb.org/t/p/w500';
+// 苹果CMS资源站接口
+const API_BASE = 'https://api.apibdzy.com/api.php/provide/vod/';
+let currentEpisodes = [];   // 当前影视的剧集列表
+let hls = null;             // hls.js 实例
 
 /**
  * 搜索影视
  */
-async function searchMovie() {
+async function searchVideo() {
   const kw = document.getElementById('searchInput').value.trim();
-  console.log('[影视模块] 搜索影视，关键词:', kw);
-  
+  console.log('[影视模块] 搜索关键词:', kw);
+
   if (!kw) {
     alert('请输入搜索关键词');
     return;
   }
-  
+
   const grid = document.getElementById('movieGrid');
+  const title = document.getElementById('resultTitle');
   grid.innerHTML = '<div class="empty">搜索中...</div>';
-  
+  title.textContent = '搜索结果';
+
   try {
-    // 用 TMDB API 搜索
-    const resp = await fetch(`${TMDB_BASE}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(kw)}&language=zh-CN`);
+    const resp = await fetch(`${API_BASE}?ac=videolist&wd=${encodeURIComponent(kw)}`);
     const data = await resp.json();
     console.log('[影视模块] 搜索返回:', data);
-    
-    const movies = (data.results || []).filter(m => m.media_type === 'movie' || m.media_type === 'tv');
-    
-    if (!movies.length) {
+
+    const list = data.list || [];
+    if (!list.length) {
       grid.innerHTML = '<div class="empty">没找到相关影视</div>';
       return;
     }
-    
-    grid.innerHTML = movies.map((m, i) => `
-      <div class="movie-card" onclick="playMovie(${m.id}, '${m.media_type}')">
+
+    // 渲染搜索结果
+    grid.innerHTML = list.map((item) => `
+      <div class="movie-card" onclick="openDetail(${item.vod_id})">
         <div class="movie-poster">
-          ${m.poster_path ? `<img src="${TMDB_IMG}${m.poster_path}" alt="${m.title || m.name}" />` : '🎬'}
+          <img src="${item.vod_pic}" alt="${item.vod_name}" loading="lazy"
+               onerror="this.style.display='none'" />
+          <div class="movie-status">${item.vod_remarks || ''}</div>
         </div>
         <div class="movie-info">
-          <div class="movie-title">${m.title || m.name}</div>
-          <div class="movie-date">${m.release_date || m.first_air_date || '未知日期'}</div>
+          <div class="movie-name">${item.vod_name}</div>
+          <div class="movie-meta">${item.type_name || ''} ${item.vod_year ? '· ' + item.vod_year : ''}</div>
         </div>
       </div>
     `).join('');
-    window._searchResults = movies;
+    window._searchList = list;
   } catch (e) {
     console.error('[影视模块] 搜索失败:', e);
     grid.innerHTML = `<div class="empty">搜索失败：${e.message}</div>`;
@@ -227,31 +370,143 @@ async function searchMovie() {
 }
 
 /**
- * 播放影视
+ * 打开影视详情页
+ * @param {number} id - 影视ID
  */
-function playMovie(id, type) {
-  console.log('[影视模块] 播放影视，id:', id, '类型:', type);
-  
-  // 用 VidSrc 嵌入播放
-  const url = `https://vidsrc.to/embed/${type}/${id}`;
-  document.getElementById('playerFrame').src = url;
-  document.getElementById('playerModal').classList.add('show');
+async function openDetail(id) {
+  console.log('[影视模块] 打开详情，id:', id);
+
+  // 从搜索列表中找到对应影视
+  const item = (window._searchList || []).find(x => x.vod_id === id);
+  if (!item) {
+    alert('没找到影视数据');
+    return;
+  }
+
+  // 填充详情信息
+  document.getElementById('detailPoster').src = item.vod_pic;
+  document.getElementById('detailName').textContent = item.vod_name;
+  document.getElementById('detailBlurb').textContent = item.vod_blurb || item.vod_content || '暂无简介';
+
+  // 填充标签
+  const tags = [];
+  if (item.type_name) tags.push(item.type_name);
+  if (item.vod_year) tags.push(item.vod_year);
+  if (item.vod_area) tags.push(item.vod_area);
+  if (item.vod_remarks) tags.push(item.vod_remarks);
+  document.getElementById('detailTags').innerHTML = tags
+    .map(t => `<span class="detail-tag">${t}</span>`).join('');
+
+  // 解析播放地址
+  // 格式：第01集$https://xxx.m3u8#第02集$https://xxx.m3u8
+  const playUrl = item.vod_play_url || '';
+  const episodes = playUrl.split('#').map(ep => {
+    const [name, url] = ep.split('$');
+    return { name: name || '播放', url: url || '' };
+  }).filter(ep => ep.url);
+  currentEpisodes = episodes;
+  console.log('[影视模块] 解析到剧集数:', episodes.length);
+
+  // 渲染剧集按钮
+  const grid = document.getElementById('episodesGrid');
+  grid.innerHTML = episodes.map((ep, i) => `
+    <button class="episode-btn ${i === 0 ? 'active' : ''}"
+            onclick="playEpisode(${i})">${ep.name}</button>
+  `).join('');
+
+  // 自动播放第一集
+  if (episodes.length) {
+    playEpisode(0);
+  }
+
+  // 切换到详情页
+  document.getElementById('searchPage').classList.add('hide');
+  document.getElementById('detailPage').classList.add('show');
+  window.scrollTo(0, 0);
 }
 
 /**
- * 关闭播放器
+ * 播放指定剧集
+ * @param {number} index - 剧集索引
  */
-function closePlayer() {
-  document.getElementById('playerModal').classList.remove('show');
-  document.getElementById('playerFrame').src = '';
+function playEpisode(index) {
+  const ep = currentEpisodes[index];
+  if (!ep || !ep.url) {
+    console.error('[影视模块] 剧集地址不存在，index:', index);
+    return;
+  }
+  console.log('[影视模块] 播放剧集:', ep.name, ep.url);
+
+  document.getElementById('playerTitle').textContent = '正在播放：' + ep.name;
+
+  // 更新选中状态
+  document.querySelectorAll('.episode-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === index);
+  });
+
+  const video = document.getElementById('videoPlayer');
+
+  // 销毁之前的 hls 实例
+  if (hls) {
+    hls.destroy();
+    hls = null;
+  }
+
+  // 用 hls.js 播放 m3u8
+  if (Hls.isSupported()) {
+    hls = new Hls();
+    hls.loadSource(ep.url);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      console.log('[影视模块] m3u8 加载成功，开始播放');
+      video.play().catch(e => console.warn('[影视模块] 自动播放被拦截:', e));
+    });
+    hls.on(Hls.Events.ERROR, (event, data) => {
+      console.error('[影视模块] hls 播放错误:', data);
+      if (data.fatal) {
+        alert('播放失败，可能是网络问题或资源失效');
+      }
+    });
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    // Safari 原生支持
+    video.src = ep.url;
+    video.addEventListener('loadedmetadata', () => {
+      video.play().catch(e => console.warn('[影视模块] 自动播放被拦截:', e));
+    });
+  } else {
+    alert('你的浏览器不支持播放 m3u8 视频');
+  }
+}
+
+/**
+ * 返回搜索页
+ */
+function goBack() {
+  console.log('[影视模块] 返回搜索页');
+  // 停止播放
+  const video = document.getElementById('videoPlayer');
+  video.pause();
+  if (hls) {
+    hls.destroy();
+    hls = null;
+  }
+  document.getElementById('detailPage').classList.remove('show');
+  document.getElementById('searchPage').classList.remove('hide');
 }
 
 // 回车搜索
 document.getElementById('searchInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     console.log('[影视模块] 按回车搜索');
-    searchMovie();
+    searchVideo();
   }
+});
+
+// 页面加载时默认搜索热门（用一个常见词）
+window.addEventListener('DOMContentLoaded', () => {
+  console.log('[影视模块] 页面加载完成，默认加载热门');
+  document.getElementById('searchInput').value = '2024';
+  searchVideo();
 });
 </script>
 </body>
