@@ -336,7 +336,9 @@ window.searchNovel = async function(keyword) {
   document.getElementById('searchInput').value = kw;
   document.getElementById('chapterList').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
-  document.getElementById('searchResult').innerHTML = '<div class="empty">搜索中...</div>';
+  // 注意：不能覆盖 searchResult 的 innerHTML，否则里面的 #searchBooks 容器会被删掉
+  document.getElementById('searchResult').style.display = '';
+  document.getElementById('searchBooks').innerHTML = '<div class="empty">搜索中...</div>';
   
   try {
     // 走后端代理（apis.netstart.cn 在国内已不可用，手机无代理时直连必然失败）

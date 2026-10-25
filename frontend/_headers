@@ -7,6 +7,8 @@
 
 # common.js 里有 API 地址等关键配置，改错/改回必须立即生效
 # （手机上曾因 4 小时缓存继续调用已不可达的域名，表现为门禁「请求超时」）
+# 实测 Pages 对静态 JS 的 Cache-Control 会忽略此规则，所以真正的保险是：
+#   改完 common.js，把所有 HTML 里的 ?v=20261025 版本号加一
 /common.js
   Cache-Control: public, max-age=0, must-revalidate
 
