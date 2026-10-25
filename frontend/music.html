@@ -31,12 +31,13 @@ body {
   width: 200px; height: 200px;
   margin: 0 auto 24px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #1e3a8a, #1e40af);
   display: flex; align-items: center; justify-content: center;
   font-size: 80px;
-  box-shadow: 0 20px 60px rgba(102,126,234,.4);
+  box-shadow: 0 20px 60px rgba(30,58,138,.4);
   animation: rotate 20s linear infinite;
   animation-play-state: paused;
+  overflow: hidden;
 }
 .player.playing .player-cover { animation-play-state: running; }
 @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -53,7 +54,7 @@ body {
 }
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea, #764ba2);
+  background: linear-gradient(90deg, #1e3a8a, #3b82f6);
   border-radius: 3px;
   width: 0%;
   transition: width .1s linear;
@@ -75,7 +76,7 @@ body {
 .controls button:hover { background: rgba(255,255,255,.2); transform: scale(1.05); }
 .controls button.play-btn {
   width: 72px; height: 72px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
   font-size: 28px;
 }
 
@@ -95,7 +96,7 @@ body {
   font-size: 15px;
   outline: none;
 }
-.search-box input:focus { border-color: #667eea; }
+.search-box input:focus { border-color: #3b82f6; }
 .search-box button {
   padding: 14px 28px;
   border-radius: 12px;
@@ -513,6 +514,14 @@ function playSong(song) {
   audio.src = url;
   document.getElementById('nowTitle').textContent = song.name;
   document.getElementById('nowArtist').textContent = song.artist;
+  
+  // 显示专辑封面
+  const cover = document.getElementById('cover');
+  if (song.artwork) {
+    cover.innerHTML = `<img src="${song.artwork}" alt="专辑封面" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" />`;
+  } else {
+    cover.innerHTML = '🎵';
+  }
   
   // 播放，捕获错误
   audio.play().catch((e) => {
