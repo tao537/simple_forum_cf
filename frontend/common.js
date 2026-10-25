@@ -35,7 +35,7 @@ const LOCAL_API_BASE = 'http://localhost:8787';
 // 本地前端调试时是否调用本地后端：true = 本地前端→本地后端；false = 本地前端→线上
 const USE_LOCAL_API = false;
 
-function resolveBaseUrl() {
+export function resolveBaseUrl() {
   if (window.location.protocol === 'file:') return LOCAL_API_BASE;
   const localHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
   if (localHost && USE_LOCAL_API) return LOCAL_API_BASE;
