@@ -8,29 +8,33 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: linear-gradient(135deg, #0c1445 0%, #1e3a8a 50%, #0f3460 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
   min-height: 100vh;
   color: #fff;
   position: relative;
   overflow-x: hidden;
 }
-/* 背景光斑装饰 */
+/* 音符背景图案 */
 body::before {
-  content: '';
+  content: '♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬';
   position: fixed;
-  top: -200px; right: -200px;
-  width: 600px; height: 600px;
-  background: radial-gradient(circle, rgba(59,130,246,.3) 0%, transparent 70%);
-  border-radius: 50%;
+  top: 0; left: 0; right: 0; bottom: 0;
+  font-size: 40px;
+  line-height: 80px;
+  color: rgba(59,130,246,.08);
   pointer-events: none;
   z-index: 0;
+  word-wrap: break-word;
+  overflow: hidden;
 }
+/* 背景光斑装饰 */
 body::after {
   content: '';
   position: fixed;
-  bottom: -200px; left: -200px;
-  width: 500px; height: 500px;
-  background: radial-gradient(circle, rgba(14,165,233,.2) 0%, transparent 70%);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 800px; height: 800px;
+  background: radial-gradient(circle, rgba(59,130,246,.15) 0%, transparent 70%);
   border-radius: 50%;
   pointer-events: none;
   z-index: 0;
