@@ -199,6 +199,22 @@ body::after {
 
 .empty { text-align: center; color: #64748b; padding: 40px 0; font-size: 14px; }
 
+/* 热门试听：封面网格，点一下直接播放 */
+.hot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.hot-card {
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 12px; padding: 8px; cursor: pointer; transition: all .2s;
+}
+.hot-card:hover { background: rgba(59,130,246,.18); border-color: rgba(59,130,246,.3); transform: translateY(-3px); }
+.hot-cover {
+  width: 100%; aspect-ratio: 1/1; border-radius: 8px; overflow: hidden; margin-bottom: 8px;
+  display: flex; align-items: center; justify-content: center; font-size: 30px;
+  background: rgba(255,255,255,.06);
+}
+.hot-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hot-name { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hot-artist { font-size: 11px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 .back-link { display: inline-block; margin-bottom: 20px; color: #7c3aed; text-decoration: none; font-size: 14px; }
 .back-link:hover { color: #4c1d95; }
 
@@ -257,78 +273,18 @@ body::after {
     </div>
   </div>
 
+  <!-- 热门试听：点封面直接播放（放最上面，先能听懂再搜索） -->
+  <div id="hotRecommend">
+    <div class="section-title">🔥 热门试听 <span style="font-size:12px;color:#64748b;font-weight:400">点封面直接播放</span></div>
+    <div class="hot-grid" id="hotGrid"><div class="empty">加载中...</div></div>
+  </div>
+
   <!-- 搜索框 -->
   <div class="search-box">
     <input type="text" id="searchInput" placeholder="输入歌曲名搜索网易云..." />
     <button onclick="searchMusic()">搜索</button>
   </div>
 
-  <!-- 热门推荐 -->
-  <div id="hotRecommend">
-    <div class="section-title">🔥 热门推荐</div>
-    <ul class="song-list" id="hotList">
-      <li class="song-item" onclick="searchMusic('晴天')">
-        <div class="song-num">1</div>
-        <div class="song-info">
-          <div class="song-name">晴天</div>
-          <div class="song-artist">周杰伦</div>
-        </div>
-        <div class="song-actions">
-          <button onclick="event.stopPropagation();searchMusic('晴天')">搜索</button>
-        </div>
-      </li>
-      <li class="song-item" onclick="searchMusic('七里香')">
-        <div class="song-num">2</div>
-        <div class="song-info">
-          <div class="song-name">七里香</div>
-          <div class="song-artist">周杰伦</div>
-        </div>
-        <div class="song-actions">
-          <button onclick="event.stopPropagation();searchMusic('七里香')">搜索</button>
-        </div>
-      </li>
-      <li class="song-item" onclick="searchMusic('稻香')">
-        <div class="song-num">3</div>
-        <div class="song-info">
-          <div class="song-name">稻香</div>
-          <div class="song-artist">周杰伦</div>
-        </div>
-        <div class="song-actions">
-          <button onclick="event.stopPropagation();searchMusic('稻香')">搜索</button>
-        </div>
-      </li>
-      <li class="song-item" onclick="searchMusic('起风了')">
-        <div class="song-num">4</div>
-        <div class="song-info">
-          <div class="song-name">起风了</div>
-          <div class="song-artist">买辣椒也用券</div>
-        </div>
-        <div class="song-actions">
-          <button onclick="event.stopPropagation();searchMusic('起风了')">搜索</button>
-        </div>
-      </li>
-      <li class="song-item" onclick="searchMusic('海阔天空')">
-        <div class="song-num">5</div>
-        <div class="song-info">
-          <div class="song-name">海阔天空</div>
-          <div class="song-artist">Beyond</div>
-        </div>
-        <div class="song-actions">
-          <button onclick="event.stopPropagation();searchMusic('海阔天空')">搜索</button>
-        </div>
-      </li>
-      <li class="song-item" onclick="searchMusic('光年之外')">
-        <div class="song-num">6</div>
-        <div class="song-info">
-          <div class="song-name">光年之外</div>
-          <div class="song-artist">G.E.M. 邓紫棋</div>
-        </div>
-        <div class="song-actions">
-          <button onclick="event.stopPropagation();searchMusic('光年之外')">搜索</button>
-        </div>
-      </li>
-    </ul>
-  </div>
 
   <!-- 搜索结果 -->
   <div id="searchResult" style="display:none">
@@ -348,7 +304,7 @@ body::after {
 
 <script type="module">
 // 导入工具函数
-import { resolveBaseUrl, escapeHtml } from '/common.js?v=20261025';
+import { escapeHtml } from '/common.js?v=20261025';
 
 // 网易云解析接口（国内直连可用，支持 CORS；dataiqs.com 在国内被劫持，已弃用）
 const GD_API = 'https://music-api.gdstudio.xyz/api.php';
@@ -364,75 +320,69 @@ let currentIndex = -1; // 当前播放的歌在歌单中的索引，-1 表示没
 
 console.log('[音乐模块] 初始化完成，歌单长度:', playlist.length);
 
-// 初始化：渲染歌单
+// 初始化：渲染歌单 + 热门试听
 renderPlaylist();
-// loadHotRecommend(); // 暂时注释掉，用写死的热门推荐
 
-/**
- * 加载热门推荐（从后端 API 获取）
- */
-async function loadHotRecommend() {
-  console.log('[音乐模块] 加载热门推荐...');
-  const hotKeywords = ['周杰伦', '林俊杰', '邓紫棋', '流行歌曲'];
-  const list = document.getElementById('hotList');
-  try {
-    const resp = await fetch(`${resolveBaseUrl()}/api/music/search?keyword=${encodeURIComponent(hotKeywords[0])}`);
-    const data = await resp.json();
-    console.log('[音乐模块] 热门推荐返回:', data);
-    if (!data.songs?.length) {
-      list.innerHTML = '<div class="empty">暂无推荐歌曲</div>';
-      return;
-    }
-    window._hotResults = data.songs;
-    list.innerHTML = data.songs.slice(0, 10).map((s, i) => `
-      <li class="song-item">
-        <div class="song-info">
-          <div class="song-name">${escapeHtml(s.name)}</div>
-          <div class="song-artist">${escapeHtml(s.artist)} - ${escapeHtml(s.album)}</div>
-        </div>
-        <div class="song-actions">
-          <button onclick="playHot(${i})">▶ 播放</button>
-          <button onclick="addHot(${i})">+ 添加</button>
-        </div>
-      </li>
-    `).join('');
-  } catch (e) {
-    console.error('[音乐模块] 热门推荐加载失败:', e);
-    list.innerHTML = `<div class="empty">加载失败：${e.message}</div>`;
-  }
+// ===== 热门试听 =====
+// 只放几首，点封面就播（不用先搜索），结果缓存 6 小时
+const HOT_QUERIES = ['晴天', '七里香', '稻香', '起风了', '海阔天空', '光年之外'];
+const HOT_CACHE_KEY = 'music_hot_v2';
+const HOT_CACHE_TTL = 6 * 3600 * 1000;
+
+async function searchOne(kw) {
+  const r = await fetch(`${GD_API}?types=search&source=netease&name=${encodeURIComponent(kw)}&count=5&pages=1`);
+  const rows = await r.json();
+  const x = Array.isArray(rows) ? rows[0] : null;
+  if (!x || !x.id) return null;
+  return {
+    id: x.id,
+    name: x.name || kw,
+    artist: Array.isArray(x.artist) ? x.artist.join('/') : (x.artist || ''),
+    album: x.album || '',
+    artwork: x.pic_id ? `${GD_API}?types=pic&source=netease&id=${encodeURIComponent(x.pic_id)}&size=300` : '',
+    preview: '',
+    urlId: x.url_id || x.id,
+    source: x.source || 'netease',
+    duration: 0,
+  };
 }
 
-/**
- * 热门推荐播放
- * @param {number} i - 歌曲索引
- */
-window.playHot = function(i) {
-  console.log('[音乐模块] 点击热门推荐播放，索引:', i);
+function renderHot(songs) {
+  window._hotTracks = songs;
+  document.getElementById('hotGrid').innerHTML = songs.map((s, i) => `
+    <div class="hot-card" onclick="playHotTrack(${i})">
+      <div class="hot-cover">${s.artwork ? `<img src="${s.artwork}" alt="${escapeHtml(s.name)}" loading="lazy" referrerpolicy="no-referrer">` : '🎵'}</div>
+      <div class="hot-name">${escapeHtml(s.name)}</div>
+      <div class="hot-artist">${escapeHtml(s.artist)}</div>
+    </div>
+  `).join('');
+}
+
+async function loadHotTracks() {
   try {
-    const s = window._hotResults[i];
-    if (!s) throw new Error('没找到热门歌曲数据');
-    playSong(s);
-  } catch (e) {
-    console.error('[音乐模块] 热门推荐播放失败:', e);
-    alert('播放失败：' + e.message);
+    const c = JSON.parse(localStorage.getItem(HOT_CACHE_KEY) || 'null');
+    if (c && Date.now() - c.t < HOT_CACHE_TTL && Array.isArray(c.songs) && c.songs.length) {
+      renderHot(c.songs);
+      return;
+    }
+  } catch { /* 缓存坏了就重新拉 */ }
+
+  const songs = (await Promise.all(HOT_QUERIES.map((k) => searchOne(k).catch(() => null)))).filter(Boolean);
+  if (!songs.length) {
+    document.getElementById('hotGrid').innerHTML = '<div class="empty">热门加载失败，可直接搜索</div>';
+    return;
   }
+  try { localStorage.setItem(HOT_CACHE_KEY, JSON.stringify({ t: Date.now(), songs })); } catch { /* 忽略 */ }
+  renderHot(songs);
+}
+
+window.playHotTrack = function(i) {
+  const s = (window._hotTracks || [])[i];
+  if (!s) return;
+  playSong(s);
 };
 
-/**
- * 热门推荐添加到歌单
- * @param {number} i - 歌曲索引
- */
-window.addHot = function(i) {
-  console.log('[音乐模块] 点击热门推荐添加，索引:', i);
-  try {
-    const s = window._hotResults[i];
-    if (!s) throw new Error('没找到热门歌曲数据');
-    addToPlaylist(s);
-  } catch (e) {
-    console.error('[音乐模块] 热门推荐添加失败:', e);
-    alert('添加失败：' + e.message);
-  }
-};
+loadHotTracks();
 
 /**
  * 搜索歌曲
