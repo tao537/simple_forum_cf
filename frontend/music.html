@@ -304,7 +304,7 @@ body::after {
 
 <script type="module">
 // 导入工具函数
-import { escapeHtml } from '/common.js?v=20261025';
+import { escapeHtml, writeMusicNow, readMusicNow, onMusicNow } from '/common.js?v=20261026';
 
 // 网易云解析接口（国内直连可用，支持 CORS；dataiqs.com 在国内被劫持，已弃用）
 const GD_API = 'https://music-api.gdstudio.xyz/api.php';
@@ -317,6 +317,20 @@ const playBtn = document.getElementById('playBtn');
 // 歌单数据，从 localStorage 读取
 let playlist = JSON.parse(localStorage.getItem('music_playlist') || '[]');
 let currentIndex = -1; // 当前播放的歌在歌单中的索引，-1 表示没在播放
+let nowSong = null;    // 当前曲目（与右下角小播放器共用 music_now）
+
+// 只保存联调需要的字段
+function snapMusic(song) {
+  return {
+    id: song.id || song.name,
+    name: song.name || '',
+    artist: song.artist || '',
+    artwork: song.artwork || '',
+    preview: song.preview || '',
+    urlId: song.urlId || '',
+    source: song.source || '',
+  };
+}
 
 console.log('[音乐模块] 初始化完成，歌单长度:', playlist.length);
 
@@ -587,6 +601,9 @@ async function playSong(song) {
   }
 
   audio.src = url;
+  // 同步给右下角小播放器（其他页面也能续播同一首）
+  nowSong = song;
+  writeMusicNow({ src: 'big', song: snapMusic(song), url, playing: true, position: 0 });
   document.getElementById('nowTitle').textContent = song.name;
   document.getElementById('nowArtist').textContent = song.artist;
   
@@ -675,6 +692,68 @@ document.getElementById('progressBar').addEventListener('click', (e) => {
 audio.addEventListener('ended', () => {
   console.log('[音乐模块] 播放结束，自动下一首');
   if (playlist.length) nextSong();
+});
+
+// ===== 与右下角小播放器联动：共用 music_now =====
+audio.addEventListener('play', () => {
+  playBtn.textContent = '⏸';
+  player.classList.add('playing');
+  if (nowSong) writeMusicNow({ src: 'big', song: snapMusic(nowSong), url: audio.src, playing: true, position: audio.currentTime || 0 });
+});
+audio.addEventListener('pause', () => {
+  playBtn.textContent = '▶';
+  player.classList.remove('playing');
+  if (nowSong) writeMusicNow({ src: 'big', song: snapMusic(nowSong), url: audio.src, playing: false, position: audio.currentTime || 0 });
+});
+let lastSyncAt = 0;
+audio.addEventListener('timeupdate', () => {
+  if (!nowSong || audio.paused) return;
+  if (Date.now() - lastSyncAt < 3000) return;
+  lastSyncAt = Date.now();
+  writeMusicNow({ src: 'big', song: snapMusic(nowSong), url: audio.src, playing: true, position: audio.currentTime || 0 });
+});
+
+// 打开页面时恢复上次的歌与进度（不自动播放，点 ▶ 继续）
+(function restoreNow() {
+  const now = readMusicNow();
+  if (!now?.song || !now.url) return;
+  nowSong = now.song;
+  currentIndex = playlist.findIndex((s) => String(s.id) === String(now.song.id));
+  audio.src = now.url;
+  document.getElementById('nowTitle').textContent = now.song.name || '♫ 未播放';
+  document.getElementById('nowArtist').textContent = (now.song.artist || '') + '（上次播放，点 ▶ 继续）';
+  if (now.song.artwork) {
+    document.getElementById('cover').innerHTML =
+      `<img src="${now.song.artwork}" alt="专辑封面" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" />`;
+  }
+  audio.addEventListener('loadedmetadata', () => {
+    try { audio.currentTime = Number(now.position) || 0; } catch { /* 忽略 */ }
+  }, { once: true });
+})();
+
+// 小播放器（其他页面）改了状态 → 大播放器同步
+onMusicNow((now) => {
+  if (now.src === 'big' || !now.song) return;
+  const same = nowSong && String(nowSong.id) === String(now.song.id);
+  if (same) {
+    if (now.playing && audio.paused) audio.play().catch(() => {});
+    if (!now.playing && !audio.paused) audio.pause();
+    if (Math.abs((audio.currentTime || 0) - (Number(now.position) || 0)) > 3) {
+      try { audio.currentTime = Number(now.position) || 0; } catch { /* 忽略 */ }
+    }
+    return;
+  }
+  nowSong = now.song;
+  currentIndex = playlist.findIndex((s) => String(s.id) === String(now.song.id));
+  document.getElementById('nowTitle').textContent = now.song.name || '♫ 未播放';
+  document.getElementById('nowArtist').textContent = now.song.artist || '';
+  if (!now.url) return;
+  audio.src = now.url;
+  audio.addEventListener('loadedmetadata', () => {
+    try { audio.currentTime = Number(now.position) || 0; } catch { /* 忽略 */ }
+  }, { once: true });
+  if (now.playing) audio.play().catch(() => {});
+  renderPlaylist();
 });
 
 /**
