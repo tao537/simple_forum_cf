@@ -29,7 +29,7 @@ export const auth = {
 
 // ===== 后端地址配置 =====
 // 线上 API（后端 Worker，独立子域名，国内可访问）
-export const API_BASE = 'https://api.kuhai.de5.net';
+export const API_BASE = 'https://forum-api.tao537.workers.dev';
 // 本地 API（Linux 上 npx wrangler dev 的默认端口是 8787）
 const LOCAL_API_BASE = 'http://localhost:8787';
 // 本地前端调试时是否调用本地后端：true = 本地前端→本地后端；false = 本地前端→线上
