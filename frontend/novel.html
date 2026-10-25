@@ -259,24 +259,34 @@ window.searchNovel = async function(keyword) {
   document.getElementById('searchResult').innerHTML = '<div class="empty">搜索中...</div>';
   
   try {
-    const resp = await fetch(`${resolveBaseUrl()}/api/novel/search?keyword=${encodeURIComponent(kw)}`);
+    // 直接调用 Open Library API
+    const resp = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(kw)}&limit=10`);
     const data = await resp.json();
     console.log('[小说模块] 搜索返回:', data);
     
-    if (!data.books?.length) {
+    const books = (data?.docs || []).map(b => ({
+      id: b.key || Math.random().toString(36).slice(2),
+      title: b.title || '未知书名',
+      author: b.author_name?.[0] || '未知作者',
+      cover: b.cover_i ? `https://covers.openlibrary.org/b/id/${b.cover_i}-M.jpg` : '',
+      category: b.subject?.[0] || '',
+      status: '已出版',
+    }));
+    
+    if (!books.length) {
       document.getElementById('searchResult').innerHTML = '<div class="empty">没找到相关小说</div>';
       return;
     }
     
-    document.getElementById('searchResult').innerHTML = '<div class="book-list">' + data.books.map((b, i) => `
-      <div class="book-card" onclick="showChaptersList('${b.id}', '${b.title.replace(/'/g, "\\'")}')">
+    document.getElementById('searchResult').innerHTML = '<div class="book-list">' + books.map((b, i) => `
+      <div class="book-card" onclick="alert('详情功能开发中')">
         <div class="book-cover">📖</div>
         <div class="book-title">${b.title}</div>
         <div class="book-author">${b.author}</div>
         <div class="book-cat">${b.category} · ${b.status}</div>
       </div>
     `).join('') + '</div>';
-    window._searchBooks = data.books;
+    window._searchBooks = books;
   } catch (e) {
     console.error('[小说模块] 搜索失败:', e);
     document.getElementById('searchResult').innerHTML = `<div class="empty">搜索失败：${e.message}</div>`;
