@@ -390,19 +390,19 @@ window.searchMusic = async function(keyword) {
   list.innerHTML = '<div class="empty">搜索中...</div>';
   document.getElementById('searchResult').style.display = 'block';
   
-  try {
-    // 前端直接调用网易云音乐 API，不用经过后端
-    const resp = await fetch(`https://apis.netstart.cn/music/search?keywords=${encodeURIComponent(kw)}&limit=20`);
-    const data = await resp.json();
-    console.log('[音乐模块] 搜索返回:', data);
+    // 先用网易云搜索获取歌曲id
+    console.log('[音乐模块] 搜索歌曲，关键词:', kw);
+    const searchResp = await fetch(`https://apis.netstart.cn/music/search?keywords=${encodeURIComponent(kw)}&limit=20`);
+    const searchData = await searchResp.json();
+    console.log('[音乐模块] 搜索返回:', searchData);
     
-    const songs = (data?.result?.songs || []).map(item => ({
+    const songs = (searchData?.result?.songs || []).map(item => ({
       id: item.id,
       name: item.name,
       artist: item.artists?.[0]?.name || '未知歌手',
       album: item.album?.name || '',
       artwork: item.album?.picUrl || '',
-      preview: '', // 播放地址需要另外获取
+      preview: '',
       duration: Math.round(item.duration / 1000),
     }));
     
@@ -438,13 +438,13 @@ window.playFromSearch = function(i) {
     if (!s) throw new Error('没找到搜索结果歌曲数据');
     console.log('[音乐模块] 准备播放:', s.name, '-', s.artist);
     
-    // 先获取播放地址
-    console.log('[音乐模块] 获取播放地址，歌曲id:', s.id);
-    const resp = await fetch(`https://apis.netstart.cn/music/song/url?id=${s.id}`);
+    // 用 Meting API 获取播放地址
+    console.log('[音乐模块] 用 Meting API 获取播放地址，歌曲id:', s.id);
+    const resp = await fetch(`https://api.injahow.cn/meting/?type=url&id=${s.id}`);
     const data = await resp.json();
-    console.log('[音乐模块] 播放地址返回:', data);
+    console.log('[音乐模块] Meting API 返回:', data);
     
-    const url = data?.data?.[0]?.url || '';
+    const url = data?.[0]?.url || '';
     if (!url) {
       throw new Error('没获取到播放地址，这首歌可能需要 VIP');
     }
