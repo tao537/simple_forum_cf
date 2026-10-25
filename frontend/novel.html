@@ -181,20 +181,29 @@ body {
 </div>
 
 <script type="module">
+// 导入工具函数
 import { resolveBaseUrl } from '/common.js';
 
-let currentChapters = [];
-let currentChapterIndex = 0;
-let hotBooks = [];
+// 当前阅读状态
+let currentChapters = []; // 当前书籍的章节列表
+let currentChapterIndex = 0; // 当前阅读的章节索引
+let hotBooks = []; // 热门推荐书籍
+
+console.log('[小说模块] 初始化完成');
 
 // 页面加载时自动加载热门推荐
 // loadHotRecommend(); // 暂时注释掉，用写死的热门推荐
 
+/**
+ * 加载热门推荐
+ */
 async function loadHotRecommend() {
+  console.log('[小说模块] 加载热门推荐...');
   const list = document.getElementById('hotList');
   try {
     const resp = await fetch(`${resolveBaseUrl()}/api/novel/search?keyword=${encodeURIComponent('斗破苍穹')}`);
     const data = await resp.json();
+    console.log('[小说模块] 热门推荐返回:', data);
     if (!data.books?.length) {
       list.innerHTML = '<div class="empty">暂无推荐小说</div>';
       return;
@@ -208,33 +217,57 @@ async function loadHotRecommend() {
       </div>
     `).join('');
   } catch (e) {
+    console.error('[小说模块] 热门推荐加载失败:', e);
     list.innerHTML = `<div class="empty">加载失败：${e.message}</div>`;
   }
 }
 
-// 打开书籍
+/**
+ * 打开书籍（从热门推荐）
+ * @param {number} i - 书籍索引
+ */
 window.openBook = function(i) {
-  const b = hotBooks[i];
-  document.getElementById('hotRecommend').style.display = 'none';
-  document.getElementById('searchResult').style.display = 'none';
-  loadChapters(b.id);
-}
+  console.log('[小说模块] 打开热门书籍，索引:', i);
+  try {
+    const b = hotBooks[i];
+    if (!b) throw new Error('没找到书籍数据');
+    document.getElementById('hotRecommend').style.display = 'none';
+    document.getElementById('searchResult').style.display = 'none';
+    loadChapters(b.id);
+  } catch (e) {
+    console.error('[小说模块] 打开书籍失败:', e);
+    alert('打开失败：' + e.message);
+  }
+};
 
-// 搜索小说
+/**
+ * 搜索小说
+ * @param {string} keyword - 搜索关键词（可选，不传则从输入框读取）
+ */
 window.searchNovel = async function(keyword) {
   const kw = keyword || document.getElementById('searchInput').value.trim();
-  if (!kw) return;
+  console.log('[小说模块] 搜索小说，关键词:', kw);
+  
+  if (!kw) {
+    console.log('[小说模块] 关键词为空，退出搜索');
+    return;
+  }
+  
   document.getElementById('searchInput').value = kw;
   document.getElementById('chapterList').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
   document.getElementById('searchResult').innerHTML = '<div class="empty">搜索中...</div>';
+  
   try {
     const resp = await fetch(`${resolveBaseUrl()}/api/novel/search?keyword=${encodeURIComponent(kw)}`);
     const data = await resp.json();
+    console.log('[小说模块] 搜索返回:', data);
+    
     if (!data.books?.length) {
       document.getElementById('searchResult').innerHTML = '<div class="empty">没找到相关小说</div>';
       return;
     }
+    
     document.getElementById('searchResult').innerHTML = '<div class="book-list">' + data.books.map((b, i) => `
       <div class="book-card" onclick="showChaptersList('${b.id}', '${b.title.replace(/'/g, "\\'")}')">
         <div class="book-cover">📖</div>
@@ -245,70 +278,112 @@ window.searchNovel = async function(keyword) {
     `).join('') + '</div>';
     window._searchBooks = data.books;
   } catch (e) {
+    console.error('[小说模块] 搜索失败:', e);
     document.getElementById('searchResult').innerHTML = `<div class="empty">搜索失败：${e.message}</div>`;
   }
 };
 
-// 显示章节列表
+/**
+ * 显示章节列表
+ * @param {string} bookId - 书籍ID
+ * @param {string} bookTitle - 书籍标题
+ */
 window.showChaptersList = async function(bookId, bookTitle) {
+  console.log('[小说模块] 显示章节列表，书籍:', bookTitle);
   document.getElementById('searchResult').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
   document.getElementById('chapterList').style.display = '';
   document.getElementById('bookTitle').textContent = bookTitle;
   document.getElementById('chapters').innerHTML = '<div class="empty">加载章节中...</div>';
+  
   try {
     const resp = await fetch(`${resolveBaseUrl()}/api/novel/chapters?id=${bookId}`);
     const data = await resp.json();
+    console.log('[小说模块] 章节返回:', data);
+    
     currentChapters = data.chapters || [];
     if (!currentChapters.length) {
       document.getElementById('chapters').innerHTML = '<div class="empty">暂无章节</div>';
       return;
     }
+    
     document.getElementById('chapters').innerHTML = currentChapters.map((ch, i) =>
       `<a class="chapter-item" onclick="readChapter(${i})">第${i+1}章 ${ch.title}</a>`
     ).join('');
   } catch (e) {
+    console.error('[小说模块] 加载章节失败:', e);
     document.getElementById('chapters').innerHTML = `<div class="empty">加载失败：${e.message}</div>`;
   }
 };
 
-// 阅读章节
+/**
+ * 阅读章节
+ * @param {number} index - 章节索引
+ */
 window.readChapter = async function(index) {
-  currentChapterIndex = index;
-  document.getElementById('chapterList').style.display = 'none';
-  document.getElementById('reader').style.display = '';
-  const ch = currentChapters[index];
-  document.getElementById('readerTitle').textContent = ch.title;
-  document.getElementById('readerContent').textContent = '加载中...';
+  console.log('[小说模块] 阅读章节，索引:', index);
   try {
+    currentChapterIndex = index;
+    document.getElementById('chapterList').style.display = 'none';
+    document.getElementById('reader').style.display = '';
+    
+    const ch = currentChapters[index];
+    if (!ch) throw new Error('没找到章节数据');
+    
+    document.getElementById('readerTitle').textContent = ch.title;
+    document.getElementById('readerContent').textContent = '加载中...';
+    
     const resp = await fetch(`${resolveBaseUrl()}/api/novel/content?link=${encodeURIComponent(ch.link)}`);
     const data = await resp.json();
+    console.log('[小说模块] 章节内容返回:', data);
+    
     document.getElementById('readerContent').textContent = data.content || '暂无内容';
   } catch (e) {
+    console.error('[小说模块] 阅读章节失败:', e);
     document.getElementById('readerContent').textContent = `加载失败：${e.message}`;
   }
 };
 
-// 上一章/下一章
+/**
+ * 上一章
+ */
 window.prevChapter = function() {
+  console.log('[小说模块] 点击上一章');
   if (currentChapterIndex > 0) readChapter(currentChapterIndex - 1);
 };
+
+/**
+ * 下一章
+ */
 window.nextChapter = function() {
+  console.log('[小说模块] 点击下一章');
   if (currentChapterIndex < currentChapters.length - 1) readChapter(currentChapterIndex + 1);
 };
 
+/**
+ * 显示搜索结果
+ */
 window.showSearch = function() {
+  console.log('[小说模块] 显示搜索');
   document.getElementById('chapterList').style.display = 'none';
   document.getElementById('searchResult').style.display = '';
 };
+
+/**
+ * 显示章节列表
+ */
 window.showChapters = function() {
+  console.log('[小说模块] 显示章节列表');
   document.getElementById('reader').style.display = 'none';
   document.getElementById('chapterList').style.display = '';
 };
 
 // 回车搜索
 document.getElementById('searchInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') searchNovel();
+  if (e.key === 'Enter') {
+    console.log('[小说模块] 按回车搜索');
+    searchNovel();
+  }
 });
 </script>
 </body>
