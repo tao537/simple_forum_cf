@@ -326,25 +326,44 @@ renderPlaylist();
 // ===== 热门试听 =====
 // 只放几首，点封面就播（不用先搜索），结果缓存 6 小时
 const HOT_QUERIES = ['晴天', '七里香', '稻香', '起风了', '海阔天空', '光年之外'];
-const HOT_CACHE_KEY = 'music_hot_v2';
+const HOT_CACHE_KEY = 'music_hot_v3';
 const HOT_CACHE_TTL = 6 * 3600 * 1000;
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 解析接口并发多了会限流（返回非数组），这里逐首请求并在失败时重试一次
 async function searchOne(kw) {
-  const r = await fetch(`${GD_API}?types=search&source=netease&name=${encodeURIComponent(kw)}&count=5&pages=1`);
-  const rows = await r.json();
-  const x = Array.isArray(rows) ? rows[0] : null;
-  if (!x || !x.id) return null;
-  return {
-    id: x.id,
-    name: x.name || kw,
-    artist: Array.isArray(x.artist) ? x.artist.join('/') : (x.artist || ''),
-    album: x.album || '',
-    artwork: x.pic_id ? `${GD_API}?types=pic&source=netease&id=${encodeURIComponent(x.pic_id)}&size=300` : '',
-    preview: '',
-    urlId: x.url_id || x.id,
-    source: x.source || 'netease',
-    duration: 0,
-  };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetch(`${GD_API}?types=search&source=netease&name=${encodeURIComponent(kw)}&count=5&pages=1`);
+      const rows = await r.json();
+      const x = Array.isArray(rows) ? rows[0] : null;
+      if (!x || !x.id) { await sleep(350); continue; }
+
+      // 封面：pic 接口返回的是 JSON（{url}），不能直接当图片地址用
+      let artwork = '';
+      if (x.pic_id) {
+        try {
+          const pr = await fetch(`${GD_API}?types=pic&source=netease&id=${encodeURIComponent(x.pic_id)}&size=300`);
+          const pd = await pr.json();
+          artwork = pd?.url || '';
+        } catch { /* 没封面就用 emoji 兜底 */ }
+      }
+
+      return {
+        id: x.id,
+        name: x.name || kw,
+        artist: Array.isArray(x.artist) ? x.artist.join('/') : (x.artist || ''),
+        album: x.album || '',
+        artwork,
+        preview: '',
+        urlId: x.url_id || x.id,
+        source: x.source || 'netease',
+        duration: 0,
+      };
+    } catch { await sleep(350); }
+  }
+  return null;
 }
 
 function renderHot(songs) {
@@ -367,7 +386,13 @@ async function loadHotTracks() {
     }
   } catch { /* 缓存坏了就重新拉 */ }
 
-  const songs = (await Promise.all(HOT_QUERIES.map((k) => searchOne(k).catch(() => null)))).filter(Boolean);
+  // 逐首加载（并发会被接口限流，导致只剩三四首）
+  const songs = [];
+  for (const k of HOT_QUERIES) {
+    const s = await searchOne(k);
+    if (s) songs.push(s);
+    await sleep(150);
+  }
   if (!songs.length) {
     document.getElementById('hotGrid').innerHTML = '<div class="empty">热门加载失败，可直接搜索</div>';
     return;
@@ -416,7 +441,7 @@ window.searchMusic = async function(keyword) {
       name: r.name || '未知歌曲',
       artist: Array.isArray(r.artist) ? r.artist.join('/') : (r.artist || '未知歌手'),
       album: r.album || '',
-      artwork: r.pic_id ? `${GD_API}?types=pic&source=netease&id=${encodeURIComponent(r.pic_id)}&size=300` : '',
+      artwork: '', // pic 接口返回 JSON，搜索结果不取封面（播放时用 emoji 兜底）
       preview: '',
       urlId: r.url_id || r.id,
       source: r.source || 'netease',
