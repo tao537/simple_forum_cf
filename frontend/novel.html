@@ -109,7 +109,10 @@ body::after {
   background: linear-gradient(135deg, #1e3a8a, #3b82f6, #0ea5e9);
   display: flex; align-items: center; justify-content: center; font-size: 48px;
   margin-bottom: 10px;
+  overflow: hidden;
 }
+.book-cover img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; display: block; }
+a.book-card { display: block; text-decoration: none; color: inherit; }
 .book-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
 .book-author { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
 .book-cat { font-size: 11px; color: #64748b; }
@@ -179,47 +182,52 @@ body::after {
     可合法阅读全文。可搜《红楼梦》《三国演义》《西游记》《水浒传》《聊斋志异》等经典。
   </div>
 
-  <!-- 热门推荐 -->
+  <!-- 热门推荐：网文（封面直连起点图床，点击去官方正版阅读） -->
   <div id="hotRecommend" style="margin-bottom:24px">
-    <h3 style="margin-bottom:12px;font-size:16px;color:#e2e8f0">🔥 热门推荐</h3>
+    <h3 style="margin-bottom:12px;font-size:16px;color:#e2e8f0">🔥 网文推荐
+      <span style="font-size:12px;color:#94a3b8;font-weight:400">点击封面去起点官方阅读</span>
+    </h3>
     <div class="book-list" id="hotList">
-      <div class="book-card" onclick="searchNovel('红楼梦')">
-        <div class="book-cover">🏮</div>
-        <div class="book-title">红楼梦</div>
-        <div class="book-author">曹雪芹</div>
-        <div class="book-cat">古典 · 章回</div>
-      </div>
-      <div class="book-card" onclick="searchNovel('三国演义')">
-        <div class="book-cover">⚔️</div>
-        <div class="book-title">三国演义</div>
-        <div class="book-author">罗贯中</div>
-        <div class="book-cat">古典 · 历史</div>
-      </div>
-      <div class="book-card" onclick="searchNovel('西游记')">
-        <div class="book-cover">🐒</div>
-        <div class="book-title">西游记</div>
-        <div class="book-author">吴承恩</div>
-        <div class="book-cat">古典 · 神魔</div>
-      </div>
-      <div class="book-card" onclick="searchNovel('水浒传')">
-        <div class="book-cover">🏔️</div>
-        <div class="book-title">水浒传</div>
-        <div class="book-author">施耐庵</div>
-        <div class="book-cat">古典 · 侠义</div>
-      </div>
-      <div class="book-card" onclick="searchNovel('聊斋志异')">
-        <div class="book-cover">🦊</div>
-        <div class="book-title">聊斋志异</div>
-        <div class="book-author">蒲松龄</div>
-        <div class="book-cat">古典 · 志怪</div>
-      </div>
-      <div class="book-card" onclick="searchNovel('封神演义')">
-        <div class="book-cover">🔱</div>
-        <div class="book-title">封神演义</div>
-        <div class="book-author">许仲琳</div>
-        <div class="book-cat">古典 · 神魔</div>
-      </div>
+      <a class="book-card" href="https://book.qidian.com/info/1010868264/" target="_blank" rel="noopener noreferrer">
+        <div class="book-cover"><img src="https://bookcover.yuewen.com/qdbimg/349573/1010868264/300" alt="诡秘之主" loading="lazy" referrerpolicy="no-referrer"></div>
+        <div class="book-title">诡秘之主</div>
+        <div class="book-author">爱潜水的乌贼</div>
+        <div class="book-cat">克苏鲁 · 蒸汽朋克</div>
+      </a>
+      <a class="book-card" href="https://book.qidian.com/info/107580/" target="_blank" rel="noopener noreferrer">
+        <div class="book-cover"><img src="https://bookcover.yuewen.com/qdbimg/349573/107580/300" alt="凡人修仙传" loading="lazy" referrerpolicy="no-referrer"></div>
+        <div class="book-title">凡人修仙传</div>
+        <div class="book-author">忘语</div>
+        <div class="book-cat">仙侠 · 修真</div>
+      </a>
+      <a class="book-card" href="https://book.qidian.com/info/1209977/" target="_blank" rel="noopener noreferrer">
+        <div class="book-cover"><img src="https://bookcover.yuewen.com/qdbimg/349573/1209977/300" alt="斗破苍穹" loading="lazy" referrerpolicy="no-referrer"></div>
+        <div class="book-title">斗破苍穹</div>
+        <div class="book-author">天蚕土豆</div>
+        <div class="book-cat">玄幻 · 异世</div>
+      </a>
+      <a class="book-card" href="https://book.qidian.com/info/1115277/" target="_blank" rel="noopener noreferrer">
+        <div class="book-cover"><img src="https://bookcover.yuewen.com/qdbimg/349573/1115277/300" alt="斗罗大陆" loading="lazy" referrerpolicy="no-referrer"></div>
+        <div class="book-title">斗罗大陆</div>
+        <div class="book-author">唐家三少</div>
+        <div class="book-cat">玄幻 · 魂师</div>
+      </a>
+      <a class="book-card" href="https://book.qidian.com/info/1010734492/" target="_blank" rel="noopener noreferrer">
+        <div class="book-cover"><img src="https://bookcover.yuewen.com/qdbimg/349573/1010734492/300" alt="凡人修仙之仙界篇" loading="lazy" referrerpolicy="no-referrer"></div>
+        <div class="book-title">凡人修仙之仙界篇</div>
+        <div class="book-author">忘语</div>
+        <div class="book-cat">仙侠 · 修真</div>
+      </a>
     </div>
+    <p style="margin-top:12px;font-size:12px;color:#94a3b8">
+      公版经典可在线读全文：
+      <a href="javascript:void(0)" onclick="searchNovel('红楼梦')" style="color:#60a5fa">红楼梦</a> ·
+      <a href="javascript:void(0)" onclick="searchNovel('三国演义')" style="color:#60a5fa">三国演义</a> ·
+      <a href="javascript:void(0)" onclick="searchNovel('西游记')" style="color:#60a5fa">西游记</a> ·
+      <a href="javascript:void(0)" onclick="searchNovel('水浒传')" style="color:#60a5fa">水浒传</a> ·
+      <a href="javascript:void(0)" onclick="searchNovel('聊斋志异')" style="color:#60a5fa">聊斋志异</a> ·
+      <a href="javascript:void(0)" onclick="searchNovel('封神演义')" style="color:#60a5fa">封神演义</a>
+    </p>
   </div>
 
   <!-- 搜索结果 -->
