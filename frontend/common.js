@@ -706,11 +706,10 @@ export function initMusicPlayer(opts = {}) {
       document.getElementById('musicSong').textContent = '♫ ' + (song.name || '') + '（无播放地址）';
       return;
     }
-    idx = -1;
     nowSong = song;
     currentUrl = url;
     paintTitle();
-    paintActive();
+    ensureNowInList();
     audio.src = url;
     audio.play().catch(() => {});
     saveNow({ position: 0 });
@@ -795,13 +794,27 @@ export function initMusicPlayer(opts = {}) {
   });
 
   // 播放列表（音乐页的歌单优先）
-  const tbox = document.getElementById('musicTracks');
-  list.forEach((t, i) => {
-    const b = document.createElement('button');
-    b.textContent = (t.name || '曲目 ' + (i + 1)) + (t.artist ? ' - ' + t.artist : '');
-    b.onclick = () => setTrack(i);
-    tbox.appendChild(b);
-  });
+  function renderTrackButtons() {
+    const tbox = document.getElementById('musicTracks');
+    tbox.innerHTML = '';
+    list.forEach((t, i) => {
+      const b = document.createElement('button');
+      b.textContent = (t.name || '曲目 ' + (i + 1)) + (t.artist ? ' - ' + t.artist : '');
+      b.onclick = () => setTrack(i);
+      tbox.appendChild(b);
+    });
+    paintActive();
+  }
+  // 当前播放的歌如果不在歌单里（例如音乐页的热门试听），临时插到列表最前面
+  function ensureNowInList() {
+    if (!nowSong) return;
+    const key = String(nowSong.id || nowSong.name);
+    const i = list.findIndex((t) => String(t.id || t.name) === key);
+    if (i >= 0) idx = i;
+    else { list.unshift(nowSong); idx = 0; renderTrackButtons(); }
+    paintActive();
+  }
+  renderTrackButtons();
 
   // 恢复上次播放的歌曲和进度（不自动播放，避免被手机浏览器拦截）
   const prev = readMusicNow();
@@ -809,9 +822,8 @@ export function initMusicPlayer(opts = {}) {
   if (prev?.song) {
     nowSong = prev.song;
     currentUrl = prev.url || prev.song.preview || '';
-    idx = prev.song.id ? list.findIndex((t) => String(t.id || t.name) === String(prev.song.id)) : -1;
     paintTitle();
-    paintActive();
+    ensureNowInList();
     if (currentUrl) {
       audio.src = currentUrl;
       audio.addEventListener('loadedmetadata', () => {
@@ -834,9 +846,8 @@ export function initMusicPlayer(opts = {}) {
     }
     nowSong = now.song;
     currentUrl = now.url || now.song.preview || '';
-    idx = now.song.id ? list.findIndex((t) => String(t.id || t.name) === String(now.song.id)) : -1;
     paintTitle();
-    paintActive();
+    ensureNowInList();
     if (!currentUrl) return;
     audio.src = currentUrl;
     audio.addEventListener('loadedmetadata', () => {
