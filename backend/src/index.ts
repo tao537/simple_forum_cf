@@ -1591,27 +1591,73 @@ app.delete('/api/game/comments/:id', async (c) => {
 //  网易云音乐搜索/解析（代理接口，避免前端 CORS）
 // ================================================================
 
-// 搜索歌曲（uomg API）
+// 搜索歌曲（多API备用）
 app.get('/api/music/search', async (c) => {
   const keyword = String(c.req.query('keyword') || '').trim();
   if (!keyword) return c.json({ songs: [] });
-  try {
-    // 先试试 uomg 的随机热歌榜
-    const resp = await fetch(`https://api.uomg.com/api/rand.music?sort=热歌榜&format=json`);
-    const data = await resp.json<any>();
-    const songs = [{
-      id: data.id || 1,
-      name: data.name || '未知歌曲',
-      artist: data.artists || '未知艺术家',
-      album: data.album || '',
-      artwork: data.pic || '',
-      preview: '',
-      duration: 0,
-    }];
-    return c.json({ songs });
-  } catch (e: any) {
-    return c.json({ songs: [], error: e.message });
+
+  // API 列表，依次尝试
+  const apis = [
+    // 1. 网易云官方 API
+    async () => {
+      const resp = await fetch(`https://music.163.com/api/search/get/web?s=${encodeURIComponent(keyword)}&type=1&offset=0&total=true&limit=20`, {
+        headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://music.163.com/' }
+      });
+      const data = await resp.json<any>();
+      if (!data?.result?.songs?.length) throw new Error('无结果');
+      return data.result.songs.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        artist: (s.artists || []).map((a: any) => a.name).join(' / ') || '未知艺术家',
+        album: s.album?.name || '',
+        artwork: s.album?.picUrl || '',
+        preview: '',
+        duration: s.duration ? Math.round(s.duration / 1000) : 0,
+      }));
+    },
+    // 2. Meting API
+    async () => {
+      const resp = await fetch(`https://api.injahow.cn/meting/?type=search&source=netease&name=${encodeURIComponent(keyword)}`);
+      const data = await resp.json<any[]>();
+      if (!data?.length) throw new Error('无结果');
+      return data.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        artist: s.artist || '未知艺术家',
+        album: s.album || '',
+        artwork: s.picUrl || '',
+        preview: '',
+        duration: s.duration ? Math.round(s.duration / 1000) : 0,
+      }));
+    },
+    // 3. uomg 热歌榜（保底）
+    async () => {
+      const resp = await fetch(`https://api.uomg.com/api/rand.music?sort=热歌榜&format=json`);
+      const data = await resp.json<any>();
+      if (!data?.name) throw new Error('无结果');
+      return [{
+        id: data.id || 1,
+        name: data.name,
+        artist: data.artists || '未知艺术家',
+        album: data.album || '',
+        artwork: data.pic || '',
+        preview: '',
+        duration: 0,
+      }];
+    },
+  ];
+
+  // 依次尝试每个 API
+  for (const api of apis) {
+    try {
+      const songs = await api();
+      if (songs?.length) return c.json({ songs });
+    } catch (e) {
+      continue; // 这个 API 不行，试下一个
+    }
   }
+
+  return c.json({ songs: [], error: '所有API都失败了' });
 });
 
 // 获取歌曲播放地址（代理 302 跳转）
@@ -1625,27 +1671,60 @@ app.get('/api/music/url', async (c) => {
 //  小说阅读（追书神器 API 代理）
 // ================================================================
 
-// 搜索小说（kele8.cn API）
+// 搜索小说（多API备用）
 app.get('/api/novel/search', async (c) => {
   const keyword = String(c.req.query('keyword') || '').trim();
   if (!keyword) return c.json({ books: [] });
-  try {
-    const resp = await fetch(`https://novel.kele8.cn/search?keyword=${encodeURIComponent(keyword)}`);
-    const data = await resp.json<any>();
-    const books = (data?.books || data?.results || []).map((b: any) => ({
-      id: b.bookId || b.id || b._id,
-      title: b.bookName || b.title || b.name,
-      author: b.author || '未知作者',
-      cover: b.cover || b.coverUrl || '',
-      category: b.cat || b.category || '',
-      description: b.desc || b.description || '',
-      words: b.wordCount || 0,
-      status: b.status || '',
-    }));
-    return c.json({ books });
-  } catch (e: any) {
-    return c.json({ books: [], error: e.message });
+
+  // API 列表，依次尝试
+  const apis = [
+    // 1. kele8.cn API
+    async () => {
+      const resp = await fetch(`https://novel.kele8.cn/search?keyword=${encodeURIComponent(keyword)}`);
+      const data = await resp.json<any>();
+      const books = (data?.books || data?.results || []).map((b: any) => ({
+        id: b.bookId || b.id || b._id,
+        title: b.bookName || b.title || b.name,
+        author: b.author || '未知作者',
+        cover: b.cover || b.coverUrl || '',
+        category: b.cat || b.category || '',
+        description: b.desc || b.description || '',
+        words: b.wordCount || 0,
+        status: b.status || '',
+      }));
+      if (!books?.length) throw new Error('无结果');
+      return books;
+    },
+    // 2. Open Library API（保底）
+    async () => {
+      const resp = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(keyword)}&limit=10`);
+      const data = await resp.json<any>();
+      const books = (data?.docs || []).map((b: any) => ({
+        id: b.key || b.work_id?.[0] || Math.random().toString(36).slice(2),
+        title: b.title || '未知书名',
+        author: b.author_name?.[0] || '未知作者',
+        cover: b.cover_i ? `https://covers.openlibrary.org/b/id/${b.cover_i}-M.jpg` : '',
+        category: b.subject?.[0] || '',
+        description: b.first_sentence?.[0] || '',
+        words: b.number_of_pages_median || 0,
+        status: '已出版',
+      }));
+      if (!books?.length) throw new Error('无结果');
+      return books;
+    },
+  ];
+
+  // 依次尝试每个 API
+  for (const api of apis) {
+    try {
+      const books = await api();
+      if (books?.length) return c.json({ books });
+    } catch (e) {
+      continue; // 这个 API 不行，试下一个
+    }
   }
+
+  return c.json({ books: [], error: '所有API都失败了' });
 });
 
 // 小说章节列表
