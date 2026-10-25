@@ -1648,16 +1648,18 @@ app.get('/api/music/search', async (c) => {
   ];
 
   // 依次尝试每个 API
-  for (const api of apis) {
+  const errors: string[] = [];
+  for (let i = 0; i < apis.length; i++) {
     try {
-      const songs = await api();
-      if (songs?.length) return c.json({ songs });
-    } catch (e) {
-      continue; // 这个 API 不行，试下一个
+      const songs = await apis[i]();
+      if (songs?.length) return c.json({ songs, debug: `API #${i+1} 成功` });
+    } catch (e: any) {
+      errors.push(`API #${i+1}: ${e.message}`);
+      continue;
     }
   }
 
-  return c.json({ songs: [], error: '所有API都失败了' });
+  return c.json({ songs: [], error: '所有API都失败了', debug: errors.join(' | ') });
 });
 
 // 获取歌曲播放地址（代理 302 跳转）
