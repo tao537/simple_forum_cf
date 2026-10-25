@@ -315,8 +315,7 @@ body::before {
 </div>
 
 <script>
-// 苹果CMS资源站接口
-const API_BASE = 'https://api.apibdzy.com/api.php/provide/vod/';
+// 影视模块状态
 let currentEpisodes = [];   // 当前影视的剧集列表
 let hls = null;             // hls.js 实例
 
@@ -338,7 +337,8 @@ async function searchVideo() {
   title.textContent = '搜索结果';
 
   try {
-    const resp = await fetch(`${API_BASE}?ac=videolist&wd=${encodeURIComponent(kw)}`);
+    // 调用后端 Worker 代理接口（解决跨域问题）
+    const resp = await fetch(`https://forum-api.tao537.workers.dev/api/video/search?keyword=${encodeURIComponent(kw)}`);
     const data = await resp.json();
     console.log('[影视模块] 搜索返回:', data);
 
@@ -350,15 +350,15 @@ async function searchVideo() {
 
     // 渲染搜索结果
     grid.innerHTML = list.map((item) => `
-      <div class="movie-card" onclick="openDetail(${item.vod_id})">
+      <div class="movie-card" onclick="openDetail(${item.id})">
         <div class="movie-poster">
-          <img src="${item.vod_pic}" alt="${item.vod_name}" loading="lazy"
+          <img src="${item.pic}" alt="${item.name}" loading="lazy"
                onerror="this.style.display='none'" />
-          <div class="movie-status">${item.vod_remarks || ''}</div>
+          <div class="movie-status">${item.remarks || ''}</div>
         </div>
         <div class="movie-info">
-          <div class="movie-name">${item.vod_name}</div>
-          <div class="movie-meta">${item.type_name || ''} ${item.vod_year ? '· ' + item.vod_year : ''}</div>
+          <div class="movie-name">${item.name}</div>
+          <div class="movie-meta">${item.typeName} ${item.year ? '· ' + item.year : ''}</div>
         </div>
       </div>
     `).join('');
@@ -377,29 +377,29 @@ async function openDetail(id) {
   console.log('[影视模块] 打开详情，id:', id);
 
   // 从搜索列表中找到对应影视
-  const item = (window._searchList || []).find(x => x.vod_id === id);
+  const item = (window._searchList || []).find(x => x.id === id);
   if (!item) {
     alert('没找到影视数据');
     return;
   }
 
   // 填充详情信息
-  document.getElementById('detailPoster').src = item.vod_pic;
-  document.getElementById('detailName').textContent = item.vod_name;
-  document.getElementById('detailBlurb').textContent = item.vod_blurb || item.vod_content || '暂无简介';
+  document.getElementById('detailPoster').src = item.pic;
+  document.getElementById('detailName').textContent = item.name;
+  document.getElementById('detailBlurb').textContent = item.blurb || '暂无简介';
 
   // 填充标签
   const tags = [];
-  if (item.type_name) tags.push(item.type_name);
-  if (item.vod_year) tags.push(item.vod_year);
-  if (item.vod_area) tags.push(item.vod_area);
-  if (item.vod_remarks) tags.push(item.vod_remarks);
+  if (item.typeName) tags.push(item.typeName);
+  if (item.year) tags.push(item.year);
+  if (item.area) tags.push(item.area);
+  if (item.remarks) tags.push(item.remarks);
   document.getElementById('detailTags').innerHTML = tags
     .map(t => `<span class="detail-tag">${t}</span>`).join('');
 
   // 解析播放地址
   // 格式：第01集$https://xxx.m3u8#第02集$https://xxx.m3u8
-  const playUrl = item.vod_play_url || '';
+  const playUrl = item.playUrl || '';
   const episodes = playUrl.split('#').map(ep => {
     const [name, url] = ep.split('$');
     return { name: name || '播放', url: url || '' };
@@ -502,10 +502,10 @@ document.getElementById('searchInput').addEventListener('keydown', (e) => {
   }
 });
 
-// 页面加载时默认搜索热门（用一个常见词）
+// 页面加载时默认搜索热门电影
 window.addEventListener('DOMContentLoaded', () => {
   console.log('[影视模块] 页面加载完成，默认加载热门');
-  document.getElementById('searchInput').value = '2024';
+  document.getElementById('searchInput').value = '热门';
   searchVideo();
 });
 </script>

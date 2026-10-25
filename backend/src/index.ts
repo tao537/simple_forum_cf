@@ -1734,6 +1734,48 @@ app.get('/api/novel/content', async (c) => {
 });
 
 // ================================================================
+//  影视（苹果CMS资源站代理，解决浏览器跨域问题）
+// ================================================================
+
+// 苹果CMS资源站地址（可替换为其他支持该协议的资源站）
+const MAC_CMS_BASE = 'https://api.apibdzy.com/api.php/provide/vod/';
+
+// 搜索影视 / 获取详情（返回完整数据，含播放地址）
+app.get('/api/video/search', async (c) => {
+  const keyword = String(c.req.query('keyword') || '').trim();
+  console.log('影视搜索代理，关键词:', keyword);
+  if (!keyword) return c.json({ list: [] });
+
+  try {
+    // 调用苹果CMS接口，ac=videolist 返回完整数据（含播放地址）
+    const url = `${MAC_CMS_BASE}?ac=videolist&wd=${encodeURIComponent(keyword)}`;
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+    });
+    const data = await resp.json<any>();
+    console.log('影视资源站返回数量:', data?.list?.length || 0);
+
+    // 只返回前端需要的字段，精简数据
+    const list = (data?.list || []).map((item: any) => ({
+      id: item.vod_id,
+      name: item.vod_name,
+      pic: item.vod_pic,
+      blurb: item.vod_blurb || '',
+      remarks: item.vod_remarks || '',
+      typeName: item.type_name || '',
+      year: item.vod_year || '',
+      area: item.vod_area || '',
+      playUrl: item.vod_play_url || '',
+    }));
+
+    return c.json({ list });
+  } catch (e: any) {
+    console.error('影视搜索代理失败:', e);
+    return c.json({ list: [], error: '搜索失败: ' + e.message });
+  }
+});
+
+// ================================================================
 //  管理后台增强接口（论坛管理员身份，走主库 DB）
 // ================================================================
 
