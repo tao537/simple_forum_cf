@@ -437,6 +437,19 @@ window.playFromSearch = function(i) {
     const s = window._searchResults[i];
     if (!s) throw new Error('没找到搜索结果歌曲数据');
     console.log('[音乐模块] 准备播放:', s.name, '-', s.artist);
+    
+    // 先获取播放地址
+    console.log('[音乐模块] 获取播放地址，歌曲id:', s.id);
+    const resp = await fetch(`https://apis.netstart.cn/music/song/url?id=${s.id}`);
+    const data = await resp.json();
+    console.log('[音乐模块] 播放地址返回:', data);
+    
+    const url = data?.data?.[0]?.url || '';
+    if (!url) {
+      throw new Error('没获取到播放地址，这首歌可能需要 VIP');
+    }
+    
+    s.preview = url;
     playSong(s);
   } catch (e) {
     console.error('[音乐模块] 搜索结果播放失败:', e);
