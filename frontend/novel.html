@@ -164,7 +164,7 @@ body::after {
 
   <div class="header">
     <h1>📚 苦海书院</h1>
-    <p>在线小说阅读 —— 搜索你喜欢的小说</p>
+    <p>在线小说阅读 —— 公版经典与自由许可作品</p>
   </div>
 
   <!-- 搜索框 -->
@@ -173,64 +173,51 @@ body::after {
     <button onclick="searchNovel()">搜索</button>
   </div>
 
-  <!-- GitHub 开源书库 -->
-  <div style="margin-bottom:24px;padding:16px;background:rgba(255,255,255,.05);border-radius:12px;border:1px solid rgba(255,255,255,.1)">
-    <h3 style="margin-bottom:12px;font-size:16px;color:#e2e8f0">📚 GitHub 开源书库</h3>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
-      <a href="https://github.com/freeok/so-novel" target="_blank" style="padding:12px;background:rgba(255,255,255,.08);border-radius:8px;text-decoration:none;color:#e2e8f0;font-size:13px">
-        <div style="font-weight:600;margin-bottom:4px">📖 So Novel</div>
-        <div style="color:#94a3b8;font-size:11px">自动采集小说下载工具</div>
-      </a>
-      <a href="https://github.com/topics/novel-download" target="_blank" style="padding:12px;background:rgba(255,255,255,.08);border-radius:8px;text-decoration:none;color:#e2e8f0;font-size:13px">
-        <div style="font-weight:600;margin-bottom:4px">🔍 小说下载合集</div>
-        <div style="color:#94a3b8;font-size:11px">GitHub Topic 热门仓库</div>
-      </a>
-      <a href="https://github.com/topics/ebook-library" target="_blank" style="padding:12px;background:rgba(255,255,255,.08);border-radius:8px;text-decoration:none;color:#e2e8f0;font-size:13px">
-        <div style="font-weight:600;margin-bottom:4px">📚 电子书库</div>
-        <div style="color:#94a3b8;font-size:11px">开源电子书合集</div>
-      </a>
-    </div>
+  <!-- 书源说明 -->
+  <div style="margin-bottom:24px;padding:14px 16px;background:rgba(255,255,255,.05);border-radius:12px;border:1px solid rgba(255,255,255,.1);font-size:13px;color:#94a3b8;line-height:1.7">
+    📖 <strong style="color:#e2e8f0">书源：中文维基文库</strong> —— 只收录已进入公有领域或按自由许可发布的作品（CC BY-SA），
+    可合法阅读全文。可搜《红楼梦》《三国演义》《西游记》《水浒传》《聊斋志异》等经典。
   </div>
 
   <!-- 热门推荐 -->
   <div id="hotRecommend" style="margin-bottom:24px">
     <h3 style="margin-bottom:12px;font-size:16px;color:#e2e8f0">🔥 热门推荐</h3>
     <div class="book-list" id="hotList">
-      <div class="book-card" onclick="searchNovel('诡秘之主')">
-        <div class="book-cover">🕵️</div>
-        <div class="book-title">诡秘之主</div>
-        <div class="book-author">爱潜水的乌贼</div>
-        <div class="book-cat">玄幻 · 克苏鲁</div>
+      <div class="book-card" onclick="searchNovel('红楼梦')">
+        <div class="book-cover">🏮</div>
+        <div class="book-title">红楼梦</div>
+        <div class="book-author">曹雪芹</div>
+        <div class="book-cat">古典 · 章回</div>
       </div>
-      <div class="book-card" onclick="searchNovel('道诡异仙')">
-        <div class="book-cover">🚂</div>
-        <div class="book-title">道诡异仙</div>
-        <div class="book-author">狐尾的笔</div>
-        <div class="book-cat">玄幻 · 诡异</div>
-      </div>
-      <div class="book-card" onclick="searchNovel('凡人修仙传')">
+      <div class="book-card" onclick="searchNovel('三国演义')">
         <div class="book-cover">⚔️</div>
-        <div class="book-title">凡人修仙传</div>
-        <div class="book-author">忘语</div>
-        <div class="book-cat">仙侠 · 修仙</div>
+        <div class="book-title">三国演义</div>
+        <div class="book-author">罗贯中</div>
+        <div class="book-cat">古典 · 历史</div>
       </div>
-      <div class="book-card" onclick="searchNovel('斗罗大陆')">
-        <div class="book-cover">🐉</div>
-        <div class="book-title">斗罗大陆</div>
-        <div class="book-author">唐家三少</div>
-        <div class="book-cat">玄幻 · 异世</div>
+      <div class="book-card" onclick="searchNovel('西游记')">
+        <div class="book-cover">🐒</div>
+        <div class="book-title">西游记</div>
+        <div class="book-author">吴承恩</div>
+        <div class="book-cat">古典 · 神魔</div>
       </div>
-      <div class="book-card" onclick="searchNovel('斗破苍穹')">
-        <div class="book-cover">🔥</div>
-        <div class="book-title">斗破苍穹</div>
-        <div class="book-author">天蚕土豆</div>
-        <div class="book-cat">玄幻 · 异世</div>
+      <div class="book-card" onclick="searchNovel('水浒传')">
+        <div class="book-cover">🏔️</div>
+        <div class="book-title">水浒传</div>
+        <div class="book-author">施耐庵</div>
+        <div class="book-cat">古典 · 侠义</div>
       </div>
-      <div class="book-card" onclick="searchNovel('全职高手')">
-        <div class="book-cover">🎮</div>
-        <div class="book-title">全职高手</div>
-        <div class="book-author">蝴蝶蓝</div>
-        <div class="book-cat">游戏 · 电竞</div>
+      <div class="book-card" onclick="searchNovel('聊斋志异')">
+        <div class="book-cover">🦊</div>
+        <div class="book-title">聊斋志异</div>
+        <div class="book-author">蒲松龄</div>
+        <div class="book-cat">古典 · 志怪</div>
+      </div>
+      <div class="book-card" onclick="searchNovel('封神演义')">
+        <div class="book-cover">🔱</div>
+        <div class="book-title">封神演义</div>
+        <div class="book-author">许仲琳</div>
+        <div class="book-cat">古典 · 神魔</div>
       </div>
     </div>
   </div>
@@ -377,15 +364,10 @@ window.searchNovel = async function(keyword) {
  */
 window.openSearchBook = function(i) {
   const b = (window._searchBooks || [])[i];
-  if (!b) return alert('没找到书籍数据');
-  // 只有站内书源（数字 ID）才有章节；Open Library 的书目只有元数据
-  if (/^[A-Za-z0-9]+$/.test(String(b.id))) {
-    document.getElementById('hotRecommend').style.display = 'none';
-    document.getElementById('searchResult').style.display = 'none';
-    showChaptersList(b.id, b.title);
-  } else {
-    alert('该书目仅在书目库中，暂不支持在线阅读');
-  }
+  if (!b || !b.id) return alert('没找到书籍数据');
+  document.getElementById('hotRecommend').style.display = 'none';
+  document.getElementById('searchResult').style.display = 'none';
+  showChaptersList(b.id, b.title);
 };
 
 /**
@@ -471,6 +453,8 @@ window.nextChapter = function() {
 window.showSearch = function() {
   console.log('[小说模块] 显示搜索');
   document.getElementById('chapterList').style.display = 'none';
+  document.getElementById('reader').style.display = 'none';
+  document.getElementById('hotRecommend').style.display = '';
   document.getElementById('searchResult').style.display = '';
 };
 

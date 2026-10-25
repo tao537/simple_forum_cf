@@ -1643,91 +1643,126 @@ app.get('/api/music/url', async (c) => {
 });
 
 // ================================================================
-//  小说阅读（追书神器 API 代理）
+//  小说阅读（中文维基文库 API 代理，公版/自由许可文本，可合法阅读全文）
+//  说明：维基文库在国内被墙，手机端只能经由本 Worker 读取
 // ================================================================
 
-// 搜索小说（多API备用）
+const WIKISOURCE_API = 'https://zh.wikisource.org/w/api.php';
+// Wikimedia 要求请求带可辨识的 User-Agent，否则可能被 403
+const WIKISOURCE_UA = 'KuhaiNovel/1.0 (https://kuhai.de5.net)';
+
+// 统一请求维基文库 API（带 KV 缓存 1 天，减少上游压力）
+async function wsJson(c: any, params: Record<string, string>): Promise<any> {
+  const qs = new URLSearchParams({ ...params, format: 'json', utf8: '1' }).toString();
+  const key = `novel:ws:${qs}`;
+  try {
+    const cached = await c.env.IMG_KV.get(key);
+    if (cached) return JSON.parse(cached);
+  } catch { /* KV 不可用时直接请求 */ }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    const resp = await fetch(`${WIKISOURCE_API}?${qs}`, {
+      headers: { 'User-Agent': WIKISOURCE_UA, Accept: 'application/json' },
+      signal: controller.signal,
+    });
+    if (!resp.ok) throw new Error(`维基文库返回 ${resp.status}`);
+    const data = await resp.json<any>();
+    try {
+      await c.env.IMG_KV.put(key, JSON.stringify(data), { expirationTtl: 86400 });
+    } catch { /* 缓存失败不影响结果 */ }
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// 搜索小说（返回维基文库页面标题，作为后续章节查询的 id）
 app.get('/api/novel/search', async (c) => {
   const keyword = String(c.req.query('keyword') || '').trim();
   if (!keyword) return c.json({ books: [] });
 
-  // API 列表，依次尝试
-  const apis = [
-    // 1. kele8.cn API
-    async () => {
-      const resp = await fetch(`https://novel.kele8.cn/search?keyword=${encodeURIComponent(keyword)}`);
-      const data = await resp.json<any>();
-      const books = (data?.books || data?.results || []).map((b: any) => ({
-        id: b.bookId || b.id || b._id,
-        title: b.bookName || b.title || b.name,
-        author: b.author || '未知作者',
-        cover: b.cover || b.coverUrl || '',
-        category: b.cat || b.category || '',
-        description: b.desc || b.description || '',
-        words: b.wordCount || 0,
-        status: b.status || '',
-      }));
-      if (!books?.length) throw new Error('无结果');
-      return books;
-    },
-    // 2. Open Library API（保底）
-    async () => {
-      const resp = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(keyword)}&limit=10`);
-      const data = await resp.json<any>();
-      const books = (data?.docs || []).map((b: any) => ({
-        id: b.key || b.work_id?.[0] || Math.random().toString(36).slice(2),
-        title: b.title || '未知书名',
-        author: b.author_name?.[0] || '未知作者',
-        cover: b.cover_i ? `https://covers.openlibrary.org/b/id/${b.cover_i}-M.jpg` : '',
-        category: b.subject?.[0] || '',
-        description: b.first_sentence?.[0] || '',
-        words: b.number_of_pages_median || 0,
-        status: '已出版',
-      }));
-      if (!books?.length) throw new Error('无结果');
-      return books;
-    },
-  ];
-
-  // 依次尝试每个 API
-  for (const api of apis) {
-    try {
-      const books = await api();
-      if (books?.length) return c.json({ books });
-    } catch (e) {
-      continue; // 这个 API 不行，试下一个
-    }
+  try {
+    const data = await wsJson(c, {
+      action: 'query',
+      list: 'search',
+      srsearch: keyword,
+      srnamespace: '0',
+      srlimit: '20',
+    });
+    const books = (data?.query?.search || []).map((it: any) => ({
+      id: it.title,
+      title: it.title,
+      author: '中文维基文库',
+      cover: '',
+      category: '',
+      description: String(it.snippet || '').replace(/<[^>]+>/g, ''),
+      words: it.wordcount || 0,
+      status: '',
+    }));
+    if (!books.length) return c.json({ books: [], error: '没有找到相关作品' });
+    return c.json({ books, source: '中文维基文库（CC BY-SA）' });
+  } catch (e: any) {
+    return c.json({ books: [], error: e.message });
   }
-
-  return c.json({ books: [], error: '所有API都失败了' });
 });
 
-// 小说章节列表
+// 小说章节列表：取该书页面的子页面（维基文库的「书名/第X回」结构）
 app.get('/api/novel/chapters', async (c) => {
   const id = String(c.req.query('id') || '').trim();
   if (!id) return c.json({ chapters: [] });
+
   try {
-    const resp = await fetch(`https://novel.kele8.cn/book-source?view=summary&book=${id}`);
-    const data = await resp.json<any>();
-    const chapters = (data?.chapters || []).map((ch: any, i: number) => ({
-      index: i,
-      title: ch.title,
-      link: ch.link,
-    }));
+    const data = await wsJson(c, {
+      action: 'query',
+      prop: 'links',
+      titles: id,
+      plnamespace: '0',
+      pllimit: '500',
+    });
+    // MediaWiki 默认把 pages 返回成对象（以 pageid 为键），这里统一取第一个
+    const pages: any = data?.query?.pages || {};
+    const page: any = Array.isArray(pages) ? pages[0] : Object.values(pages)[0];
+    const titles: string[] = (page?.links || []).map((l: any) => l.title);
+
+    let chapters = titles
+      .filter((t) => t.startsWith(`${id}/`))
+      .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN', { numeric: true }))
+      .map((t, i: number) => ({ index: i, title: t.slice(id.length + 1), link: t }));
+
+    // 没有子页面（单页作品）时整页作为一章
+    if (!chapters.length) chapters = [{ index: 0, title: id, link: id }];
+
     return c.json({ chapters, total: chapters.length });
   } catch (e: any) {
     return c.json({ chapters: [], error: e.message });
   }
 });
 
-// 小说章节内容
+// 小说章节内容：取维基文库纯文本（explaintext）
 app.get('/api/novel/content', async (c) => {
   const link = String(c.req.query('link') || '').trim();
   if (!link) return c.json({ content: '' });
+
   try {
-    const resp = await fetch(`https://novel.kele8.cn/chapter?link=${encodeURIComponent(link)}`);
-    const data = await resp.json<any>();
-    return c.json({ content: data?.chapter?.content || '' });
+    const data = await wsJson(c, {
+      action: 'query',
+      prop: 'extracts',
+      explaintext: '1',
+      titles: link,
+    });
+    const pages: any = data?.query?.pages || {};
+    const page: any = Array.isArray(pages) ? pages[0] : Object.values(pages)[0];
+    const text = page?.extract || '';
+    // 去掉章节页顶部的导航行（如「回目录　下一回」，可能同一行出现多个导航词）
+    const cleaned = text
+      .split('\n')
+      .filter((line: string) => line.replace(/[\s\u3000]/g, '').replace(/(回目录|上一回|下一回|目錄|目录)/g, '').length > 0)
+      .join('\n')
+      .trim();
+    if (!cleaned) return c.json({ content: '', error: '该页面没有可读正文' });
+    return c.json({ content: cleaned, source: '中文维基文库（CC BY-SA）' });
   } catch (e: any) {
     return c.json({ content: '', error: e.message });
   }

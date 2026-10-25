@@ -468,8 +468,10 @@ async function playEpisode(index) {
     hls = null;
   }
 
-  // 优先用浏览器原生 HLS（iOS Safari），不用下载任何外部脚本
-  if (video.canPlayType('application/vnd.apple.mpegurl')) {
+  // 只有 iOS Safari 才用原生 HLS（安卓 Chrome 的 canPlayType 会误报支持，实际播不了）
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS && video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = ep.url;
     video.addEventListener('loadedmetadata', () => {
       video.play().catch(e => console.warn('[影视模块] 自动播放被拦截:', e));
@@ -481,6 +483,12 @@ async function playEpisode(index) {
   try {
     const Hls = await loadHls();
     if (!Hls.isSupported()) {
+      // 兜底：交给浏览器原生播放（老 iOS 等）
+      if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = ep.url;
+        video.play().catch(e => console.warn('[影视模块] 自动播放被拦截:', e));
+        return;
+      }
       alert('你的浏览器不支持播放 m3u8 视频');
       return;
     }
