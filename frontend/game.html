@@ -409,14 +409,15 @@
   const state = { page: 1, size: 12, total: 0, sort: 'new', keyword: '' };
   let pendingImages = [];
 
-  initAnimatedBackground({ images: GAME_WALLPAPERS, interval: 12000 });
+  // 门禁页面先不加载背景动画和音乐播放器，避免卡顿
+  // initAnimatedBackground({ images: GAME_WALLPAPERS, interval: 12000 });
   setGateWallpaper('.gate');
-  initMusicPlayer({
-    tracks: [
-      { name: 'Follow', url: '/music/01.mp3' },
-      { name: 'Solaris', url: '/music/02.mp3' },
-    ],
-  });
+  // initMusicPlayer({
+  //   tracks: [
+  //     { name: 'Follow', url: '/music/01.mp3' },
+  //     { name: 'Solaris', url: '/music/02.mp3' },
+  //   ],
+  // });
 
   function toast(msg, isErr = false) {
     const el = document.getElementById('toast');
