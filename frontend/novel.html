@@ -259,18 +259,19 @@ window.searchNovel = async function(keyword) {
   document.getElementById('searchResult').innerHTML = '<div class="empty">搜索中...</div>';
   
   try {
-    // 直接调用 Open Library API
-    const resp = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(kw)}&limit=10`);
+    // 直接调用网易云阅读 API
+    const resp = await fetch(`https://apis.netstart.cn/yunyuedu/search/book.json?keyword=${encodeURIComponent(kw)}`);
     const data = await resp.json();
     console.log('[小说模块] 搜索返回:', data);
     
-    const books = (data?.docs || []).map(b => ({
-      id: b.key || Math.random().toString(36).slice(2),
-      title: b.title || '未知书名',
-      author: b.author_name?.[0] || '未知作者',
-      cover: b.cover_i ? `https://covers.openlibrary.org/b/id/${b.cover_i}-M.jpg` : '',
-      category: b.subject?.[0] || '',
-      status: '已出版',
+    // 解析返回的数据
+    const books = (data?.books || data?.data || []).map(b => ({
+      id: b.bookId || b.id || b.uuid || '',
+      title: b.bookName || b.title || b.name || '未知书名',
+      author: b.author || '未知作者',
+      cover: b.bookCover || b.cover || b.coverUrl || '',
+      category: b.category || b.cat || '',
+      status: b.bookStatus || b.status || '',
     }));
     
     if (!books.length) {
