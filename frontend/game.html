@@ -413,9 +413,10 @@
   const state = { page: 1, size: 12, total: 0, sort: 'new', keyword: '' };
   let pendingImages = [];
 
-  // 门禁页面先不加载背景动画和音乐播放器，避免卡顿
-  // initAnimatedBackground({ images: GAME_WALLPAPERS, interval: 12000 });
+  // 恢复动态人物背景（背景动画很轻量，不会导致卡顿）
+  initAnimatedBackground({ images: GAME_WALLPAPERS, interval: 12000 });
   setGateWallpaper('.gate');
+  // 背景音乐播放器暂时保持关闭，如需要可再恢复
   // initMusicPlayer({
   //   tracks: [
   //     { name: 'Follow', url: '/music/01.mp3' },
