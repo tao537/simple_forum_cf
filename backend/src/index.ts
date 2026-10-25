@@ -1591,37 +1591,55 @@ app.delete('/api/game/comments/:id', async (c) => {
 //  网易云音乐搜索/解析（代理接口，避免前端 CORS）
 // ================================================================
 
-// 搜索歌曲（先用固定数据，保证功能可用）
+// 搜索歌曲（用 iTunes API，有可直接播放的预览地址）
 app.get('/api/music/search', async (c) => {
   const keyword = String(c.req.query('keyword') || '').trim();
   if (!keyword) return c.json({ songs: [] });
 
-  // 先返回固定的热门歌曲，保证功能可用
-  const hotSongs = [
-    { id: 186016, name: '晴天', artist: '周杰伦', album: '叶惠美', artwork: '', duration: 269 },
-    { id: 186018, name: '七里香', artist: '周杰伦', album: '七里香', artwork: '', duration: 296 },
-    { id: 186019, name: '稻香', artist: '周杰伦', album: '魔杰座', artwork: '', duration: 223 },
-    { id: 139859, name: '起风了', artist: '买辣椒也用券', album: '起风了', artwork: '', duration: 325 },
-    { id: 18240208, name: '海阔天空', artist: 'Beyond', album: '乐与怒', artwork: '', duration: 326 },
-    { id: 28815461, name: '光年之外', artist: 'G.E.M. 邓紫棋', album: '光年之外', artwork: '', duration: 235 },
-  ];
+  try {
+    // 调用 iTunes Search API
+    const resp = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(keyword)}&media=music&limit=20`);
+    const data = await resp.json<any>();
+    
+    if (!data?.results?.length) {
+      return c.json({ songs: [], error: '没找到相关歌曲' });
+    }
 
-  // 简单过滤一下，匹配关键词
-  const songs = hotSongs.filter(s => 
-    s.name.includes(keyword) || s.artist.includes(keyword)
-  );
+    // 转换格式
+    const songs = data.results.map((item: any) => ({
+      id: item.trackId,
+      name: item.trackName,
+      artist: item.artistName,
+      album: item.collectionName || '',
+      artwork: item.artworkUrl100?.replace('100x100', '300x300') || '',
+      preview: item.previewUrl || '', // 30秒预览地址，可直接播放
+      duration: Math.round(item.trackTimeMillis / 1000),
+    }));
 
-  // 如果没匹配到，就返回全部热门歌曲
-  if (!songs.length) return c.json({ songs: hotSongs });
-
-  return c.json({ songs });
+    return c.json({ songs });
+  } catch (e: any) {
+    console.error('音乐搜索失败:', e);
+    return c.json({ songs: [], error: '搜索失败: ' + e.message });
+  }
 });
 
-// 获取歌曲播放地址（代理 302 跳转）
+// 获取歌曲播放地址（直接返回预览地址）
 app.get('/api/music/url', async (c) => {
   const id = String(c.req.query('id') || '').trim();
   if (!id) return c.json({ url: '' });
-  return c.redirect(`https://music.163.com/song/media/outer/url?id=${id}.mp3`);
+  
+  // 从 iTunes API 查询这个歌曲的预览地址
+  try {
+    const resp = await fetch(`https://itunes.apple.com/lookup?id=${id}`);
+    const data = await resp.json<any>();
+    if (data?.results?.[0]?.previewUrl) {
+      return c.json({ url: data.results[0].previewUrl });
+    }
+  } catch (e) {
+    console.error('获取播放地址失败:', e);
+  }
+  
+  return c.json({ url: '' });
 });
 
 // ================================================================

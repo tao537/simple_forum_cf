@@ -364,23 +364,17 @@ window.searchMusic = async function(keyword) {
   document.getElementById('searchResult').style.display = 'block';
   
   try {
-    // 先用写死的数据，保证功能可用（后面接真正的 API）
-    const allSongs = [
-      { id: 186016, name: '晴天', artist: '周杰伦', album: '叶惠美' },
-      { id: 186018, name: '七里香', artist: '周杰伦', album: '七里香' },
-      { id: 186019, name: '稻香', artist: '周杰伦', album: '魔杰座' },
-      { id: 139859, name: '起风了', artist: '买辣椒也用券', album: '起风了' },
-      { id: 18240208, name: '海阔天空', artist: 'Beyond', album: '乐与怒' },
-      { id: 28815461, name: '光年之外', artist: 'G.E.M. 邓紫棋', album: '光年之外' },
-    ];
+    // 调用后端 API
+    const resp = await fetch(`${resolveBaseUrl()}/api/music/search?keyword=${encodeURIComponent(kw)}`);
+    const data = await resp.json();
+    console.log('[音乐模块] 搜索返回:', data);
     
-    // 简单过滤：匹配歌名或歌手
-    const songs = allSongs.filter(s => s.name.includes(kw) || s.artist.includes(kw));
-    const result = songs.length ? songs : allSongs;
+    if (!data.songs?.length) {
+      list.innerHTML = '<div class="empty">没找到相关歌曲</div>';
+      return;
+    }
     
-    console.log('[音乐模块] 搜索结果数量:', result.length);
-    
-    list.innerHTML = result.map((s, i) => `
+    list.innerHTML = data.songs.map((s, i) => `
       <li class="song-item" onclick="playFromSearch(${i})">
         <span class="song-num">${i+1}</span>
         <div class="song-info">
@@ -392,7 +386,7 @@ window.searchMusic = async function(keyword) {
         </div>
       </li>
     `).join('');
-    window._searchResults = result;
+    window._searchResults = data.songs;
   } catch (e) {
     console.error('[音乐模块] 搜索失败:', e);
     list.innerHTML = `<div class="empty">搜索失败：${e.message}</div>`;
@@ -496,9 +490,14 @@ window.removeFromPlaylist = function(i) {
 function playSong(song) {
   console.log('[音乐模块] 执行播放函数，歌曲:', song);
   
-  // 直接用网易云的播放地址，不用后端跳转
-  const url = `https://music.163.com/song/media/outer/url?id=${song.id}.mp3`;
+  // 用歌曲的 preview 地址（iTunes API 返回的 30 秒预览）
+  const url = song.preview || '';
   console.log('[音乐模块] 播放地址:', url);
+  
+  if (!url) {
+    alert('这首歌没有可播放的预览地址');
+    return;
+  }
   
   audio.src = url;
   document.getElementById('nowTitle').textContent = song.name;
