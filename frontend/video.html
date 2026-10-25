@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>苦海影视</title>
-<!-- hls.js 用于播放 m3u8 视频 -->
-<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<!-- hls.js 用于播放 m3u8 视频：本地文件 + 按需加载
+     （原来从 cdn.jsdelivr.net 同步加载，国内手机网络被墙，整页会一直等它 → 打不开） -->
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -429,7 +429,23 @@ async function openDetail(id) {
  * 播放指定剧集
  * @param {number} index - 剧集索引
  */
-function playEpisode(index) {
+// 按需加载本地 hls.js（不自带 HLS 的浏览器才需要；文件在 /vendor/hls.min.js）
+let hlsLoader = null;
+function loadHls() {
+  if (window.Hls) return Promise.resolve(window.Hls);
+  if (!hlsLoader) {
+    hlsLoader = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = '/vendor/hls.min.js';
+      s.onload = () => (window.Hls ? resolve(window.Hls) : reject(new Error('播放组件加载失败')));
+      s.onerror = () => reject(new Error('播放组件加载失败，请检查网络'));
+      document.head.appendChild(s);
+    });
+  }
+  return hlsLoader;
+}
+
+async function playEpisode(index) {
   const ep = currentEpisodes[index];
   if (!ep || !ep.url) {
     console.error('[影视模块] 剧集地址不存在，index:', index);
@@ -452,8 +468,22 @@ function playEpisode(index) {
     hls = null;
   }
 
-  // 用 hls.js 播放 m3u8
-  if (Hls.isSupported()) {
+  // 优先用浏览器原生 HLS（iOS Safari），不用下载任何外部脚本
+  if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = ep.url;
+    video.addEventListener('loadedmetadata', () => {
+      video.play().catch(e => console.warn('[影视模块] 自动播放被拦截:', e));
+    });
+    return;
+  }
+
+  // 其余浏览器按需加载本地 hls.js
+  try {
+    const Hls = await loadHls();
+    if (!Hls.isSupported()) {
+      alert('你的浏览器不支持播放 m3u8 视频');
+      return;
+    }
     hls = new Hls();
     hls.loadSource(ep.url);
     hls.attachMedia(video);
@@ -467,14 +497,9 @@ function playEpisode(index) {
         alert('播放失败，可能是网络问题或资源失效');
       }
     });
-  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    // Safari 原生支持
-    video.src = ep.url;
-    video.addEventListener('loadedmetadata', () => {
-      video.play().catch(e => console.warn('[影视模块] 自动播放被拦截:', e));
-    });
-  } else {
-    alert('你的浏览器不支持播放 m3u8 视频');
+  } catch (e) {
+    console.error('[影视模块] hls.js 加载失败:', e);
+    alert(e.message);
   }
 }
 

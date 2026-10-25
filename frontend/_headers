@@ -5,7 +5,11 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains
 
-# JS 不长期缓存：common.js 里有 API 地址等关键配置，改错/改回必须立即生效
+# common.js 里有 API 地址等关键配置，改错/改回必须立即生效
 # （手机上曾因 4 小时缓存继续调用已不可达的域名，表现为门禁「请求超时」）
-/*.js
+/common.js
   Cache-Control: public, max-age=0, must-revalidate
+
+# 第三方库（hls.js）版本固定，可以长期缓存
+/vendor/*
+  Cache-Control: public, max-age=604800

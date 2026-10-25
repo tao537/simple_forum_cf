@@ -348,7 +348,10 @@ body::after {
 
 <script type="module">
 // 导入工具函数
-import { resolveBaseUrl } from '/common.js?v=20261025';
+import { resolveBaseUrl, escapeHtml } from '/common.js?v=20261025';
+
+// 网易云解析接口（国内直连可用，支持 CORS；dataiqs.com 在国内被劫持，已弃用）
+const GD_API = 'https://music-api.gdstudio.xyz/api.php';
 
 // 获取 DOM 元素
 const audio = document.getElementById('audio');
@@ -450,34 +453,37 @@ window.searchMusic = async function(keyword) {
   document.getElementById('searchResult').style.display = 'block';
 
   try {
-    // 用 dataiqs.com 的网易云音乐解析接口，直接返回播放地址
+    // 网易云搜索（国内直连，返回多首；播放地址在点击播放时再解析）
     console.log('[音乐模块] 搜索歌曲，关键词:', kw);
-    const resp = await fetch(`https://dataiqs.com/api/netease/music/?msg=${encodeURIComponent(kw)}&type=song`);
-    const data = await resp.json();
-    console.log('[音乐模块] 搜索返回:', data);
-    
-    if (data.code !== 200 || !data.data) {
+    const resp = await fetch(
+      `${GD_API}?types=search&source=netease&name=${encodeURIComponent(kw)}&count=20&pages=1`
+    );
+    const rows = await resp.json();
+    console.log('[音乐模块] 搜索返回:', rows);
+
+    const songs = (Array.isArray(rows) ? rows : []).map((r) => ({
+      id: r.id,
+      name: r.name || '未知歌曲',
+      artist: Array.isArray(r.artist) ? r.artist.join('/') : (r.artist || '未知歌手'),
+      album: r.album || '',
+      artwork: r.pic_id ? `${GD_API}?types=pic&source=netease&id=${encodeURIComponent(r.pic_id)}&size=300` : '',
+      preview: '',
+      urlId: r.url_id || r.id,
+      source: r.source || 'netease',
+      duration: 0,
+    }));
+
+    if (!songs.length) {
       list.innerHTML = '<div class="empty">没找到相关歌曲</div>';
       return;
     }
-    
-    // 这个接口返回的是单首歌曲，我们封装成列表格式
-    const songs = [{
-      id: data.data.id,
-      name: data.data.name,
-      artist: data.data.singername,
-      album: '',
-      artwork: '',
-      preview: data.data.song_url,
-      duration: 0,
-    }];
-    
+
     list.innerHTML = songs.map((s, i) => `
       <li class="song-item" onclick="playFromSearch(${i})">
         <span class="song-num">${i+1}</span>
         <div class="song-info">
-          <div class="song-name">${s.name}</div>
-          <div class="song-artist">${s.artist}</div>
+          <div class="song-name">${escapeHtml(s.name)}</div>
+          <div class="song-artist">${escapeHtml(s.artist)}</div>
         </div>
       </li>
     `).join('');
@@ -500,10 +506,6 @@ window.playFromSearch = function(i) {
     console.log('[音乐模块] 准备播放:', s.name, '-', s.artist);
     
     // 搜索结果里已经有播放地址了，直接播放
-    if (!s.preview) {
-      throw new Error('没获取到播放地址');
-    }
-    
     playSong(s);
   } catch (e) {
     console.error('[音乐模块] 搜索结果播放失败:', e);
@@ -588,18 +590,27 @@ window.removeFromPlaylist = function(i) {
  * 播放歌曲
  * @param {object} song - 歌曲对象
  */
-function playSong(song) {
+async function playSong(song) {
   console.log('[音乐模块] 执行播放函数，歌曲:', song);
-  
-  // 用歌曲的 preview 地址（iTunes API 返回的 30 秒预览）
-  const url = song.preview || '';
+
+  try {
+  // 播放地址按需解析：搜索结果不带直链，点击播放时才向解析接口换取并缓存
+  let url = song.preview || '';
+  if (!url && song.urlId) {
+    const r = await fetch(
+      `${GD_API}?types=url&source=${encodeURIComponent(song.source || 'netease')}&id=${encodeURIComponent(song.urlId)}&br=320`
+    );
+    const d = await r.json();
+    url = d?.url || '';
+    song.preview = url; // 缓存到歌单数据，避免重复解析
+  }
   console.log('[音乐模块] 播放地址:', url);
-  
+
   if (!url) {
-    alert('这首歌没有可播放的预览地址');
+    alert('这首歌没有可用的播放地址');
     return;
   }
-  
+
   audio.src = url;
   document.getElementById('nowTitle').textContent = song.name;
   document.getElementById('nowArtist').textContent = song.artist;
@@ -621,6 +632,10 @@ function playSong(song) {
   playBtn.textContent = '⏸';
   player.classList.add('playing');
   renderPlaylist();
+  } catch (e) {
+    console.error('[音乐模块] 播放失败:', e);
+    alert('播放失败：' + e.message);
+  }
 }
 
 /**
