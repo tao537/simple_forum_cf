@@ -261,26 +261,35 @@ body {
 <audio id="audio"></audio>
 
 <script type="module">
+// 导入工具函数
 import { resolveBaseUrl } from '/common.js';
 
+// 获取 DOM 元素
 const audio = document.getElementById('audio');
 const player = document.getElementById('player');
 const playBtn = document.getElementById('playBtn');
 
+// 歌单数据，从 localStorage 读取
 let playlist = JSON.parse(localStorage.getItem('music_playlist') || '[]');
-let currentIndex = -1;
+let currentIndex = -1; // 当前播放的歌在歌单中的索引，-1 表示没在播放
 
-// 初始化：加载歌单和热门推荐
+console.log('[音乐模块] 初始化完成，歌单长度:', playlist.length);
+
+// 初始化：渲染歌单
 renderPlaylist();
 // loadHotRecommend(); // 暂时注释掉，用写死的热门推荐
 
-// 加载热门推荐
+/**
+ * 加载热门推荐（从后端 API 获取）
+ */
 async function loadHotRecommend() {
+  console.log('[音乐模块] 加载热门推荐...');
   const hotKeywords = ['周杰伦', '林俊杰', '邓紫棋', '流行歌曲'];
   const list = document.getElementById('hotList');
   try {
     const resp = await fetch(`${resolveBaseUrl()}/api/music/search?keyword=${encodeURIComponent(hotKeywords[0])}`);
     const data = await resp.json();
+    console.log('[音乐模块] 热门推荐返回:', data);
     if (!data.songs?.length) {
       list.innerHTML = '<div class="empty">暂无推荐歌曲</div>';
       return;
@@ -299,146 +308,254 @@ async function loadHotRecommend() {
       </li>
     `).join('');
   } catch (e) {
+    console.error('[音乐模块] 热门推荐加载失败:', e);
     list.innerHTML = `<div class="empty">加载失败：${e.message}</div>`;
   }
 }
 
-// 热门推荐播放
+/**
+ * 热门推荐播放
+ * @param {number} i - 歌曲索引
+ */
 window.playHot = function(i) {
-  const s = window._hotResults[i];
-  playSong(s);
+  console.log('[音乐模块] 点击热门推荐播放，索引:', i);
+  try {
+    const s = window._hotResults[i];
+    if (!s) throw new Error('没找到热门歌曲数据');
+    playSong(s);
+  } catch (e) {
+    console.error('[音乐模块] 热门推荐播放失败:', e);
+    alert('播放失败：' + e.message);
+  }
 };
 
-// 热门推荐添加到歌单
+/**
+ * 热门推荐添加到歌单
+ * @param {number} i - 歌曲索引
+ */
 window.addHot = function(i) {
-  const s = window._hotResults[i];
-  addToPlaylist(s);
+  console.log('[音乐模块] 点击热门推荐添加，索引:', i);
+  try {
+    const s = window._hotResults[i];
+    if (!s) throw new Error('没找到热门歌曲数据');
+    addToPlaylist(s);
+  } catch (e) {
+    console.error('[音乐模块] 热门推荐添加失败:', e);
+    alert('添加失败：' + e.message);
+  }
 };
 
-// 搜索
+/**
+ * 搜索歌曲
+ * @param {string} keyword - 搜索关键词（可选，不传则从输入框读取）
+ */
 window.searchMusic = async function(keyword) {
   const kw = keyword || document.getElementById('searchInput').value.trim();
-  if (!kw) return;
+  console.log('[音乐模块] 搜索歌曲，关键词:', kw);
+  
+  if (!kw) {
+    console.log('[音乐模块] 关键词为空，退出搜索');
+    return;
+  }
+  
   document.getElementById('searchInput').value = kw;
   const list = document.getElementById('searchList');
   list.innerHTML = '<div class="empty">搜索中...</div>';
   document.getElementById('searchResult').style.display = 'block';
   
-  // 先用写死的数据，保证功能可用
-  const allSongs = [
-    { id: 186016, name: '晴天', artist: '周杰伦', album: '叶惠美' },
-    { id: 186018, name: '七里香', artist: '周杰伦', album: '七里香' },
-    { id: 186019, name: '稻香', artist: '周杰伦', album: '魔杰座' },
-    { id: 139859, name: '起风了', artist: '买辣椒也用券', album: '起风了' },
-    { id: 18240208, name: '海阔天空', artist: 'Beyond', album: '乐与怒' },
-    { id: 28815461, name: '光年之外', artist: 'G.E.M. 邓紫棋', album: '光年之外' },
-  ];
-  
-  // 简单过滤
-  const songs = allSongs.filter(s => s.name.includes(kw) || s.artist.includes(kw));
-  const result = songs.length ? songs : allSongs;
-  
-  list.innerHTML = result.map((s, i) => `
-    <li class="song-item" onclick="playFromSearch(${i})">
-      <span class="song-num">${i+1}</span>
-      <div class="song-info">
-        <div class="song-name">${s.name}</div>
-        <div class="song-artist">${s.artist} · ${s.album}</div>
-      </div>
-      <div class="song-actions">
-        <button onclick="event.stopPropagation(); addToPlaylist(${i})">+ 添加</button>
-      </div>
-    </li>
-  `).join('');
-  window._searchResults = result;
+  try {
+    // 先用写死的数据，保证功能可用（后面接真正的 API）
+    const allSongs = [
+      { id: 186016, name: '晴天', artist: '周杰伦', album: '叶惠美' },
+      { id: 186018, name: '七里香', artist: '周杰伦', album: '七里香' },
+      { id: 186019, name: '稻香', artist: '周杰伦', album: '魔杰座' },
+      { id: 139859, name: '起风了', artist: '买辣椒也用券', album: '起风了' },
+      { id: 18240208, name: '海阔天空', artist: 'Beyond', album: '乐与怒' },
+      { id: 28815461, name: '光年之外', artist: 'G.E.M. 邓紫棋', album: '光年之外' },
+    ];
+    
+    // 简单过滤：匹配歌名或歌手
+    const songs = allSongs.filter(s => s.name.includes(kw) || s.artist.includes(kw));
+    const result = songs.length ? songs : allSongs;
+    
+    console.log('[音乐模块] 搜索结果数量:', result.length);
+    
+    list.innerHTML = result.map((s, i) => `
+      <li class="song-item" onclick="playFromSearch(${i})">
+        <span class="song-num">${i+1}</span>
+        <div class="song-info">
+          <div class="song-name">${s.name}</div>
+          <div class="song-artist">${s.artist} · ${s.album}</div>
+        </div>
+        <div class="song-actions">
+          <button onclick="event.stopPropagation(); addToPlaylist(${i})">+ 添加</button>
+        </div>
+      </li>
+    `).join('');
+    window._searchResults = result;
+  } catch (e) {
+    console.error('[音乐模块] 搜索失败:', e);
+    list.innerHTML = `<div class="empty">搜索失败：${e.message}</div>`;
+  }
 };
 
-// 搜索结果播放
+/**
+ * 搜索结果播放
+ * @param {number} i - 歌曲索引
+ */
 window.playFromSearch = function(i) {
-  alert('playFromSearch 被调用，index=' + i + ', _searchResults长度=' + (window._searchResults ? window._searchResults.length : 'undefined'));
-  const s = window._searchResults[i];
-  if (!s) {
-    alert('错误：没找到歌曲数据');
-    return;
+  console.log('[音乐模块] 点击搜索结果播放，索引:', i);
+  try {
+    const s = window._searchResults[i];
+    if (!s) throw new Error('没找到搜索结果歌曲数据');
+    console.log('[音乐模块] 准备播放:', s.name, '-', s.artist);
+    playSong(s);
+  } catch (e) {
+    console.error('[音乐模块] 搜索结果播放失败:', e);
+    alert('播放失败：' + e.message);
   }
-  alert('准备播放：' + s.name + ' - ' + s.artist);
-  playSong(s);
 };
 
-// 添加到歌单
+/**
+ * 添加到歌单
+ * @param {number} i - 歌曲索引
+ */
 window.addToPlaylist = function(i) {
-  const s = window._searchResults[i];
-  if (playlist.find(x => x.id === s.id)) {
-    alert('这首歌已经在歌单里了');
-    return;
+  console.log('[音乐模块] 点击添加到歌单，索引:', i);
+  try {
+    const s = window._searchResults[i];
+    if (!s) throw new Error('没找到歌曲数据');
+    
+    // 检查是否已经在歌单里
+    if (playlist.find(x => x.id === s.id)) {
+      alert('这首歌已经在歌单里了');
+      return;
+    }
+    
+    playlist.push(s);
+    localStorage.setItem('music_playlist', JSON.stringify(playlist));
+    renderPlaylist();
+    alert(`已添加：${s.name} - ${s.artist}`);
+  } catch (e) {
+    console.error('[音乐模块] 添加到歌单失败:', e);
+    alert('添加失败：' + e.message);
   }
-  playlist.push(s);
-  localStorage.setItem('music_playlist', JSON.stringify(playlist));
-  renderPlaylist();
-  alert(`已添加：${s.name} - ${s.artist}`);
 };
 
-// 从歌单播放
+/**
+ * 从歌单播放
+ * @param {number} i - 歌曲索引
+ */
 window.playFromPlaylist = function(i) {
-  currentIndex = i;
-  playSong(playlist[i]);
-};
-
-// 删除歌单歌曲
-window.removeFromPlaylist = function(i) {
-  playlist.splice(i, 1);
-  localStorage.setItem('music_playlist', JSON.stringify(playlist));
-  if (currentIndex === i) {
-    audio.pause();
-    currentIndex = -1;
-    document.getElementById('nowTitle').textContent = '♫ 未播放';
-    document.getElementById('nowArtist').textContent = '';
-    playBtn.textContent = '▶';
-    player.classList.remove('playing');
-  } else if (currentIndex > i) {
-    currentIndex--;
+  console.log('[音乐模块] 点击歌单播放，索引:', i);
+  try {
+    const s = playlist[i];
+    if (!s) throw new Error('没找到歌单歌曲数据');
+    currentIndex = i;
+    playSong(s);
+  } catch (e) {
+    console.error('[音乐模块] 歌单播放失败:', e);
+    alert('播放失败：' + e.message);
   }
-  renderPlaylist();
 };
 
-// 播放歌曲
+/**
+ * 删除歌单歌曲
+ * @param {number} i - 歌曲索引
+ */
+window.removeFromPlaylist = function(i) {
+  console.log('[音乐模块] 删除歌单歌曲，索引:', i);
+  try {
+    playlist.splice(i, 1);
+    localStorage.setItem('music_playlist', JSON.stringify(playlist));
+    
+    // 如果删除的是当前播放的歌，就停止播放
+    if (currentIndex === i) {
+      audio.pause();
+      currentIndex = -1;
+      document.getElementById('nowTitle').textContent = '♫ 未播放';
+      document.getElementById('nowArtist').textContent = '';
+      playBtn.textContent = '▶';
+      player.classList.remove('playing');
+    } else if (currentIndex > i) {
+      // 删除的歌在当前播放歌前面，索引要减 1
+      currentIndex--;
+    }
+    
+    renderPlaylist();
+  } catch (e) {
+    console.error('[音乐模块] 删除歌单歌曲失败:', e);
+    alert('删除失败：' + e.message);
+  }
+};
+
+/**
+ * 播放歌曲
+ * @param {object} song - 歌曲对象
+ */
 function playSong(song) {
+  console.log('[音乐模块] 执行播放函数，歌曲:', song);
+  
   // 直接用网易云的播放地址，不用后端跳转
-  audio.src = `https://music.163.com/song/media/outer/url?id=${song.id}.mp3`;
+  const url = `https://music.163.com/song/media/outer/url?id=${song.id}.mp3`;
+  console.log('[音乐模块] 播放地址:', url);
+  
+  audio.src = url;
   document.getElementById('nowTitle').textContent = song.name;
   document.getElementById('nowArtist').textContent = song.artist;
-  audio.play().catch(() => {});
+  
+  // 播放，捕获错误
+  audio.play().catch((e) => {
+    console.error('[音乐模块] audio.play() 失败:', e);
+    alert('播放失败：' + e.message);
+  });
+  
   playBtn.textContent = '⏸';
   player.classList.add('playing');
   renderPlaylist();
 }
 
-// 播放/暂停
+/**
+ * 播放/暂停切换
+ */
 window.togglePlay = function() {
-  if (audio.paused) {
-    audio.play();
-    playBtn.textContent = '⏸';
-    player.classList.add('playing');
-  } else {
-    audio.pause();
-    playBtn.textContent = '▶';
-    player.classList.remove('playing');
+  console.log('[音乐模块] 点击播放/暂停按钮');
+  try {
+    if (audio.paused) {
+      audio.play();
+      playBtn.textContent = '⏸';
+      player.classList.add('playing');
+    } else {
+      audio.pause();
+      playBtn.textContent = '▶';
+      player.classList.remove('playing');
+    }
+  } catch (e) {
+    console.error('[音乐模块] 播放/暂停失败:', e);
   }
 };
 
-// 上一首/下一首
+/**
+ * 上一首
+ */
 window.prevSong = function() {
+  console.log('[音乐模块] 点击上一首');
   if (!playlist.length) return;
   currentIndex = currentIndex <= 0 ? playlist.length - 1 : currentIndex - 1;
   playSong(playlist[currentIndex]);
 };
+
+/**
+ * 下一首
+ */
 window.nextSong = function() {
+  console.log('[音乐模块] 点击下一首');
   if (!playlist.length) return;
   currentIndex = currentIndex >= playlist.length - 1 ? 0 : currentIndex + 1;
   playSong(playlist[currentIndex]);
 };
 
-// 进度条
+// 进度条更新：音频播放时触发
 audio.addEventListener('timeupdate', () => {
   if (audio.duration) {
     const pct = (audio.currentTime / audio.duration) * 100;
@@ -448,6 +565,7 @@ audio.addEventListener('timeupdate', () => {
   }
 });
 
+// 点击进度条跳转
 document.getElementById('progressBar').addEventListener('click', (e) => {
   if (!audio.duration) return;
   const rect = e.currentTarget.getBoundingClientRect();
@@ -457,18 +575,23 @@ document.getElementById('progressBar').addEventListener('click', (e) => {
 
 // 播放结束自动下一首
 audio.addEventListener('ended', () => {
+  console.log('[音乐模块] 播放结束，自动下一首');
   if (playlist.length) nextSong();
 });
 
-// 渲染歌单
+/**
+ * 渲染歌单到页面上
+ */
 function renderPlaylist() {
   const list = document.getElementById('playlistList');
   const empty = document.getElementById('playlistEmpty');
+  
   if (!playlist.length) {
     list.innerHTML = '';
     empty.style.display = 'block';
     return;
   }
+  
   empty.style.display = 'none';
   list.innerHTML = playlist.map((s, i) => `
     <li class="song-item ${i === currentIndex ? 'active' : ''}" onclick="playFromPlaylist(${i})">
@@ -484,6 +607,11 @@ function renderPlaylist() {
   `).join('');
 }
 
+/**
+ * 格式化时间：秒 -> m:ss
+ * @param {number} sec - 秒数
+ * @returns {string} 格式化后的时间
+ */
 function formatTime(sec) {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
@@ -492,7 +620,10 @@ function formatTime(sec) {
 
 // 回车搜索
 document.getElementById('searchInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') searchMusic();
+  if (e.key === 'Enter') {
+    console.log('[音乐模块] 按回车搜索');
+    searchMusic();
+  }
 });
 </script>
 </body>
