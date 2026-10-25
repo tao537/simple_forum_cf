@@ -364,17 +364,28 @@ window.searchMusic = async function(keyword) {
   document.getElementById('searchResult').style.display = 'block';
   
   try {
-    // 调用后端 API
-    const resp = await fetch(`${resolveBaseUrl()}/api/music/search?keyword=${encodeURIComponent(kw)}`);
+    // 前端直接调用 iTunes API，不用经过后端
+    const resp = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(kw)}&media=music&limit=20`);
     const data = await resp.json();
     console.log('[音乐模块] 搜索返回:', data);
     
-    if (!data.songs?.length) {
+    if (!data?.results?.length) {
       list.innerHTML = '<div class="empty">没找到相关歌曲</div>';
       return;
     }
     
-    list.innerHTML = data.songs.map((s, i) => `
+    // 转换格式
+    const songs = data.results.map(item => ({
+      id: item.trackId,
+      name: item.trackName,
+      artist: item.artistName,
+      album: item.collectionName || '',
+      artwork: item.artworkUrl100?.replace('100x100', '300x300') || '',
+      preview: item.previewUrl || '', // 30秒预览地址，可直接播放
+      duration: Math.round(item.trackTimeMillis / 1000),
+    }));
+    
+    list.innerHTML = songs.map((s, i) => `
       <li class="song-item" onclick="playFromSearch(${i})">
         <span class="song-num">${i+1}</span>
         <div class="song-info">
@@ -386,7 +397,7 @@ window.searchMusic = async function(keyword) {
         </div>
       </li>
     `).join('');
-    window._searchResults = data.songs;
+    window._searchResults = songs;
   } catch (e) {
     console.error('[音乐模块] 搜索失败:', e);
     list.innerHTML = `<div class="empty">搜索失败：${e.message}</div>`;
