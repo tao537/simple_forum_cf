@@ -448,7 +448,8 @@ window.searchMusic = async function(keyword) {
   const list = document.getElementById('searchList');
   list.innerHTML = '<div class="empty">搜索中...</div>';
   document.getElementById('searchResult').style.display = 'block';
-  
+
+  try {
     // 用 dataiqs.com 的网易云音乐解析接口，直接返回播放地址
     console.log('[音乐模块] 搜索歌曲，关键词:', kw);
     const resp = await fetch(`https://dataiqs.com/api/netease/music/?msg=${encodeURIComponent(kw)}&type=song`);
