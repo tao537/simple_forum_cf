@@ -510,14 +510,18 @@
   };
 
   window.submitGate = async function () {
+    console.log('[门禁] 点击进入按钮');
     const btn = document.getElementById('gate-btn');
     const err = document.getElementById('gate-err');
     const pw = document.getElementById('gate-pw').value.trim();
+    console.log('[门禁] 输入的密码:', pw);
     if (!pw) { err.textContent = '请输入访问密码'; return; }
     btn.disabled = true;
     err.textContent = '';
     try {
+      console.log('[门禁] 调用 /api/game/enter 接口');
       const data = await gameApi('/api/game/enter', { method: 'POST', body: JSON.stringify({ password: pw }) });
+      console.log('[门禁] 接口返回:', data);
       gameAuth.setToken(data.token);
       document.getElementById('gate').style.display = 'none';
       document.getElementById('main').style.display = '';
@@ -526,6 +530,7 @@
       renderNav();
       load(1);
     } catch (e) {
+      console.error('[门禁] 接口错误:', e);
       err.textContent = e.message;
       btn.disabled = false;
     }
