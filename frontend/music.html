@@ -316,9 +316,10 @@ window.addHot = function(i) {
 };
 
 // 搜索
-window.searchMusic = async function() {
-  const kw = document.getElementById('searchInput').value.trim();
+window.searchMusic = async function(keyword) {
+  const kw = keyword || document.getElementById('searchInput').value.trim();
   if (!kw) return;
+  document.getElementById('searchInput').value = kw;
   const list = document.getElementById('searchList');
   list.innerHTML = '<div class="empty">搜索中...</div>';
   document.getElementById('searchResult').style.display = 'block';

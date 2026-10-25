@@ -221,9 +221,10 @@ window.openBook = function(i) {
 }
 
 // 搜索小说
-window.searchNovel = async function() {
-  const kw = document.getElementById('searchInput').value.trim();
+window.searchNovel = async function(keyword) {
+  const kw = keyword || document.getElementById('searchInput').value.trim();
   if (!kw) return;
+  document.getElementById('searchInput').value = kw;
   document.getElementById('chapterList').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
   document.getElementById('searchResult').innerHTML = '<div class="empty">搜索中...</div>';
