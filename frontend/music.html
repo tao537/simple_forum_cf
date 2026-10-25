@@ -418,9 +418,6 @@ window.searchMusic = async function(keyword) {
           <div class="song-name">${s.name}</div>
           <div class="song-artist">${s.artist} · ${s.album}</div>
         </div>
-        <div class="song-actions">
-          <button onclick="event.stopPropagation(); addToPlaylist(${i})">+ 添加</button>
-        </div>
       </li>
     `).join('');
     window._searchResults = songs;
