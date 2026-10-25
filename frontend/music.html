@@ -142,6 +142,30 @@ body {
 
 .back-link { display: inline-block; margin-bottom: 20px; color: #7c3aed; text-decoration: none; font-size: 14px; }
 .back-link:hover { color: #4c1d95; }
+
+/* 手机版响应式设计 */
+@media (max-width: 768px) {
+  .container { padding: 12px; }
+  .header { padding: 20px 0; }
+  .header h1 { font-size: 22px; }
+  
+  .player { padding: 24px; border-radius: 20px; }
+  .player-cover { width: 160px; height: 160px; font-size: 60px; }
+  .player-title { font-size: 18px; }
+  .player-artist { font-size: 13px; }
+  
+  .controls { gap: 16px; }
+  .controls button { width: 48px; height: 48px; font-size: 18px; }
+  .controls button.play-btn { width: 60px; height: 60px; font-size: 24px; }
+  
+  .search-box { flex-direction: column; gap: 10px; }
+  .search-box button { width: 100%; }
+  
+  .song-item { padding: 12px; gap: 12px; }
+  .song-num { width: 20px; font-size: 13px; }
+  .song-name { font-size: 14px; }
+  .song-artist { font-size: 11px; }
+}
 </style>
 </head>
 <body>

@@ -76,6 +76,23 @@ body {
 .reader-nav button:hover { background: rgba(255,255,255,.2); }
 
 .empty { text-align: center; color: #64748b; padding: 40px 0; font-size: 14px; }
+
+/* 手机版响应式设计 */
+@media (max-width: 768px) {
+  .container { padding: 12px; }
+  .header { padding: 20px 0; }
+  .header h1 { font-size: 22px; }
+  
+  .search-box { flex-direction: column; gap: 10px; }
+  .search-box button { width: 100%; }
+  
+  .book-list { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .book-cover { height: 120px; font-size: 40px; }
+  
+  .reader { padding: 20px; }
+  .reader-nav { gap: 8px; }
+  .reader-nav button { padding: 8px 16px; font-size: 13px; }
+}
 </style>
 </head>
 <body>
