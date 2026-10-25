@@ -139,8 +139,8 @@ body {
 
 .empty { text-align: center; color: #64748b; padding: 40px 0; font-size: 14px; }
 
-.back-link { display: inline-block; margin-bottom: 20px; color: #94a3b8; text-decoration: none; font-size: 14px; }
-.back-link:hover { color: #fff; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #7c3aed; text-decoration: none; font-size: 14px; }
+.back-link:hover { color: #4c1d95; }
 </style>
 </head>
 <body>
@@ -181,7 +181,66 @@ body {
   <div id="hotRecommend">
     <div class="section-title">🔥 热门推荐</div>
     <ul class="song-list" id="hotList">
-      <div class="empty">加载热门歌曲中...</div>
+      <li class="song-item" onclick="searchMusic('晴天')">
+        <div class="song-num">1</div>
+        <div class="song-info">
+          <div class="song-name">晴天</div>
+          <div class="song-artist">周杰伦</div>
+        </div>
+        <div class="song-actions">
+          <button onclick="event.stopPropagation();searchMusic('晴天')">搜索</button>
+        </div>
+      </li>
+      <li class="song-item" onclick="searchMusic('七里香')">
+        <div class="song-num">2</div>
+        <div class="song-info">
+          <div class="song-name">七里香</div>
+          <div class="song-artist">周杰伦</div>
+        </div>
+        <div class="song-actions">
+          <button onclick="event.stopPropagation();searchMusic('七里香')">搜索</button>
+        </div>
+      </li>
+      <li class="song-item" onclick="searchMusic('稻香')">
+        <div class="song-num">3</div>
+        <div class="song-info">
+          <div class="song-name">稻香</div>
+          <div class="song-artist">周杰伦</div>
+        </div>
+        <div class="song-actions">
+          <button onclick="event.stopPropagation();searchMusic('稻香')">搜索</button>
+        </div>
+      </li>
+      <li class="song-item" onclick="searchMusic('起风了')">
+        <div class="song-num">4</div>
+        <div class="song-info">
+          <div class="song-name">起风了</div>
+          <div class="song-artist">买辣椒也用券</div>
+        </div>
+        <div class="song-actions">
+          <button onclick="event.stopPropagation();searchMusic('起风了')">搜索</button>
+        </div>
+      </li>
+      <li class="song-item" onclick="searchMusic('海阔天空')">
+        <div class="song-num">5</div>
+        <div class="song-info">
+          <div class="song-name">海阔天空</div>
+          <div class="song-artist">Beyond</div>
+        </div>
+        <div class="song-actions">
+          <button onclick="event.stopPropagation();searchMusic('海阔天空')">搜索</button>
+        </div>
+      </li>
+      <li class="song-item" onclick="searchMusic('光年之外')">
+        <div class="song-num">6</div>
+        <div class="song-info">
+          <div class="song-name">光年之外</div>
+          <div class="song-artist">G.E.M. 邓紫棋</div>
+        </div>
+        <div class="song-actions">
+          <button onclick="event.stopPropagation();searchMusic('光年之外')">搜索</button>
+        </div>
+      </li>
     </ul>
   </div>
 
@@ -213,7 +272,7 @@ let currentIndex = -1;
 
 // 初始化：加载歌单和热门推荐
 renderPlaylist();
-loadHotRecommend();
+// loadHotRecommend(); // 暂时注释掉，用写死的热门推荐
 
 // 加载热门推荐
 async function loadHotRecommend() {

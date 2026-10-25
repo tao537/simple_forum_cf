@@ -1591,22 +1591,23 @@ app.delete('/api/game/comments/:id', async (c) => {
 //  网易云音乐搜索/解析（代理接口，避免前端 CORS）
 // ================================================================
 
-// 搜索歌曲（Meting API 聚合）
+// 搜索歌曲（uomg API）
 app.get('/api/music/search', async (c) => {
   const keyword = String(c.req.query('keyword') || '').trim();
   if (!keyword) return c.json({ songs: [] });
   try {
-    const resp = await fetch(`https://api.injahow.cn/meting/?type=search&source=netease&name=${encodeURIComponent(keyword)}`);
-    const data = await resp.json<any[]>();
-    const songs = (data || []).map((s: any) => ({
-      id: s.id,
-      name: s.name,
-      artist: s.artist || '未知艺术家',
-      album: s.album || '',
-      artwork: s.picUrl || '',
+    // 先试试 uomg 的随机热歌榜
+    const resp = await fetch(`https://api.uomg.com/api/rand.music?sort=热歌榜&format=json`);
+    const data = await resp.json<any>();
+    const songs = [{
+      id: data.id || 1,
+      name: data.name || '未知歌曲',
+      artist: data.artists || '未知艺术家',
+      album: data.album || '',
+      artwork: data.pic || '',
       preview: '',
-      duration: s.duration ? Math.round(s.duration / 1000) : 0,
-    }));
+      duration: 0,
+    }];
     return c.json({ songs });
   } catch (e: any) {
     return c.json({ songs: [], error: e.message });

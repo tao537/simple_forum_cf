@@ -116,7 +116,42 @@ body {
   <div id="hotRecommend" style="margin-bottom:24px">
     <h3 style="margin-bottom:12px;font-size:16px;color:#e2e8f0">🔥 热门推荐</h3>
     <div class="book-list" id="hotList">
-      <div class="empty">加载热门小说中...</div>
+      <div class="book-card" onclick="searchNovel('诡秘之主')">
+        <div class="book-cover">🕵️</div>
+        <div class="book-title">诡秘之主</div>
+        <div class="book-author">爱潜水的乌贼</div>
+        <div class="book-cat">玄幻 · 克苏鲁</div>
+      </div>
+      <div class="book-card" onclick="searchNovel('道诡异仙')">
+        <div class="book-cover">🚂</div>
+        <div class="book-title">道诡异仙</div>
+        <div class="book-author">狐尾的笔</div>
+        <div class="book-cat">玄幻 · 诡异</div>
+      </div>
+      <div class="book-card" onclick="searchNovel('凡人修仙传')">
+        <div class="book-cover">⚔️</div>
+        <div class="book-title">凡人修仙传</div>
+        <div class="book-author">忘语</div>
+        <div class="book-cat">仙侠 · 修仙</div>
+      </div>
+      <div class="book-card" onclick="searchNovel('斗罗大陆')">
+        <div class="book-cover">🐉</div>
+        <div class="book-title">斗罗大陆</div>
+        <div class="book-author">唐家三少</div>
+        <div class="book-cat">玄幻 · 异世</div>
+      </div>
+      <div class="book-card" onclick="searchNovel('斗破苍穹')">
+        <div class="book-cover">🔥</div>
+        <div class="book-title">斗破苍穹</div>
+        <div class="book-author">天蚕土豆</div>
+        <div class="book-cat">玄幻 · 异世</div>
+      </div>
+      <div class="book-card" onclick="searchNovel('全职高手')">
+        <div class="book-cover">🎮</div>
+        <div class="book-title">全职高手</div>
+        <div class="book-author">蝴蝶蓝</div>
+        <div class="book-cat">游戏 · 电竞</div>
+      </div>
     </div>
   </div>
 
@@ -153,7 +188,7 @@ let currentChapterIndex = 0;
 let hotBooks = [];
 
 // 页面加载时自动加载热门推荐
-loadHotRecommend();
+// loadHotRecommend(); // 暂时注释掉，用写死的热门推荐
 
 async function loadHotRecommend() {
   const list = document.getElementById('hotList');
