@@ -390,33 +390,34 @@ window.searchMusic = async function(keyword) {
   list.innerHTML = '<div class="empty">搜索中...</div>';
   document.getElementById('searchResult').style.display = 'block';
   
-    // 先用网易云搜索获取歌曲id
+    // 用 dataiqs.com 的网易云音乐解析接口，直接返回播放地址
     console.log('[音乐模块] 搜索歌曲，关键词:', kw);
-    const searchResp = await fetch(`https://apis.netstart.cn/music/search?keywords=${encodeURIComponent(kw)}&limit=20`);
-    const searchData = await searchResp.json();
-    console.log('[音乐模块] 搜索返回:', searchData);
+    const resp = await fetch(`https://dataiqs.com/api/netease/music/?msg=${encodeURIComponent(kw)}&type=song`);
+    const data = await resp.json();
+    console.log('[音乐模块] 搜索返回:', data);
     
-    const songs = (searchData?.result?.songs || []).map(item => ({
-      id: item.id,
-      name: item.name,
-      artist: item.artists?.[0]?.name || '未知歌手',
-      album: item.album?.name || '',
-      artwork: item.album?.picUrl || '',
-      preview: '',
-      duration: Math.round(item.duration / 1000),
-    }));
-    
-    if (!songs.length) {
+    if (data.code !== 200 || !data.data) {
       list.innerHTML = '<div class="empty">没找到相关歌曲</div>';
       return;
     }
+    
+    // 这个接口返回的是单首歌曲，我们封装成列表格式
+    const songs = [{
+      id: data.data.id,
+      name: data.data.name,
+      artist: data.data.singername,
+      album: '',
+      artwork: '',
+      preview: data.data.song_url,
+      duration: 0,
+    }];
     
     list.innerHTML = songs.map((s, i) => `
       <li class="song-item" onclick="playFromSearch(${i})">
         <span class="song-num">${i+1}</span>
         <div class="song-info">
           <div class="song-name">${s.name}</div>
-          <div class="song-artist">${s.artist} · ${s.album}</div>
+          <div class="song-artist">${s.artist}</div>
         </div>
       </li>
     `).join('');
@@ -438,18 +439,11 @@ window.playFromSearch = function(i) {
     if (!s) throw new Error('没找到搜索结果歌曲数据');
     console.log('[音乐模块] 准备播放:', s.name, '-', s.artist);
     
-    // 用 Meting API 获取播放地址
-    console.log('[音乐模块] 用 Meting API 获取播放地址，歌曲id:', s.id);
-    const resp = await fetch(`https://api.injahow.cn/meting/?type=url&id=${s.id}`);
-    const data = await resp.json();
-    console.log('[音乐模块] Meting API 返回:', data);
-    
-    const url = data?.[0]?.url || '';
-    if (!url) {
-      throw new Error('没获取到播放地址，这首歌可能需要 VIP');
+    // 搜索结果里已经有播放地址了，直接播放
+    if (!s.preview) {
+      throw new Error('没获取到播放地址');
     }
     
-    s.preview = url;
     playSong(s);
   } catch (e) {
     console.error('[音乐模块] 搜索结果播放失败:', e);
