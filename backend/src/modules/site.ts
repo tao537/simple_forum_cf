@@ -27,14 +27,24 @@ async function getSiteSettings(db: D1Database): Promise<any> {
   return { ...DEFAULT_SETTINGS, ...stored };
 }
 
+// 公开字段白名单：site_settings.data 与显示设置同住一行，里面还有门禁密码哈希等敏感字段，
+// 公开接口必须逐字段挑出来，绝不能整包回给前端（历史版本真的这么漏过）
+const PUBLIC_SETTING_KEYS = ['cardSize', 'density', 'imageMaxWidth', 'imageQuality', 'thumbnailSize'] as const;
+
+function pickPublicSettings(settings: any): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const k of PUBLIC_SETTING_KEYS) out[k] = settings[k];
+  return out;
+}
+
 const routes = new Hono<Env>();
 
 // ==================== 界面显示设置 ====================
 
-// 公开：前端读取显示设置（无需登录）
+// 公开：前端读取显示设置（无需登录）——只回显示相关字段
 routes.get('/api/settings', async (c) => {
   const settings = await getSiteSettings(c.env.DB);
-  return c.json({ settings });
+  return c.json({ settings: pickPublicSettings(settings) });
 });
 
 // 管理员：更新设置（非法值一律回落到当前值，避免前端把坏配置写进来）
@@ -61,7 +71,7 @@ routes.put('/api/settings', async (c) => {
   }
 
   await writeSettings(c.env.DB, merged);
-  return c.json({ ok: true, settings: merged });
+  return c.json({ ok: true, settings: pickPublicSettings(merged) });
 });
 
 // ==================== 分类管理 ====================
