@@ -4,11 +4,12 @@ import { cors } from 'hono/cors';
 // 共享内核：安全 / 鉴权，各管一件事，被各领域模块按需引用
 import type { Env } from './types';
 import { validateCredentials, hashPassword, verifyPassword, BAD_PASSWORDS } from './lib/security';
-import { issueToken, getAuth, isAdmin, TOKEN_TTL_SECONDS } from './lib/auth';
-// 领域模块：门禁、媒体代理、论坛帖子、游戏帖子、站点配置；各自独立、互不依赖
-import gateRoutes, { requireGate, loadGate } from './modules/gate';
+import { issueToken, getAuth, TOKEN_TTL_SECONDS } from './lib/auth';
+// 领域模块：门禁、用户、通知、媒体、论坛帖子、游戏帖子、站点配置、管理后台；各自闭环
+import gateRoutes, { requireGate } from './modules/gate';
 import userRoutes from './modules/users';
 import notificationRoutes from './modules/notifications';
+import adminRoutes from './modules/admin';
 import mediaRoutes from './modules/media';
 import postRoutes from './modules/posts';
 import gamePostRoutes from './modules/game-posts';
@@ -26,6 +27,7 @@ app.use('*', cors({
 app.route('/', gateRoutes);
 app.route('/', userRoutes);
 app.route('/', notificationRoutes);
+app.route('/', adminRoutes);
 app.route('/', mediaRoutes);
 app.route('/', postRoutes);
 app.route('/', gamePostRoutes);
@@ -105,48 +107,6 @@ app.get('/api/auth/me', async (c) => {
   return c.json({ user: { id: row.id, username: row.username, nickname: row.nickname, role: row.role } });
 });
 
-// ==================== 管理统计仪表盘 ====================
-app.get('/api/admin/stats', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const db = c.env.DB;
-  const count = async (sql: string): Promise<number> =>
-    (await db.prepare(sql).first<{ n: number }>())?.n ?? 0;
-
-  const users = await count('SELECT COUNT(*) AS n FROM users');
-  const posts = await count('SELECT COUNT(*) AS n FROM posts');
-  const comments = await count('SELECT COUNT(*) AS n FROM comments');
-  const postLikes = await count('SELECT COUNT(*) AS n FROM post_likes');
-  const commentLikes = await count('SELECT COUNT(*) AS n FROM comment_likes');
-  const newUsersToday = await count("SELECT COUNT(*) AS n FROM users WHERE date(created_at) = date('now','localtime')");
-  const newPostsToday = await count("SELECT COUNT(*) AS n FROM posts WHERE date(created_at) = date('now','localtime')");
-  const banned = await count('SELECT COUNT(*) AS n FROM users WHERE is_banned = 1');
-
-  const { results: categories } = await db
-    .prepare(
-      "SELECT CASE WHEN category = '' THEN '未分类' ELSE category END AS name, COUNT(*) AS count FROM posts GROUP BY category ORDER BY count DESC"
-    )
-    .all();
-
-  const { results: topPosts } = await db
-    .prepare(
-      `SELECT p.id, p.title, p.views,
-              (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS upvotes,
-              (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
-       FROM posts p ORDER BY p.views DESC LIMIT 8`
-    )
-    .all();
-
-  return c.json({
-    users, posts, comments, postLikes, commentLikes,
-    newUsersToday, newPostsToday, banned,
-    categories: categories as any,
-    topPosts: topPosts as any,
-  });
-});
-
 // 游戏站注册（账号已与论坛统一，写入 forum-db.users；先进站后可注册）
 // 合并后不再"首账号自动 admin"：游戏管理员即统一 role=admin 用户（论坛管理员天然可管理游戏站）
 app.post('/api/game/register', async (c) => {
@@ -207,185 +167,6 @@ app.post('/api/game/login', async (c) => {
     token,
     expiresIn: TOKEN_TTL_SECONDS,
     user: { id: user.id, username: user.username, nickname: user.nickname, role: user.role },
-  });
-});
-
-// ================================================================
-//  管理后台增强接口（论坛管理员身份，走主库 DB）
-// ================================================================
-
-// ===== 游戏站管理 =====
-app.get('/api/admin/game/stats', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const db = c.env.DB;
-  const count = async (sql: string): Promise<number> =>
-    (await db.prepare(sql).first<{ n: number }>())?.n ?? 0;
-
-  const posts = await count('SELECT COUNT(*) AS n FROM game_posts');
-  const comments = await count('SELECT COUNT(*) AS n FROM game_comments');
-  const postLikes = await count('SELECT COUNT(*) AS n FROM game_post_likes');
-  const commentLikes = await count('SELECT COUNT(*) AS n FROM game_comment_likes');
-  const newPostsToday = await count("SELECT COUNT(*) AS n FROM game_posts WHERE date(created_at) = date('now','localtime')");
-
-  const gate = await loadGate(db);
-  return c.json({
-    posts, comments, postLikes, commentLikes, newPostsToday,
-    passwordSet: !!gate.passwordHash,
-    gateEnabled: gate.enabled,
-  });
-});
-
-app.get('/api/admin/game/posts', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const db = c.env.DB;
-  const page = Math.max(1, Number(c.req.query('page')) || 1);
-  const size = Math.min(Number(c.req.query('size')) || 20, 100);
-  const offset = (page - 1) * size;
-  const keyword = (c.req.query('keyword') || '').trim();
-
-  const where: string[] = [];
-  const binds: any[] = [];
-  if (keyword) { where.push('(title LIKE ? OR content LIKE ?)'); const kw = `%${keyword}%`; binds.push(kw, kw); }
-  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
-
-  const { results } = await db
-    .prepare(
-      `SELECT id, title, author_name, views,
-              (SELECT COUNT(*) FROM game_post_likes pl WHERE pl.post_id = p.id) AS upvotes,
-              (SELECT COUNT(*) FROM game_comments c WHERE c.post_id = p.id) AS comment_count,
-              is_pinned AS pinned, is_featured AS featured, created_at
-       FROM game_posts p ${whereSql} ORDER BY id DESC LIMIT ? OFFSET ?`
-    )
-    .bind(...binds, size, offset)
-    .all();
-
-  const total = await db
-    .prepare(`SELECT COUNT(*) AS n FROM game_posts p ${whereSql}`)
-    .bind(...binds)
-    .first<{ n: number }>();
-
-  return c.json({ rows: results, page, size, total: total?.n ?? 0 });
-});
-
-app.delete('/api/admin/game/posts/:id', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const id = Number(c.req.param('id'));
-  const result = await c.env.DB.prepare('DELETE FROM game_posts WHERE id = ?').bind(id).run();
-  if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
-  return c.json({ ok: true });
-});
-
-// 管理后台专用：游戏帖置顶/精选（仅需论坛管理员身份，不依赖游戏 token）
-app.post('/api/admin/game/posts/:id/pin', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const id = Number(c.req.param('id'));
-  const result = await c.env.DB
-    .prepare('UPDATE game_posts SET is_pinned = CASE is_pinned WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
-    .bind(id)
-    .run();
-  if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
-  const row = await c.env.DB.prepare('SELECT is_pinned FROM game_posts WHERE id = ?').bind(id).first<{ is_pinned: number }>();
-  return c.json({ pinned: !!row?.is_pinned });
-});
-
-app.post('/api/admin/game/posts/:id/feature', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const id = Number(c.req.param('id'));
-  const result = await c.env.DB
-    .prepare('UPDATE game_posts SET is_featured = CASE is_featured WHEN 0 THEN 1 ELSE 0 END WHERE id = ?')
-    .bind(id)
-    .run();
-  if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
-  const row = await c.env.DB.prepare('SELECT is_featured FROM game_posts WHERE id = ?').bind(id).first<{ is_featured: number }>();
-  return c.json({ featured: !!row?.is_featured });
-});
-
-// 更新帖子图片
-app.put('/api/admin/game/posts/:id/images', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const id = Number(c.req.param('id'));
-  const { images } = await c.req.json();
-  if (!Array.isArray(images)) return c.json({ message: 'images 必须是数组' }, 400);
-
-  const result = await c.env.DB
-    .prepare('UPDATE game_posts SET images = ? WHERE id = ?')
-    .bind(JSON.stringify(images), id)
-    .run();
-  if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
-  return c.json({ ok: true, images });
-});
-
-// ===== 数据导出（CSV）=====
-/** CSV 生成：UTF-8 BOM（Excel 直接打开不乱码）+ 转义 + 防公式注入 */
-function toCsv(headers: string[], rows: any[], pick: (r: any) => any[]) {
-  const esc = (v: any) => {
-    let s = String(v ?? '');
-    // 以 = + - @ 开头的单元格会被 Excel 当公式执行，前置单引号阻断
-    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  return `\uFEFF${[headers.join(','), ...rows.map((r) => pick(r).map(esc).join(','))].join('\n')}`;
-}
-
-app.get('/api/admin/export/posts', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const { results } = await c.env.DB
-    .prepare(
-      `SELECT p.id, p.title, p.category, p.views, p.is_pinned, p.is_featured,
-              u.username AS author, p.created_at, p.updated_at
-       FROM posts p LEFT JOIN users u ON u.id = p.author_id ORDER BY p.id ASC`
-    )
-    .all();
-
-  const csv = toCsv(
-    ['ID', '标题', '分类', '作者', '浏览', '置顶', '精选', '创建时间', '更新时间'],
-    results as any[],
-    (r) => [r.id, r.title, r.category, r.author, r.views, r.is_pinned, r.is_featured, r.created_at, r.updated_at]
-  );
-  return c.body(csv, 200, {
-    'Content-Type': 'text/csv; charset=utf-8',
-    'Content-Disposition': 'attachment; filename="posts.csv"',
-  });
-});
-
-app.get('/api/admin/export/users', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const { results } = await c.env.DB
-    .prepare('SELECT id, username, nickname, email, role, is_banned, created_at FROM users ORDER BY id ASC')
-    .all();
-
-  const csv = toCsv(
-    ['ID', '用户名', '昵称', '邮箱', '角色', '封禁', '注册时间'],
-    results as any[],
-    (r) => [r.id, r.username, r.nickname, r.email, r.role, r.is_banned, r.created_at]
-  );
-  return c.body(csv, 200, {
-    'Content-Type': 'text/csv; charset=utf-8',
-    'Content-Disposition': 'attachment; filename="users.csv"',
   });
 });
 
