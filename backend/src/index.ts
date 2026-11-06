@@ -1,22 +1,16 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { sign, verify } from 'hono/jwt';
 
-type Bindings = {
-  DB: D1Database;
-  GAME_DB: D1Database;
-  JWT_SECRET: string;
-  // 图片存储（Cloudflare KV，免费 1GB，无需绑卡）
-  IMG_KV: KVNamespace;
-};
+// 共享内核：安全 / 鉴权 / 设置存储，各管一件事，被各领域模块按需引用
+import type { Env } from './types';
+import { sanitizeImages, validateCredentials, hashPassword, verifyPassword, BAD_PASSWORDS } from './lib/security';
+import { issueToken, getAuth, isAdmin, getSessionUser, isAdminUser, TOKEN_TTL_SECONDS } from './lib/auth';
+import { readSettings, writeSettings } from './lib/settings';
+// 领域模块：门禁（访问控制）、媒体代理；各自独立、互不依赖
+import gateRoutes, { requireGate, loadGate } from './modules/gate';
+import mediaRoutes from './modules/media';
 
-type Variables = {
-  user: { id: number; username: string };
-};
-
-type AuthPayload = { id: number; username: string };
-
-const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+const app = new Hono<Env>();
 
 app.use('*', cors({
   origin: ['https://kuhai.de5.net', 'https://www.kuhai.de5.net', 'https://api.kuhai.de5.net'],
@@ -25,118 +19,11 @@ app.use('*', cors({
   maxAge: 600,
 }));
 
-// ==================== 图片路径白名单（防存储型 XSS）====================
-const IMG_RE = /^(\/img\/|https:\/\/api\.kuhai\.de5\.net\/img\/)[A-Za-z0-9._-]{1,120}$/;
+app.route('/', gateRoutes);
+app.route('/', mediaRoutes);
 
-function sanitizeImages(input: unknown): string[] {
-  if (!Array.isArray(input)) return [];
-  return input
-    .filter((u): u is string => typeof u === 'string' && IMG_RE.test(u))
-    .slice(0, 9);
-}
-
-// ==================== 弱口令黑名单 ====================
-const BAD_PASSWORDS = new Set([
-  '123456', '12345678', '123456789', '888888', '666666', '66666666',
-  'admin123', 'password', 'qwerty', '11111111', '00000000',
-]);
-
-function validateCredentials(username: unknown, password: unknown): string | null {
-  const name = String(username ?? '');
-  const pass = String(password ?? '');
-  if (!name || !pass) return '用户名和密码不能为空';
-  if (!/^[\w\u4e00-\u9fa5]{2,20}$/.test(name)) {
-    return '用户名只能为 2-20 位中文、字母、数字或下划线';
-  }
-  if (pass.length < 8) return '密码至少 8 位';
-  if (BAD_PASSWORDS.has(pass.toLowerCase())) return '密码过于简单';
-  return null;
-}
-
-// ==================== JWT 签发（带过期时间）====================
-const TOKEN_TTL_SECONDS = 7 * 24 * 3600;
-
-async function issueToken(c: any, u: { id: number; username: string; role: string }) {
-  const now = Math.floor(Date.now() / 1000);
-  return await sign(
-    { id: u.id, username: u.username, role: u.role, iat: now, exp: now + TOKEN_TTL_SECONDS },
-    c.env.JWT_SECRET,
-    'HS256'
-  );
-}
-
-// ==================== 密码哈希（Web Crypto PBKDF2）====================
-async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iterations = 100000;
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  );
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
-    keyMaterial,
-    256
-  );
-  const toHex = (arr: Uint8Array) =>
-    [...arr].map((b) => b.toString(16).padStart(2, '0')).join('');
-  return `pbkdf2$${iterations}$${toHex(salt)}$${toHex(new Uint8Array(bits))}`;
-}
-
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const parts = stored.split('$');
-  if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false;
-  const iterations = Number(parts[1]);
-  const salt = new Uint8Array((parts[2].match(/.{2}/g) ?? []).map((h) => parseInt(h, 16)));
-  const expected = parts[3];
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  );
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
-    keyMaterial,
-    256
-  );
-  const hashHex = [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('');
-  return hashHex === expected;
-}
-
-// ==================== JWT 辅助 ====================
-async function getAuth(c: any): Promise<AuthPayload | null> {
-  const token = c.req.header('Authorization')?.replace('Bearer ', '');
-  if (!token) return null;
-  try {
-    const p = await verify(token, c.env.JWT_SECRET, 'HS256');
-    const id = Number(p.id);
-    if (!Number.isInteger(id)) return null;
-
-    // 实时校验封禁状态（封禁立即生效）
-    const row = await c.env.DB
-      .prepare('SELECT is_banned FROM users WHERE id = ?')
-      .bind(id)
-      .first<{ is_banned: number }>();
-    if (!row || row.is_banned) return null;
-
-    return { id, username: String(p.username) };
-  } catch {
-    return null;
-  }
-}
-
-async function isAdmin(c: any, userId: number): Promise<boolean> {
-  const me = await c.env.DB
-    .prepare('SELECT role FROM users WHERE id = ?')
-    .bind(userId)
-    .first<{ role: string }>();
-  return me?.role === 'admin';
-}
+// 游戏站访客标识（未登录发帖/点赞按访客去重）
+const VISITOR_RE = /^v[a-z0-9]{12,40}$/;
 
 // ==================== 通知辅助 ====================
 async function addNotification(
@@ -922,10 +809,9 @@ const DEFAULT_SETTINGS = {
   thumbnailSize: 300,       // 缩略图尺寸 px
 };
 
-async function getSettings(db: D1Database) {
-  const row = await db.prepare('SELECT data FROM site_settings WHERE id = 1').first<{ data: string }>();
-  let stored: any = {};
-  try { stored = JSON.parse(row?.data || '{}'); } catch { stored = {}; }
+// 界面显示设置：在站点设置上加默认值；存储读写统一走 lib/settings
+async function getSettings(db: D1Database): Promise<any> {
+  const stored = await readSettings(db);
   return { ...DEFAULT_SETTINGS, ...stored };
 }
 
@@ -958,10 +844,7 @@ app.put('/api/settings', async (c) => {
     merged.imageQuality = current.imageQuality;
   }
 
-  await c.env.DB
-    .prepare("UPDATE site_settings SET data = ?, updated_at = datetime('now','localtime') WHERE id = 1")
-    .bind(JSON.stringify(merged))
-    .run();
+  await writeSettings(c.env.DB, merged);
   return c.json({ ok: true, settings: merged });
 });
 
@@ -1038,130 +921,10 @@ app.put('/api/users/password', async (c) => {
   return c.json({ ok: true });
 });
 
-// ================================================================
-//  娱乐游戏站（独立 D1 库 game-db，与苦海论坛完全隔离）
-//  进入方式：统一访问密码 → 服务端签发 scope=game 的短期 token
-//  站内账号体系：进站后可注册/登录游戏站独立账号（首账号自动成为管理员）
-//  未登录发帖/评论使用访客昵称，点赞按访客标识去重
-// ================================================================
-const DEFAULT_GAME_PASSWORD = '利益or节操'; // 首次进入自动初始化，管理后台可改
-const GAME_TOKEN_TTL = 12 * 3600; // 游戏 token 12 小时
-
-async function issueGameToken(c: any, userId?: number) {
-  const now = Math.floor(Date.now() / 1000);
-  const payload: any = { scope: 'game', iat: now, exp: now + GAME_TOKEN_TTL };
-  if (userId) payload.id = userId; // 登录账号时携带账号 id，访客 token 不带
-  return await sign(payload, c.env.JWT_SECRET, 'HS256');
-}
-
-// 校验游戏站【门禁】：只读 X-Gate-Token（scope=game，由 /api/game/enter 签发）。
-// 登录态（Authorization）与门禁分离：合并后账号统一，但门禁仍独立保留。
-// 返回门禁 payload，未通过返回 null。
-async function getGameAuth(c: any): Promise<{ scope: string } | null> {
-  const token = c.req.header('X-Gate-Token')?.replace('Bearer ', '');
-  if (!token) return null;
-  try {
-    const p = await verify(token, c.env.JWT_SECRET, 'HS256');
-    return p?.scope === 'game' ? (p as any) : null;
-  } catch {
-    return null;
-  }
-}
-
-// 获取当前游戏站【登录账号】：读 Authorization 统一 token（SSO，论坛登录也认）。
-// 未登录返回 null。账号来自统一 users 表（forum-db）。
-async function getGameUser(c: any): Promise<{ id: number; username: string; nickname: string; role: string; is_banned: number } | null> {
-  const token = c.req.header('Authorization')?.replace('Bearer ', '');
-  if (!token) return null;
-  try {
-    const p = await verify(token, c.env.JWT_SECRET, 'HS256');
-    const id = Number(p.id);
-    if (!Number.isInteger(id)) return null;
-    const user = await c.env.DB
-      .prepare('SELECT id, username, nickname, role, is_banned FROM users WHERE id = ?')
-      .bind(id)
-      .first<{ id: number; username: string; nickname: string; role: string; is_banned: number }>();
-    if (!user || user.is_banned) return null;
-    return user;
-  } catch {
-    return null;
-  }
-}
-
-// 判断当前是否为游戏站管理员（登录账号且 role=admin 且未封禁）
-async function isGameAdminUser(c: any): Promise<boolean> {
-  const guser = await getGameUser(c);
-  return !!guser && guser.role === 'admin' && !guser.is_banned;
-}
-
-const VISITOR_RE = /^v[a-z0-9]{12,40}$/;
-
-async function getGameSettings(db: D1Database): Promise<any> {
-  const row = await db.prepare('SELECT data FROM site_settings WHERE id = 1').first<{ data: string }>();
-  try { return JSON.parse(row?.data || '{}'); } catch { return {}; }
-}
-
-async function saveGameSettings(db: D1Database, data: any) {
-  await db
-    .prepare("UPDATE site_settings SET data = ?, updated_at = datetime('now','localtime') WHERE id = 1")
-    .bind(JSON.stringify(data))
-    .run();
-}
-
-// 游戏站门禁提示词（公开接口，未进站也可读；显示在密码框上方）
-app.get('/api/game/hint', async (c) => {
-  const settings = await getGameSettings(c.env.DB);
-  return c.json({ hint: settings.gamePasswordHint || '本站为独立游戏分享社区，进入密码由站长管理，忘记密码请向站长索取。' });
-});
-
-// 进入游戏站（统一访问密码）
-app.post('/api/game/enter', async (c) => {
-  const { password } = await c.req.json();
-  if (typeof password !== 'string' || !password) {
-    return c.json({ message: '请输入访问密码' }, 400);
-  }
-  const db = c.env.DB;
-  const settings = await getGameSettings(db);
-  const hash = settings.gamePasswordHash;
-
-  if (!hash) {
-    // 首次：默认密码校验通过后自动落库，后续管理后台可修改
-    if (password !== DEFAULT_GAME_PASSWORD) {
-      return c.json({ message: '访问密码错误' }, 401);
-    }
-    const newHash = await hashPassword(DEFAULT_GAME_PASSWORD);
-    settings.gamePasswordHash = newHash;
-    await saveGameSettings(db, settings);
-  } else {
-    const ok = await verifyPassword(password, hash);
-    if (!ok) {
-      // 修复：如果输入的是默认密码但验证失败，说明 hash 不对，自动重置
-      if (password === DEFAULT_GAME_PASSWORD) {
-        const newHash = await hashPassword(DEFAULT_GAME_PASSWORD);
-        settings.gamePasswordHash = newHash;
-        await saveGameSettings(db, settings);
-      } else {
-        return c.json({ message: '访问密码错误' }, 401);
-      }
-    }
-  }
-
-  const token = await issueGameToken(c);
-  return c.json({ token, expiresIn: GAME_TOKEN_TTL });
-});
-
-// 游戏 token 有效性检查（登录账号时返回账号信息）
-app.get('/api/game/me', async (c) => {
-  const ok = await getGameAuth(c);
-  if (!ok) return c.json({ message: '未进入游戏站' }, 401);
-  const user = await getGameUser(c);
-  return c.json({ ok: true, user });
-});
-
 // 游戏站注册（账号已与论坛统一，写入 forum-db.users；先进站后可注册）
 // 合并后不再"首账号自动 admin"：游戏管理员即统一 role=admin 用户（论坛管理员天然可管理游戏站）
 app.post('/api/game/register', async (c) => {
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
   const { username, password, nickname, email } = await c.req.json();
   const name = String(username || '').trim();
   const pw = String(password || '');
@@ -1200,7 +963,7 @@ app.post('/api/game/register', async (c) => {
 
 // 游戏站登录（账号已与论坛统一；成功后签发统一 token，可在论坛/游戏站通用）
 app.post('/api/game/login', async (c) => {
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
   const { username, password } = await c.req.json();
   const db = c.env.DB;
   const user = await db
@@ -1233,7 +996,7 @@ app.post('/api/game/reset-admin-password', async (c) => {
 
 // ==================== 游戏帖子 ====================
 app.get('/api/game/posts', async (c) => {
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const db = c.env.DB;
   const page = Math.max(1, Number(c.req.query('page')) || 1);
@@ -1279,7 +1042,7 @@ app.get('/api/game/posts', async (c) => {
 });
 
 app.get('/api/game/posts/featured', async (c) => {
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
   const { results } = await c.env.DB
     .prepare(
       `SELECT p.id, p.title, substr(p.content, 1, 120) AS summary, p.author_name,
@@ -1294,7 +1057,7 @@ app.get('/api/game/posts/featured', async (c) => {
 // 游戏站搜索联想（按标题模糊匹配，返回 id+title 供前端下拉）
 // 必须在 /api/game/game_posts/:id 之前注册，避免被当作 id 匹配
 app.get('/api/game/posts/suggest', async (c) => {
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
   const keyword = (c.req.query('keyword') || '').trim();
   const limit = Math.max(1, Math.min(8, Number(c.req.query('limit')) || 6));
   if (!keyword) return c.json({ rows: [] });
@@ -1309,7 +1072,7 @@ app.get('/api/game/posts/suggest', async (c) => {
 
 // 游戏图片上传（与论坛共用 R2 逻辑；未配置 R2 时返回 501）
 app.post('/api/game/posts/upload', async (c) => {
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const formData = await c.req.formData().catch(() => null);
   if (!formData) return c.json({ message: '没有文件' }, 400);
@@ -1331,11 +1094,11 @@ app.post('/api/game/posts/upload', async (c) => {
 
 // 游戏发帖（登录账号用账号身份，未登录用访客昵称）
 app.post('/api/game/posts', async (c) => {
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const { title, content, nickname, visitorId, images } = await c.req.json();
   if (!title || !content) return c.json({ message: '标题和内容不能为空' }, 400);
-  const guser = await getGameUser(c);
+  const guser = await getSessionUser(c);
   const nick = guser ? (guser.nickname || guser.username) : (String(nickname || '').trim().slice(0, 20) || '匿名玩家');
   const vid = !guser && typeof visitorId === 'string' && VISITOR_RE.test(visitorId) ? visitorId : '';
   const safeImages = sanitizeImages(images);
@@ -1350,7 +1113,7 @@ app.post('/api/game/posts', async (c) => {
 
 // 游戏帖子详情
 app.get('/api/game/posts/:id', async (c) => {
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const id = Number(c.req.param('id'));
   if (!Number.isInteger(id) || id <= 0) return c.json({ message: '帖子不存在' }, 404);
@@ -1402,7 +1165,7 @@ app.get('/api/game/posts/:id', async (c) => {
 
 // 游戏帖子点赞
 app.post('/api/game/posts/:id/like', async (c) => {
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const id = Number(c.req.param('id'));
   const { visitorId } = await c.req.json();
@@ -1429,12 +1192,12 @@ app.post('/api/game/posts/:id/like', async (c) => {
 
 // 游戏评论（登录账号用账号身份，未登录用访客昵称）
 app.post('/api/game/posts/:id/comments', async (c) => {
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const postId = Number(c.req.param('id'));
   const { content, nickname, visitorId } = await c.req.json();
   if (!content) return c.json({ message: '评论内容不能为空' }, 400);
-  const guser = await getGameUser(c);
+  const guser = await getSessionUser(c);
   const nick = guser ? (guser.nickname || guser.username) : (String(nickname || '').trim().slice(0, 20) || '匿名玩家');
   const vid = !guser && typeof visitorId === 'string' && VISITOR_RE.test(visitorId) ? visitorId : '';
 
@@ -1452,7 +1215,7 @@ app.post('/api/game/posts/:id/comments', async (c) => {
 
 // 游戏评论点赞
 app.post('/api/game/posts/:postId/comments/:commentId/like', async (c) => {
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const postId = Number(c.req.param('postId'));
   const commentId = Number(c.req.param('commentId'));
@@ -1484,7 +1247,7 @@ app.post('/api/game/posts/:postId/comments/:commentId/like', async (c) => {
 // 游戏帖子编辑（作者/游戏站管理员/论坛管理员）
 app.put('/api/game/posts/:id', async (c) => {
   const adminPayload = await getAuth(c);
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const id = Number(c.req.param('id'));
   const db = c.env.DB;
@@ -1494,11 +1257,11 @@ app.put('/api/game/posts/:id', async (c) => {
   const post = await db.prepare('SELECT id, author_visitor, author_user_id FROM game_posts WHERE id = ?').bind(id).first<{ id: number; author_visitor: string; author_user_id: number | null }>();
   if (!post) return c.json({ message: '帖子不存在' }, 404);
 
-  const guser = await getGameUser(c);
+  const guser = await getSessionUser(c);
   const isAuthor = (typeof visitorId === 'string' && post.author_visitor && post.author_visitor === visitorId)
                 || (!!guser && post.author_user_id === guser.id);
-  const isAdminUser = (!!adminPayload && (await isAdmin(c, adminPayload.id))) || (await isGameAdminUser(c));
-  if (!isAuthor && !isAdminUser) return c.json({ message: '无权修改' }, 403);
+  const canManage = (!!adminPayload && (await isAdmin(c, adminPayload.id))) || (await isAdminUser(c));
+  if (!isAuthor && !canManage) return c.json({ message: '无权修改' }, 403);
 
   const safeImages = sanitizeImages(images);
   await db
@@ -1511,7 +1274,7 @@ app.put('/api/game/posts/:id', async (c) => {
 
 app.delete('/api/game/posts/:id', async (c) => {
   const adminPayload = await getAuth(c);
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const id = Number(c.req.param('id'));
   const db = c.env.DB;
@@ -1521,11 +1284,11 @@ app.delete('/api/game/posts/:id', async (c) => {
   const post = await db.prepare('SELECT id, author_visitor, author_user_id FROM game_posts WHERE id = ?').bind(id).first<{ id: number; author_visitor: string; author_user_id: number | null }>();
   if (!post) return c.json({ message: '帖子不存在' }, 404);
 
-  const guser = await getGameUser(c);
+  const guser = await getSessionUser(c);
   const isAuthor = (!!post.author_visitor && post.author_visitor === visitorId)
                 || (!!guser && post.author_user_id === guser.id);
-  const isAdminUser = (!!adminPayload && (await isAdmin(c, adminPayload.id))) || (await isGameAdminUser(c));
-  if (!isAuthor && !isAdminUser) return c.json({ message: '无权删除' }, 403);
+  const canManage = (!!adminPayload && (await isAdmin(c, adminPayload.id))) || (await isAdminUser(c));
+  if (!isAuthor && !canManage) return c.json({ message: '无权删除' }, 403);
 
   await db.prepare('DELETE FROM game_posts WHERE id = ?').bind(id).run();
   return c.json({ ok: true });
@@ -1533,8 +1296,8 @@ app.delete('/api/game/posts/:id', async (c) => {
 
 app.post('/api/game/posts/:id/pin', async (c) => {
   const adminPayload = await getAuth(c);
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
-  const isGameAdmin = await isGameAdminUser(c);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  const isGameAdmin = await isAdminUser(c);
   const isForumAdmin = !!adminPayload && (await isAdmin(c, adminPayload.id));
   if (!isGameAdmin && !isForumAdmin) return c.json({ message: '需要管理员权限' }, 403);
 
@@ -1550,8 +1313,8 @@ app.post('/api/game/posts/:id/pin', async (c) => {
 
 app.post('/api/game/posts/:id/feature', async (c) => {
   const adminPayload = await getAuth(c);
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
-  const isGameAdmin = await isGameAdminUser(c);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  const isGameAdmin = await isAdminUser(c);
   const isForumAdmin = !!adminPayload && (await isAdmin(c, adminPayload.id));
   if (!isGameAdmin && !isForumAdmin) return c.json({ message: '需要管理员权限' }, 403);
 
@@ -1567,7 +1330,7 @@ app.post('/api/game/posts/:id/feature', async (c) => {
 
 app.delete('/api/game/comments/:id', async (c) => {
   const adminPayload = await getAuth(c);
-  if (!(await getGameAuth(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
+  if (!(await requireGate(c))) return c.json({ message: '请输入访问密码进入游戏站' }, 401);
 
   const id = Number(c.req.param('id'));
   const db = c.env.DB;
@@ -1577,237 +1340,14 @@ app.delete('/api/game/comments/:id', async (c) => {
   const comment = await db.prepare('SELECT id, author_visitor, author_user_id FROM game_comments WHERE id = ?').bind(id).first<{ id: number; author_visitor: string; author_user_id: number | null }>();
   if (!comment) return c.json({ message: '评论不存在' }, 404);
 
-  const guser = await getGameUser(c);
+  const guser = await getSessionUser(c);
   const isAuthor = (!!comment.author_visitor && comment.author_visitor === visitorId)
                 || (!!guser && comment.author_user_id === guser.id);
-  const isAdminUser = (!!adminPayload && (await isAdmin(c, adminPayload.id))) || (await isGameAdminUser(c));
-  if (!isAuthor && !isAdminUser) return c.json({ message: '无权删除' }, 403);
+  const canManage = (!!adminPayload && (await isAdmin(c, adminPayload.id))) || (await isAdminUser(c));
+  if (!isAuthor && !canManage) return c.json({ message: '无权删除' }, 403);
 
   await db.prepare('DELETE FROM game_comments WHERE id = ?').bind(id).run();
   return c.json({ ok: true });
-});
-
-// ================================================================
-//  网易云音乐搜索/解析（代理接口，避免前端 CORS）
-// ================================================================
-
-// 搜索歌曲（用 iTunes API，有可直接播放的预览地址）
-app.get('/api/music/search', async (c) => {
-  const keyword = String(c.req.query('keyword') || '').trim();
-  if (!keyword) return c.json({ songs: [] });
-
-  try {
-    // 调用 iTunes Search API
-    const resp = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(keyword)}&media=music&limit=20`);
-    const data = await resp.json<any>();
-    
-    if (!data?.results?.length) {
-      return c.json({ songs: [], error: '没找到相关歌曲' });
-    }
-
-    // 转换格式
-    const songs = data.results.map((item: any) => ({
-      id: item.trackId,
-      name: item.trackName,
-      artist: item.artistName,
-      album: item.collectionName || '',
-      artwork: item.artworkUrl100?.replace('100x100', '300x300') || '',
-      preview: item.previewUrl || '', // 30秒预览地址，可直接播放
-      duration: Math.round(item.trackTimeMillis / 1000),
-    }));
-
-    return c.json({ songs });
-  } catch (e: any) {
-    console.error('音乐搜索失败:', e);
-    return c.json({ songs: [], error: '搜索失败: ' + e.message });
-  }
-});
-
-// 获取歌曲播放地址（直接返回预览地址）
-app.get('/api/music/url', async (c) => {
-  const id = String(c.req.query('id') || '').trim();
-  if (!id) return c.json({ url: '' });
-  
-  // 从 iTunes API 查询这个歌曲的预览地址
-  try {
-    const resp = await fetch(`https://itunes.apple.com/lookup?id=${id}`);
-    const data = await resp.json<any>();
-    if (data?.results?.[0]?.previewUrl) {
-      return c.json({ url: data.results[0].previewUrl });
-    }
-  } catch (e) {
-    console.error('获取播放地址失败:', e);
-  }
-  
-  return c.json({ url: '' });
-});
-
-// ================================================================
-//  小说阅读（中文维基文库 API 代理，公版/自由许可文本，可合法阅读全文）
-//  说明：维基文库在国内被墙，手机端只能经由本 Worker 读取
-// ================================================================
-
-const WIKISOURCE_API = 'https://zh.wikisource.org/w/api.php';
-// Wikimedia 要求请求带可辨识的 User-Agent，否则可能被 403
-const WIKISOURCE_UA = 'KuhaiNovel/1.0 (https://kuhai.de5.net)';
-
-// 统一请求维基文库 API（带 KV 缓存 1 天，减少上游压力）
-async function wsJson(c: any, params: Record<string, string>): Promise<any> {
-  const qs = new URLSearchParams({ ...params, format: 'json', utf8: '1' }).toString();
-  const key = `novel:ws:${qs}`;
-  try {
-    const cached = await c.env.IMG_KV.get(key);
-    if (cached) return JSON.parse(cached);
-  } catch { /* KV 不可用时直接请求 */ }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000);
-  try {
-    const resp = await fetch(`${WIKISOURCE_API}?${qs}`, {
-      headers: { 'User-Agent': WIKISOURCE_UA, Accept: 'application/json' },
-      signal: controller.signal,
-    });
-    if (!resp.ok) throw new Error(`维基文库返回 ${resp.status}`);
-    const data = await resp.json<any>();
-    try {
-      await c.env.IMG_KV.put(key, JSON.stringify(data), { expirationTtl: 86400 });
-    } catch { /* 缓存失败不影响结果 */ }
-    return data;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// 搜索小说（返回维基文库页面标题，作为后续章节查询的 id）
-app.get('/api/novel/search', async (c) => {
-  const keyword = String(c.req.query('keyword') || '').trim();
-  if (!keyword) return c.json({ books: [] });
-
-  try {
-    const data = await wsJson(c, {
-      action: 'query',
-      list: 'search',
-      srsearch: keyword,
-      srnamespace: '0',
-      srlimit: '20',
-    });
-    const books = (data?.query?.search || []).map((it: any) => ({
-      id: it.title,
-      title: it.title,
-      author: '中文维基文库',
-      cover: '',
-      category: '',
-      description: String(it.snippet || '').replace(/<[^>]+>/g, ''),
-      words: it.wordcount || 0,
-      status: '',
-    }));
-    if (!books.length) return c.json({ books: [], error: '没有找到相关作品' });
-    return c.json({ books, source: '中文维基文库（CC BY-SA）' });
-  } catch (e: any) {
-    return c.json({ books: [], error: e.message });
-  }
-});
-
-// 小说章节列表：取该书页面的子页面（维基文库的「书名/第X回」结构）
-app.get('/api/novel/chapters', async (c) => {
-  const id = String(c.req.query('id') || '').trim();
-  if (!id) return c.json({ chapters: [] });
-
-  try {
-    const data = await wsJson(c, {
-      action: 'query',
-      prop: 'links',
-      titles: id,
-      plnamespace: '0',
-      pllimit: '500',
-    });
-    // MediaWiki 默认把 pages 返回成对象（以 pageid 为键），这里统一取第一个
-    const pages: any = data?.query?.pages || {};
-    const page: any = Array.isArray(pages) ? pages[0] : Object.values(pages)[0];
-    const titles: string[] = (page?.links || []).map((l: any) => l.title);
-
-    let chapters = titles
-      .filter((t) => t.startsWith(`${id}/`))
-      .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN', { numeric: true }))
-      .map((t, i: number) => ({ index: i, title: t.slice(id.length + 1), link: t }));
-
-    // 没有子页面（单页作品）时整页作为一章
-    if (!chapters.length) chapters = [{ index: 0, title: id, link: id }];
-
-    return c.json({ chapters, total: chapters.length });
-  } catch (e: any) {
-    return c.json({ chapters: [], error: e.message });
-  }
-});
-
-// 小说章节内容：取维基文库纯文本（explaintext）
-app.get('/api/novel/content', async (c) => {
-  const link = String(c.req.query('link') || '').trim();
-  if (!link) return c.json({ content: '' });
-
-  try {
-    const data = await wsJson(c, {
-      action: 'query',
-      prop: 'extracts',
-      explaintext: '1',
-      titles: link,
-    });
-    const pages: any = data?.query?.pages || {};
-    const page: any = Array.isArray(pages) ? pages[0] : Object.values(pages)[0];
-    const text = page?.extract || '';
-    // 去掉章节页顶部的导航行（如「回目录　下一回」，可能同一行出现多个导航词）
-    const cleaned = text
-      .split('\n')
-      .filter((line: string) => line.replace(/[\s\u3000]/g, '').replace(/(回目录|上一回|下一回|目錄|目录)/g, '').length > 0)
-      .join('\n')
-      .trim();
-    if (!cleaned) return c.json({ content: '', error: '该页面没有可读正文' });
-    return c.json({ content: cleaned, source: '中文维基文库（CC BY-SA）' });
-  } catch (e: any) {
-    return c.json({ content: '', error: e.message });
-  }
-});
-
-// ================================================================
-//  影视（苹果CMS资源站代理，解决浏览器跨域问题）
-// ================================================================
-
-// 苹果CMS资源站地址（可替换为其他支持该协议的资源站）
-const MAC_CMS_BASE = 'https://api.apibdzy.com/api.php/provide/vod/';
-
-// 搜索影视 / 获取详情（返回完整数据，含播放地址）
-app.get('/api/video/search', async (c) => {
-  const keyword = String(c.req.query('keyword') || '').trim();
-  console.log('影视搜索代理，关键词:', keyword);
-  if (!keyword) return c.json({ list: [] });
-
-  try {
-    // 调用苹果CMS接口，ac=videolist 返回完整数据（含播放地址）
-    const url = `${MAC_CMS_BASE}?ac=videolist&wd=${encodeURIComponent(keyword)}`;
-    const resp = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-    });
-    const data = await resp.json<any>();
-    console.log('影视资源站返回数量:', data?.list?.length || 0);
-
-    // 只返回前端需要的字段，精简数据
-    const list = (data?.list || []).map((item: any) => ({
-      id: item.vod_id,
-      name: item.vod_name,
-      pic: item.vod_pic,
-      blurb: item.vod_blurb || '',
-      remarks: item.vod_remarks || '',
-      typeName: item.type_name || '',
-      year: item.vod_year || '',
-      area: item.vod_area || '',
-      playUrl: item.vod_play_url || '',
-    }));
-
-    return c.json({ list });
-  } catch (e: any) {
-    console.error('影视搜索代理失败:', e);
-    return c.json({ list: [], error: '搜索失败: ' + e.message });
-  }
 });
 
 // ================================================================
@@ -1837,10 +1377,7 @@ app.put('/api/admin/categories', async (c) => {
     : [];
   const settings = await getSettings(c.env.DB);
   settings.categories = list;
-  await c.env.DB
-    .prepare("UPDATE site_settings SET data = ?, updated_at = datetime('now','localtime') WHERE id = 1")
-    .bind(JSON.stringify(settings))
-    .run();
+  await writeSettings(c.env.DB, settings);
   return c.json({ ok: true, categories: list });
 });
 
@@ -1875,10 +1412,7 @@ app.put('/api/admin/site-content', async (c) => {
 
   const settings = await getSettings(c.env.DB);
   settings.siteContent = merged;
-  await c.env.DB
-    .prepare("UPDATE site_settings SET data = ?, updated_at = datetime('now','localtime') WHERE id = 1")
-    .bind(JSON.stringify(settings))
-    .run();
+  await writeSettings(c.env.DB, settings);
   return c.json({ ok: true, content: merged });
 });
 
@@ -1907,10 +1441,11 @@ app.get('/api/admin/game/stats', async (c) => {
   const commentLikes = await count('SELECT COUNT(*) AS n FROM game_comment_likes');
   const newPostsToday = await count("SELECT COUNT(*) AS n FROM game_posts WHERE date(created_at) = date('now','localtime')");
 
-  const settings = await getGameSettings(db);
+  const gate = await loadGate(db);
   return c.json({
     posts, comments, postLikes, commentLikes, newPostsToday,
-    passwordSet: !!settings.gamePasswordHash,
+    passwordSet: !!gate.passwordHash,
+    gateEnabled: gate.enabled,
   });
 });
 
@@ -2007,40 +1542,6 @@ app.put('/api/admin/game/posts/:id/images', async (c) => {
     .run();
   if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
   return c.json({ ok: true, images });
-});
-
-// 游戏密码管理
-app.put('/api/admin/game/password', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const { password } = await c.req.json();
-  if (typeof password !== 'string' || password.length < 4 || password.length > 50) {
-    return c.json({ message: '访问密码长度需 4-50 位' }, 400);
-  }
-
-  const db = c.env.DB;
-  const settings = await getGameSettings(db);
-  settings.gamePasswordHash = await hashPassword(password);
-  await saveGameSettings(db, settings);
-  return c.json({ ok: true });
-});
-
-// 修改游戏站门禁提示词（游戏站管理员 或 论坛管理员）
-app.put('/api/admin/game/hint', async (c) => {
-  const payload = await getAuth(c);
-  const isForumAdmin = !!payload && (await isAdmin(c, payload.id));
-  const isGameAdmin = await isGameAdminUser(c);
-  if (!isForumAdmin && !isGameAdmin) return c.json({ message: '需要管理员权限' }, 403);
-
-  const { hint } = await c.req.json();
-  const text = String(hint || '').trim().slice(0, 200);
-  const db = c.env.DB;
-  const settings = await getGameSettings(db);
-  settings.gamePasswordHint = text;
-  await saveGameSettings(db, settings);
-  return c.json({ ok: true, hint: text });
 });
 
 // ===== 帖子批量操作 =====

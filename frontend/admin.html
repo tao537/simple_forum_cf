@@ -135,7 +135,7 @@
 <div class="container">
   <div class="top">
     <h1>管理后台</h1>
-    <p>数据概览、帖子/用户管理、分类、游戏站、站点文案、界面设置与数据导出。</p>
+    <p>数据概览、帖子/用户管理、分类、游戏站、门禁、站点文案、界面设置与数据导出。</p>
   </div>
 
   <div class="admin-tabs">
@@ -144,6 +144,7 @@
     <button data-tab="users" onclick="switchTab('users')">👥 用户管理</button>
     <button data-tab="categories" onclick="switchTab('categories')">📂 分类管理</button>
     <button data-tab="game" onclick="switchTab('game')">🎮 游戏站</button>
+    <button data-tab="gate" onclick="switchTab('gate')">🔐 门禁</button>
     <button data-tab="content" onclick="switchTab('content')">📝 站点文案</button>
     <button data-tab="settings" onclick="switchTab('settings')">🎨 界面设置</button>
     <button data-tab="export" onclick="switchTab('export')">📤 数据导出</button>
@@ -262,20 +263,11 @@
       </div>
     </div>
     <div class="card">
-      <h2>🔑 修改游戏访问密码</h2>
-      <p style="font-size:13px;color:#94a3b8;margin-bottom:12px">新密码立即生效，游戏站所有在途 token 下次请求将失效。</p>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input id="g-new-pw" type="text" placeholder="新访问密码（4-50 位）" maxlength="50" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:13px;outline:none;width:260px" />
-        <button class="btn btn-primary" onclick="saveGamePassword()">保存新密码</button>
-      </div>
-    </div>
-    <div class="card">
-      <h2>💡 游戏站门禁提示词</h2>
-      <p style="font-size:13px;color:#94a3b8;margin-bottom:12px">显示在游戏站密码输入框上方，可写引导语或密码提示（建议不要直接暴露密码）。</p>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input id="g-hint" type="text" placeholder="例：本站为独立游戏分享社区，密码由站长管理" maxlength="200" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:13px;outline:none;width:340px" />
-        <button class="btn btn-primary" onclick="saveGameHint()">保存提示词</button>
-      </div>
+      <h2>🔐 访问控制</h2>
+      <p style="font-size:13px;color:#94a3b8;margin-bottom:12px">
+        门禁开关、访问密码、通行有效期、提示词与强制踢出，已统一收拢到「🔐 门禁」标签页管理。
+      </p>
+      <button class="btn btn-ghost" onclick="switchTab('gate')">前往门禁设置 →</button>
     </div>
     <div class="card">
       <h2>🎮 游戏分享管理</h2>
@@ -295,6 +287,71 @@
           <button class="btn btn-ghost" onclick="loadGamePosts(gameState.page+1)">下一页</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ============ 门禁 / 访问控制 ============ -->
+  <div class="tab-panel" id="panel-gate">
+    <div class="card">
+      <h2>🔐 门禁状态</h2>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="ic">🚪</div><div class="num" id="gate-state">–</div><div class="lbl">门禁开关</div><div class="sub" id="gate-state-sub"></div></div>
+        <div class="stat-card"><div class="ic">🔑</div><div class="num" id="gate-pw-state">–</div><div class="lbl">访问密码</div></div>
+        <div class="stat-card"><div class="ic">⏱</div><div class="num" id="gate-ttl-state">–</div><div class="lbl">通行有效期</div></div>
+        <div class="stat-card"><div class="ic">♻️</div><div class="num" id="gate-ver-state">–</div><div class="lbl">门禁版本</div><div class="sub">改密 / 踢出后递增</div></div>
+      </div>
+      <p style="font-size:13px;color:#94a3b8">关闭门禁后，游戏站无需密码即可直接进入；版本号一旦递增，此前签发的所有通行证立即失效。</p>
+    </div>
+
+    <div class="card">
+      <h2>⚙️ 开关与有效期</h2>
+      <div class="opt-group">
+        <label>门禁开关</label>
+        <div class="seg" id="seg-gate-enabled">
+          <button data-v="1" onclick="setGateOpt('enabled', 1)">开启（需访问密码）</button>
+          <button data-v="0" onclick="setGateOpt('enabled', 0)">关闭（自由进入）</button>
+        </div>
+      </div>
+      <div class="opt-group">
+        <label>通行证有效期（进站后多久需要重新验证）</label>
+        <div class="seg" id="seg-gate-ttl">
+          <button data-v="3600" onclick="setGateOpt('ttl', 3600)">1 小时</button>
+          <button data-v="21600" onclick="setGateOpt('ttl', 21600)">6 小时</button>
+          <button data-v="43200" onclick="setGateOpt('ttl', 43200)">12 小时</button>
+          <button data-v="86400" onclick="setGateOpt('ttl', 86400)">1 天</button>
+          <button data-v="604800" onclick="setGateOpt('ttl', 604800)">7 天</button>
+          <button data-v="2592000" onclick="setGateOpt('ttl', 2592000)">30 天</button>
+        </div>
+      </div>
+      <div class="settings-actions">
+        <button class="btn btn-primary" onclick="saveGateConfig()">💾 保存门禁设置</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🔑 访问密码</h2>
+      <p style="font-size:13px;color:#94a3b8;margin-bottom:12px">保存后立即生效，所有已进站用户需重新输入密码。</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="gate-new-pw" type="text" placeholder="新访问密码（4-50 位）" maxlength="50" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:13px;outline:none;width:260px" />
+        <button class="btn btn-primary" onclick="saveGatePassword()">保存新密码</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>💡 门禁提示词</h2>
+      <p style="font-size:13px;color:#94a3b8;margin-bottom:12px">显示在游戏站密码输入框上方，可写引导语或线索（建议不要直接暴露密码）。</p>
+      <textarea id="gate-hint" maxlength="200" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:14px;outline:none;min-height:70px;font-family:inherit;resize:vertical"></textarea>
+      <div class="settings-actions" style="margin-top:12px">
+        <button class="btn btn-primary" onclick="saveGateHint()">保存提示词</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>♻️ 强制踢出</h2>
+      <p style="font-size:13px;color:#94a3b8;margin-bottom:14px">
+        递增门禁版本，所有已签发的游戏通行证立即作废，用户需要重新输入访问密码。
+      </p>
+      <button class="btn btn-danger" onclick="kickGateSessions()">🚪 踢出所有已进站用户</button>
     </div>
   </div>
 
@@ -410,6 +467,7 @@
     if (tab === 'users') loadUsers();
     if (tab === 'categories') loadCategories();
     if (tab === 'game') loadGameAdmin();
+    if (tab === 'gate') loadGateAdmin();
     if (tab === 'content') loadSiteContentForm();
     if (tab === 'settings') initSettingsForm();
   };
@@ -658,30 +716,77 @@
       document.getElementById('g-likes').textContent = d.postLikes + d.commentLikes;
       document.getElementById('g-pw').textContent = d.passwordSet ? '已设置' : '未设置';
     } catch (e) { toast(e.message, true); }
-    // 回显当前门禁提示词
-    try {
-      const r = await api('/api/game/hint');
-      const el = document.getElementById('g-hint');
-      if (el && r.hint) el.value = r.hint;
-    } catch { /* 忽略 */ }
     loadGamePosts(1);
   }
-  window.saveGameHint = async function () {
-    const hint = document.getElementById('g-hint').value.trim();
+
+  // ===== 门禁 / 访问控制 =====
+  const gateForm = { enabled: true, ttl: 43200 };
+  async function loadGateAdmin() {
     try {
-      await api('/api/admin/game/hint', { method: 'PUT', body: JSON.stringify({ hint }) });
-      toast('门禁提示词已保存');
+      const d = await api('/api/admin/gate');
+      gateForm.enabled = d.enabled !== false;
+      gateForm.ttl = Number(d.ttl) || 43200;
+
+      document.getElementById('gate-state').textContent = gateForm.enabled ? '已开启' : '已关闭';
+      document.getElementById('gate-state-sub').textContent = gateForm.enabled ? '进站需密码' : '自由进入';
+      document.getElementById('gate-pw-state').textContent = d.hasPassword ? '已设置' : '未设置';
+      document.getElementById('gate-ttl-state').textContent = formatTtl(gateForm.ttl);
+      document.getElementById('gate-ver-state').textContent = 'v' + (d.version || 1);
+      document.getElementById('gate-hint').value = d.hint || '';
+      renderGateSeg();
+    } catch (e) { toast(e.message, true); }
+  }
+  function formatTtl(sec) {
+    if (sec >= 86400) return Math.round(sec / 86400) + ' 天';
+    return Math.round(sec / 3600) + ' 小时';
+  }
+  function renderGateSeg() {
+    const setSeg = (id, value) => {
+      document.querySelectorAll(`#${id} button`).forEach(b =>
+        b.classList.toggle('active', b.dataset.v === String(value)));
+    };
+    setSeg('seg-gate-enabled', gateForm.enabled ? 1 : 0);
+    setSeg('seg-gate-ttl', gateForm.ttl);
+  }
+  window.setGateOpt = function (key, value) {
+    gateForm[key] = key === 'enabled' ? !!Number(value) : Number(value);
+    renderGateSeg();
+  };
+  window.saveGateConfig = async function () {
+    try {
+      await api('/api/admin/gate', {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: gateForm.enabled, ttl: gateForm.ttl }),
+      });
+      toast('门禁设置已保存');
+      loadGateAdmin();
     } catch (e) { toast(e.message, true); }
   };
-  window.saveGamePassword = async function () {
-    const pw = document.getElementById('g-new-pw').value.trim();
+  window.saveGatePassword = async function () {
+    const pw = document.getElementById('gate-new-pw').value.trim();
     if (pw.length < 4 || pw.length > 50) return toast('密码长度需 4-50 位', true);
-    if (!confirm('确定修改游戏访问密码？游戏站所有在途访问将立即失效。')) return;
+    if (!confirm('确定修改访问密码？所有已进站用户会立即失效，需重新输入密码。')) return;
     try {
-      await api('/api/admin/game/password', { method: 'PUT', body: JSON.stringify({ password: pw }) });
-      document.getElementById('g-new-pw').value = '';
-      toast('游戏密码已更新');
-      loadGameAdmin();
+      await api('/api/admin/gate', { method: 'PUT', body: JSON.stringify({ password: pw }) });
+      document.getElementById('gate-new-pw').value = '';
+      toast('访问密码已更新');
+      loadGateAdmin();
+    } catch (e) { toast(e.message, true); }
+  };
+  window.saveGateHint = async function () {
+    const hint = document.getElementById('gate-hint').value.trim();
+    try {
+      await api('/api/admin/gate', { method: 'PUT', body: JSON.stringify({ hint }) });
+      toast('门禁提示词已保存');
+      loadGateAdmin();
+    } catch (e) { toast(e.message, true); }
+  };
+  window.kickGateSessions = async function () {
+    if (!confirm('确定踢出所有已进站的用户？他们需要重新输入访问密码。')) return;
+    try {
+      const d = await api('/api/admin/gate/kick', { method: 'POST' });
+      toast(`已踢出全部进站会话（门禁版本 v${d.version}）`);
+      loadGateAdmin();
     } catch (e) { toast(e.message, true); }
   };
   async function loadGamePosts(page = 1) {

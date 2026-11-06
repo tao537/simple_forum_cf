@@ -555,23 +555,44 @@
   }
 
   // 未进入时隐藏主内容，只显示门禁
-  if (!gameAuth.isEntered()) {
-    document.getElementById('main').style.display = 'none';
-    document.getElementById('gate-pw').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') submitGate();
-    });
-  } else {
-    ensureEntered().then((ok) => {
-      if (ok) {
-        document.getElementById('gate').style.display = 'none';
-        document.getElementById('main').style.display = '';
-        document.getElementById('kw').value = ''; // 清空浏览器自动填充的搜索框
-        renderNav();
-        load(1);
-        loadFeatured();
-      } else { document.getElementById('main').style.display = 'none'; }
-    });
+  async function initWithGate() {
+    // 先问后端门禁是否开启：后台关闭门禁时无需密码即可进站
+    let gateInfo = null;
+    try {
+      gateInfo = await gameApi('/api/game/gate');
+    } catch { /* 接口异常时按「门禁开启」处理，保持原有流程 */ }
+
+    if (gateInfo && gateInfo.enabled === false) {
+      document.getElementById('gate').style.display = 'none';
+      document.getElementById('main').style.display = '';
+      document.getElementById('kw').value = '';
+      renderNav();
+      load(1);
+      loadFeatured();
+      return;
+    }
+
+    if (!gameAuth.isEntered()) {
+      document.getElementById('main').style.display = 'none';
+      document.getElementById('gate-pw').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitGate();
+      });
+      return;
+    }
+
+    const ok = await ensureEntered();
+    if (ok) {
+      document.getElementById('gate').style.display = 'none';
+      document.getElementById('main').style.display = '';
+      document.getElementById('kw').value = ''; // 清空浏览器自动填充的搜索框
+      renderNav();
+      load(1);
+      loadFeatured();
+    } else {
+      document.getElementById('main').style.display = 'none';
+    }
   }
+  initWithGate();
 
   // 加载精选资源宣传墙
   async function loadFeatured() {
