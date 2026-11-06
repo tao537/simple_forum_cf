@@ -4,7 +4,7 @@
 > **先读这三个文件，够了**：本卡 → `docs/后端模块化与门禁说明.md` → `backend/wrangler.jsonc`。
 > 需要更细的再按「按需查阅」跳，**不要整仓通读**。
 
-## 一、当前状态（2026-11-07，HEAD `e65ff31`）
+## 一、当前状态（2026-11-07，HEAD `fafd7c7`，Worker Version `d977862a`）
 
 | 项 | 值 |
 |---|---|
@@ -12,7 +12,7 @@
 | 分支 | `main`，本地与 `origin/main` 一致 |
 | 站点 | 前端 `https://kuhai.de5.net`（Pages，push 后自动发布）　后端 `https://api.kuhai.de5.net`（Worker `forum-api`） |
 | 绑定 | D1 `DB = forum-db`、KV `IMG_KV`；`GAME_DB` 已注释停用（游戏库并入 forum-db） |
-| 后端部署状态 | **最近一轮改动尚未上线**（改了 `modules/gate.ts`，需重新 `wrangler deploy`） |
+| 后端部署状态 | **已上线**：Version `d977862a-82fb-4cd0-b9e8-04e9f9b5f24e`（2026-11-07，含 `gate.ts` 门禁红条） |
 
 后端已按「共享内核 + 领域模块」拆完，总 2498 行：
 
@@ -45,7 +45,7 @@ cd backend && npx wrangler deploy
 | 1 | `curl -s https://api.kuhai.de5.net/` | `{"ok":true,"service":"forum-api"}` |
 | 2 | `curl -s https://api.kuhai.de5.net/api/settings` | **只有 5 个键**：cardSize/density/imageMaxWidth/imageQuality/thumbnailSize；**不得出现** `pbkdf2`、`gate`、`gamePasswordHash` |
 | 3 | `curl -s https://api.kuhai.de5.net/api/game/gate` | `enabled/hasPassword/hint/ttl`（无哈希） |
-| 4 | `curl -s -o /dev/null -w '%{http_code}' https://api.kuhai.de5.net/api/game/posts` | `401`（无通行证） |
+| 4 | `curl -s -o /dev/null -w '%{http_code}' https://api.kuhai.de5.net/api/game/posts` | 门禁开启时 `401`（无通行证）；**门禁关闭（`/api/game/gate` 返回 `enabled:false`）时返回 `200` 属正常**，先确认开关再判失败 |
 | 5 | `curl -s -o /dev/null -w '%{http_code}' https://api.kuhai.de5.net/api/admin/gate` | `403`（未登录） |
 | 6 | `curl -s -o /dev/null -w '%{http_code}' https://api.kuhai.de5.net/api/game/reset-admin-password -X POST` | `404`（该后门已删除，不该复活） |
 
@@ -65,7 +65,7 @@ cd backend && npx wrangler deploy
 - **`*.workers.dev` 域名在国内直连会 TLS 失败**：验证一律走 `https://api.kuhai.de5.net`，不要拿裸 workers.dev 域名判失败。
 - **门禁出厂默认口令仍可用**：后台「🔐 门禁」页现在会显示红色风险卡（`GET /api/admin/gate` 返回 `usingDefaultPassword`）。改密属运营动作，**由站长在后台操作**，AI 不要代改。
 - **公开设置接口曾整包泄露哈希**：`/api/settings` 必须只回 5 个白名单键，动到 `modules/site.ts` 时要保住 `pickPublicSettings`。
-- **`docs/项目速览.md` 的事实已过期**：它仍写「`index.ts` 1869 行单文件」「D1×2 + GAME_DB」。那是拆分前的快照，**以本卡为准**；不要据此判断代码结构。该文件是 DSH 注入的 `../AGENTS.md` 的仓库副本，要改得先改机器上的 ①，别只改副本。
+- **`docs/项目速览.md` 已与机器档案同步**（2026-11-07 修正）：现在写的是 `index.ts` ~650 行 + `modules/`(gate/posts/game-posts/media/site) + `lib/`(security/auth/settings/notify)，与 `../AGENTS.md` 正文逐字节一致。改内容必须先改机器上的 ① 再复制到 ②，改完跑 `bash /home/zhong/Disk_C/ai/check-agents.sh`（第 10 项会比对两份正文）。
 
 ## 六、下一步待办（接手者可做，但需站长授权）
 
