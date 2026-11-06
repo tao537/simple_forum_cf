@@ -92,7 +92,13 @@ app.post('/api/users/login', handleLogin);
 app.get('/api/auth/me', async (c) => {
   const payload = await getAuth(c);
   if (!payload) return c.json({ message: '未登录' }, 401);
-  return c.json({ user: payload });
+  // 以库里为准返回，角色变更（提升/降级）无需重新登录即可生效
+  const row = await c.env.DB
+    .prepare('SELECT id, username, nickname, role FROM users WHERE id = ?')
+    .bind(payload.id)
+    .first<{ id: number; username: string; nickname: string; role: string }>();
+  if (!row) return c.json({ message: '用户不存在' }, 404);
+  return c.json({ user: { id: row.id, username: row.username, nickname: row.nickname, role: row.role } });
 });
 
 // ==================== 用户管理（管理员）====================
@@ -163,8 +169,14 @@ app.patch('/api/users/:id/role', async (c) => {
     return c.json({ message: '角色只能是 admin 或 user' }, 400);
   }
 
-  const target = await db.prepare('SELECT id FROM users WHERE id = ?').bind(id).first<{ id: number }>();
+  const target = await db.prepare('SELECT id, role FROM users WHERE id = ?').bind(id).first<{ id: number; role: string }>();
   if (!target) return c.json({ message: '用户不存在' }, 404);
+
+  // 防线：不能把最后一个管理员降级，否则后台彻底失联
+  if (role !== 'admin' && target.role === 'admin') {
+    const admins = await db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").first<{ n: number }>();
+    if ((admins?.n ?? 0) <= 1) return c.json({ message: '至少需要保留一个管理员' }, 400);
+  }
 
   await db.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, id).run();
   return c.json({ ok: true });
@@ -372,7 +384,9 @@ app.post('/api/game/register', async (c) => {
   if (!/^[a-zA-Z0-9_\-\u4e00-\u9fa5]{2,20}$/.test(name)) {
     return c.json({ message: '用户名需 2-20 位（字母/数字/下划线/中文）' }, 400);
   }
-  if (pw.length < 6) return c.json({ message: '密码至少 6 位' }, 400);
+  // 口令策略与论坛注册保持一致：至少 8 位 + 弱口令黑名单（统一账号库，不能留第二个口子）
+  if (pw.length < 8) return c.json({ message: '密码至少 8 位' }, 400);
+  if (BAD_PASSWORDS.has(pw.toLowerCase())) return c.json({ message: '密码过于简单' }, 400);
   // email：用户填了就校验，没填自动生成占位（以后可在个人资料补）
   let mail = String(email || '').trim();
   if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
@@ -414,7 +428,7 @@ app.post('/api/game/login', async (c) => {
     return c.json({ message: '账号或密码错误' }, 401);
   }
   if (user.is_banned) return c.json({ message: '账号已被封禁' }, 403);
-  const token = await issueToken(c, user); // 统一 token（SSO）
+  const token = await issueToken(c, { id: user.id, username: user.username, role: user.role }); // 统一 token（SSO）
   return c.json({
     token,
     expiresIn: TOKEN_TTL_SECONDS,
@@ -579,12 +593,15 @@ app.post('/api/users/:id/ban', async (c) => {
 });
 
 // ===== 数据导出（CSV）=====
+/** CSV 生成：UTF-8 BOM（Excel 直接打开不乱码）+ 转义 + 防公式注入 */
 function toCsv(headers: string[], rows: any[], pick: (r: any) => any[]) {
   const esc = (v: any) => {
-    const s = String(v ?? '');
+    let s = String(v ?? '');
+    // 以 = + - @ 开头的单元格会被 Excel 当公式执行，前置单引号阻断
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  return [headers.join(','), ...rows.map((r) => pick(r).map(esc).join(','))].join('\n');
+  return `\uFEFF${[headers.join(','), ...rows.map((r) => pick(r).map(esc).join(','))].join('\n')}`;
 }
 
 app.get('/api/admin/export/posts', async (c) => {
