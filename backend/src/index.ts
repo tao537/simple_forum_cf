@@ -8,6 +8,7 @@ import { issueToken, getAuth, isAdmin, TOKEN_TTL_SECONDS } from './lib/auth';
 // 领域模块：门禁、媒体代理、论坛帖子、游戏帖子、站点配置；各自独立、互不依赖
 import gateRoutes, { requireGate, loadGate } from './modules/gate';
 import userRoutes from './modules/users';
+import notificationRoutes from './modules/notifications';
 import mediaRoutes from './modules/media';
 import postRoutes from './modules/posts';
 import gamePostRoutes from './modules/game-posts';
@@ -24,6 +25,7 @@ app.use('*', cors({
 
 app.route('/', gateRoutes);
 app.route('/', userRoutes);
+app.route('/', notificationRoutes);
 app.route('/', mediaRoutes);
 app.route('/', postRoutes);
 app.route('/', gamePostRoutes);
@@ -101,64 +103,6 @@ app.get('/api/auth/me', async (c) => {
     .first<{ id: number; username: string; nickname: string; role: string }>();
   if (!row) return c.json({ message: '用户不存在' }, 404);
   return c.json({ user: { id: row.id, username: row.username, nickname: row.nickname, role: row.role } });
-});
-
-// ==================== 通知 ====================
-app.get('/api/notifications', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-
-  const { results } = await c.env.DB
-    .prepare(
-      `SELECT n.id, n.type, n.content, n.is_read, n.created_at, n.post_id,
-              u.username AS from_name
-       FROM notifications n LEFT JOIN users u ON u.id = n.from_user_id
-       WHERE n.user_id = ? ORDER BY n.id DESC LIMIT 50`
-    )
-    .bind(payload.id)
-    .all();
-
-  return c.json({ items: results });
-});
-
-app.get('/api/notifications/unread', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-
-  const row = await c.env.DB
-    .prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND is_read = 0')
-    .bind(payload.id)
-    .first<{ n: number }>();
-  return c.json({ count: row?.n ?? 0 });
-});
-
-// 前端使用 POST；原实现为 PUT，已对齐
-app.post('/api/notifications/:id/read', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-
-  const id = Number(c.req.param('id'));
-  const db = c.env.DB;
-
-  const row = await db
-    .prepare('SELECT id FROM notifications WHERE id = ? AND user_id = ?')
-    .bind(id, payload.id)
-    .first<{ id: number }>();
-  if (!row) return c.json({ message: '通知不存在' }, 404);
-
-  await db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?').bind(id, payload.id).run();
-  return c.json({ ok: true });
-});
-
-app.post('/api/notifications/all/read', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-
-  await c.env.DB
-    .prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0')
-    .bind(payload.id)
-    .run();
-  return c.json({ ok: true });
 });
 
 // ==================== 管理统计仪表盘 ====================
