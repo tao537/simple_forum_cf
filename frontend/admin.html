@@ -222,12 +222,19 @@
     <div class="card">
       <div class="filter-bar">
         <input id="userKw" type="text" placeholder="搜索用户名 / 昵称 / 邮箱…" />
+        <select id="userFilter" onchange="loadUsers()">
+          <option value="">全部用户</option>
+          <option value="admin">仅管理员</option>
+          <option value="banned">仅已封禁</option>
+          <option value="normal">仅正常用户</option>
+        </select>
         <button class="btn btn-primary" onclick="loadUsers()">搜索</button>
       </div>
       <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <label style="font-size:13px;color:#64748b;display:flex;align-items:center;gap:6px">
           <input type="checkbox" id="selectAll" onchange="toggleAll(this)"> 全选用户
         </label>
+        <span id="userCount" style="font-size:13px;color:#94a3b8"></span>
         <button class="btn btn-danger" onclick="batchDelete()">批量删除选中</button>
       </div>
       <table>
@@ -296,11 +303,21 @@
       <h2>🔐 门禁状态</h2>
       <div class="stat-grid">
         <div class="stat-card"><div class="ic">🚪</div><div class="num" id="gate-state">–</div><div class="lbl">门禁开关</div><div class="sub" id="gate-state-sub"></div></div>
-        <div class="stat-card"><div class="ic">🔑</div><div class="num" id="gate-pw-state">–</div><div class="lbl">访问密码</div></div>
+        <div class="stat-card"><div class="ic">🔑</div><div class="num" id="gate-pw-state">–</div><div class="lbl">访问密码</div><div class="sub" id="gate-pw-sub"></div></div>
         <div class="stat-card"><div class="ic">⏱</div><div class="num" id="gate-ttl-state">–</div><div class="lbl">通行有效期</div></div>
         <div class="stat-card"><div class="ic">♻️</div><div class="num" id="gate-ver-state">–</div><div class="lbl">门禁版本</div><div class="sub">改密 / 踢出后递增</div></div>
       </div>
       <p style="font-size:13px;color:#94a3b8">关闭门禁后，游戏站无需密码即可直接进入；版本号一旦递增，此前签发的所有通行证立即失效。</p>
+    </div>
+
+    <!-- 出厂默认口令风险条：仅在后端确认「当前口令 == 默认口令」时显示 -->
+    <div class="card" id="gate-risk" style="display:none;border-color:#fecaca;background:#fef2f2">
+      <h2 style="color:#b91c1c">⚠️ 仍在用出厂默认口令</h2>
+      <p style="font-size:13.5px;color:#7f1d1d;line-height:1.7">
+        当前门禁密码就是安装时写入的默认值，任何知道默认口令的人都能直接进站。
+        请在下方「🔑 访问密码」里换成只有你知道的密码（保存后门禁版本自动 +1，已进站的通行证立即失效）。
+      </p>
+      <button class="btn btn-danger" onclick="document.getElementById('gate-new-pw').focus()">去设置新密码 ↓</button>
     </div>
 
     <div class="card">
@@ -428,7 +445,7 @@
   <div class="tab-panel" id="panel-export">
     <div class="card">
       <h2>📤 数据导出</h2>
-      <p style="font-size:13px;color:#94a3b8;margin-bottom:16px">导出为 CSV 文件，可用 Excel / WPS 打开。</p>
+      <p style="font-size:13px;color:#94a3b8;margin-bottom:16px">导出为 CSV 文件，已带 UTF-8 BOM，Excel / WPS 双击打开中文不会乱码。</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="exportPosts()">📝 导出帖子 CSV</button>
         <button class="btn btn-primary" onclick="exportUsers()">👥 导出用户 CSV</button>
@@ -596,15 +613,24 @@
   async function loadUsers() {
     try {
       const kw = document.getElementById('userKw').value.trim();
+      const filter = document.getElementById('userFilter').value;
       const d = kw
         ? await api(`/api/users/search?keyword=${encodeURIComponent(kw)}`)
         : await api('/api/users');
+      const all = d.users || [];
+      const list = all.filter(u =>
+        !filter ? true
+        : filter === 'admin' ? u.role === 'admin'
+        : filter === 'banned' ? !!u.is_banned
+        : !u.is_banned);
       const me = auth.getUser();
-      document.getElementById('userRows').innerHTML = d.users.map(u => `
+      document.getElementById('userCount').textContent =
+        `共 ${list.length} 个账号` + (list.length !== all.length ? `（已从 ${all.length} 条中筛选）` : '');
+      document.getElementById('userRows').innerHTML = list.length ? list.map(u => `
         <tr>
           <td><input type="checkbox" class="user-checkbox" value="${u.id}" ${u.id === me.id ? 'disabled' : ''}></td>
           <td>${u.id}</td>
-          <td>@${escapeHtml(u.username)}</td>
+          <td><a href="/user.html?id=${u.id}" target="_blank" style="color:#2563eb;text-decoration:none">@${escapeHtml(u.username)}</a></td>
           <td>${escapeHtml(u.nickname)}</td>
           <td><span class="role-badge ${u.role === 'admin' ? 'role-admin' : 'role-user'}">${u.role === 'admin' ? '🛡 管理员' : '普通用户'}</span></td>
           <td>${u.is_banned ? '<span style="color:#dc2626;font-weight:700">🚫 已封禁</span>' : '<span style="color:#16a34a">正常</span>'}</td>
@@ -616,7 +642,8 @@
                  <button class="btn ${u.role === 'admin' ? 'btn-danger' : 'btn-warn'}" onclick="setRole(${u.id},'${u.role === 'admin' ? 'user' : 'admin'}')">${u.role === 'admin' ? '取消管理员' : '设为管理员'}</button>
                  <button class="btn btn-danger" onclick="deleteUser(${u.id})">删除</button>
                </div>`}</td>
-        </tr>`).join('');
+        </tr>`).join('')
+        : '<tr><td colspan="8" class="empty">没有符合条件的用户</td></tr>';
     } catch (e) { toast(e.message, true); }
   }
 
@@ -729,7 +756,10 @@
 
       document.getElementById('gate-state').textContent = gateForm.enabled ? '已开启' : '已关闭';
       document.getElementById('gate-state-sub').textContent = gateForm.enabled ? '进站需密码' : '自由进入';
-      document.getElementById('gate-pw-state').textContent = d.hasPassword ? '已设置' : '未设置';
+      document.getElementById('gate-pw-state').textContent = d.hasPassword ? (d.usingDefaultPassword ? '默认口令' : '已设置') : '未设置';
+      document.getElementById('gate-pw-sub').textContent = d.usingDefaultPassword ? '不安全，请更换' : '';
+      const risk = document.getElementById('gate-risk');
+      risk.style.display = d.usingDefaultPassword ? 'block' : 'none';
       document.getElementById('gate-ttl-state').textContent = formatTtl(gateForm.ttl);
       document.getElementById('gate-ver-state').textContent = 'v' + (d.version || 1);
       document.getElementById('gate-hint').value = d.hint || '';
@@ -807,6 +837,7 @@
           <td><div class="row-actions">
             <button class="btn btn-warn" onclick="gamePinPost(${p.id})">${p.pinned ? '取消置顶' : '置顶'}</button>
             <button class="btn btn-warn" onclick="gameFeaturePost(${p.id})">${p.featured ? '取消精选' : '精选'}</button>
+            <button class="btn btn-ghost" onclick="gameImages(${p.id})">改图</button>
             <button class="btn btn-danger" onclick="deleteGamePost(${p.id})">删除</button>
           </div></td>
         </tr>`).join('')
@@ -828,6 +859,20 @@
     if (!confirm('确定删除该游戏分享及其评论吗？')) return;
     try { await api(`/api/admin/game/posts/${id}`, { method: 'DELETE' }); toast('已删除'); loadGameAdmin(); }
     catch (e) { toast(e.message, true); }
+  };
+  window.gameImages = async function (id) {
+    const raw = prompt('输入图片地址，多张用英文逗号分隔（留空 = 清空图片）\n只接受 /img/xxx 或 https://api.kuhai.de5.net/img/xxx', '');
+    if (raw === null) return;
+    const list = raw.split(',').map(s => s.trim()).filter(Boolean);
+    const re = /^(\/img\/|https:\/\/api\.kuhai\.de5\.net\/img\/)[A-Za-z0-9._-]{1,120}$/;
+    const bad = list.filter(u => !re.test(u));
+    if (bad.length) return toast('地址不合法：' + bad[0], true);
+    if (list.length > 9) return toast('最多 9 张图片', true);
+    try {
+      await api(`/api/admin/game/posts/${id}/images`, { method: 'PUT', body: JSON.stringify({ images: list }) });
+      toast(list.length ? `已更新 ${list.length} 张图片` : '已清空图片');
+      loadGamePosts(gameState.page);
+    } catch (e) { toast(e.message, true); }
   };
 
   // ===== 站点文案 =====

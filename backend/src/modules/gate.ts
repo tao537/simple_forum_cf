@@ -201,9 +201,14 @@ routes.get('/api/game/me', async (c) => {
 routes.get('/api/admin/gate', async (c) => {
   if (!(await requireGateAdmin(c))) return c.json({ message: '需要管理员权限' }, 403);
   const cfg = await loadGate(c.env.DB);
+  // 是否仍在用出厂默认口令：仅管理端做一次 PBKDF2 校验，用于后台红条提醒
+  const usingDefaultPassword = cfg.passwordHash
+    ? await verifyPassword(DEFAULT_GATE_PASSWORD, cfg.passwordHash)
+    : false;
   return c.json({
     enabled: cfg.enabled,
     hasPassword: !!cfg.passwordHash,
+    usingDefaultPassword,
     hint: cfg.hint,
     ttl: cfg.ttl,
     version: cfg.version,
