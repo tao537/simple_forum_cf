@@ -7,6 +7,7 @@ import { validateCredentials, hashPassword, verifyPassword, BAD_PASSWORDS } from
 import { issueToken, getAuth, isAdmin, TOKEN_TTL_SECONDS } from './lib/auth';
 // 领域模块：门禁、媒体代理、论坛帖子、游戏帖子、站点配置；各自独立、互不依赖
 import gateRoutes, { requireGate, loadGate } from './modules/gate';
+import userRoutes from './modules/users';
 import mediaRoutes from './modules/media';
 import postRoutes from './modules/posts';
 import gamePostRoutes from './modules/game-posts';
@@ -22,6 +23,7 @@ app.use('*', cors({
 }));
 
 app.route('/', gateRoutes);
+app.route('/', userRoutes);
 app.route('/', mediaRoutes);
 app.route('/', postRoutes);
 app.route('/', gamePostRoutes);
@@ -99,147 +101,6 @@ app.get('/api/auth/me', async (c) => {
     .first<{ id: number; username: string; nickname: string; role: string }>();
   if (!row) return c.json({ message: '用户不存在' }, 404);
   return c.json({ user: { id: row.id, username: row.username, nickname: row.nickname, role: row.role } });
-});
-
-// ==================== 用户管理（管理员）====================
-app.get('/api/users', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-
-  const db = c.env.DB;
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const { results } = await db
-    .prepare(
-      'SELECT id, username, nickname, email, role, is_banned, created_at FROM users ORDER BY id ASC'
-    )
-    .all();
-  return c.json({ users: results });
-});
-
-app.delete('/api/users/:id', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-
-  const db = c.env.DB;
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const id = Number(c.req.param('id'));
-  if (id === payload.id) return c.json({ message: '不能删除自己' }, 400);
-
-  const target = await db.prepare('SELECT id FROM users WHERE id = ?').bind(id).first<{ id: number }>();
-  if (!target) return c.json({ message: '用户不存在' }, 404);
-
-  await db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
-  return c.json({ ok: true });
-});
-
-app.post('/api/users/batch-delete', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-
-  const db = c.env.DB;
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const { ids } = await c.req.json();
-  const list = Array.isArray(ids) ? ids.map((v) => Number(v)).filter((v) => Number.isInteger(v)) : [];
-  if (list.length === 0) return c.json({ message: '请提供要删除的用户 id 列表' }, 400);
-  if (list.includes(payload.id)) return c.json({ message: '不能删除自己' }, 400);
-
-  const placeholders = list.map(() => '?').join(',');
-  const result = await db
-    .prepare(`DELETE FROM users WHERE id IN (${placeholders})`)
-    .bind(...list)
-    .run();
-  return c.json({ ok: true, deleted: result.meta.changes ?? 0 });
-});
-
-app.patch('/api/users/:id/role', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-
-  const db = c.env.DB;
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const id = Number(c.req.param('id'));
-  if (id === payload.id) return c.json({ message: '不能修改自己的角色' }, 400);
-
-  const { role } = await c.req.json();
-  if (role !== 'admin' && role !== 'user') {
-    return c.json({ message: '角色只能是 admin 或 user' }, 400);
-  }
-
-  const target = await db.prepare('SELECT id, role FROM users WHERE id = ?').bind(id).first<{ id: number; role: string }>();
-  if (!target) return c.json({ message: '用户不存在' }, 404);
-
-  // 防线：不能把最后一个管理员降级，否则后台彻底失联
-  if (role !== 'admin' && target.role === 'admin') {
-    const admins = await db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").first<{ n: number }>();
-    if ((admins?.n ?? 0) <= 1) return c.json({ message: '至少需要保留一个管理员' }, 400);
-  }
-
-  await db.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, id).run();
-  return c.json({ ok: true });
-});
-
-// ==================== 个人主页 ====================
-app.get('/api/users/:id/profile', async (c) => {
-  const id = Number(c.req.param('id'));
-  const db = c.env.DB;
-
-  const user = await db
-    .prepare('SELECT id, username, nickname, avatar, role, created_at FROM users WHERE id = ?')
-    .bind(id)
-    .first();
-  if (!user) return c.json({ message: '用户不存在' }, 404);
-
-  const postsTotal = await db
-    .prepare('SELECT COUNT(*) AS n FROM posts WHERE author_id = ?')
-    .bind(id)
-    .first<{ n: number }>();
-  const commentsTotal = await db
-    .prepare('SELECT COUNT(*) AS n FROM comments WHERE user_id = ?')
-    .bind(id)
-    .first<{ n: number }>();
-  const likesTotal = await db
-    .prepare(
-      `SELECT COUNT(*) AS n FROM comment_likes cl JOIN comments c ON c.id = cl.comment_id WHERE c.user_id = ?`
-    )
-    .bind(id)
-    .first<{ n: number }>();
-
-  const { results: posts } = await db
-    .prepare(
-      `SELECT p.id, p.title, p.content, p.images, p.views,
-              p.is_pinned AS pinned, p.is_featured AS featured,
-              (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS upvotes,
-              (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
-              p.created_at
-       FROM posts p WHERE p.author_id = ? ORDER BY p.id DESC LIMIT 20`
-    )
-    .bind(id)
-    .all();
-
-  const { results: comments } = await db
-    .prepare(
-      `SELECT c.id, c.post_id, p.title AS post_title, c.content, c.created_at,
-              (SELECT COUNT(*) FROM comment_likes cl WHERE cl.comment_id = c.id) AS upvotes
-       FROM comments c LEFT JOIN posts p ON p.id = c.post_id
-       WHERE c.user_id = ? ORDER BY c.id DESC LIMIT 20`
-    )
-    .bind(id)
-    .all();
-
-  return c.json({
-    user,
-    stats: {
-      posts: postsTotal?.n ?? 0,
-      comments: commentsTotal?.n ?? 0,
-      likes: likesTotal?.n ?? 0,
-    },
-    posts,
-    comments,
-  });
 });
 
 // ==================== 通知 ====================
@@ -340,37 +201,6 @@ app.get('/api/admin/stats', async (c) => {
     categories: categories as any,
     topPosts: topPosts as any,
   });
-});
-
-// ==================== 修改密码 ====================
-app.put('/api/users/password', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-
-  const { oldPassword, newPassword } = await c.req.json();
-  if (!oldPassword || !newPassword) {
-    return c.json({ message: '原密码和新密码不能为空' }, 400);
-  }
-  if (String(newPassword).length < 8) {
-    return c.json({ message: '新密码长度至少 8 位' }, 400);
-  }
-  if (BAD_PASSWORDS.has(String(newPassword).toLowerCase())) {
-    return c.json({ message: '新密码过于简单' }, 400);
-  }
-
-  const db = c.env.DB;
-  const user = await db
-    .prepare('SELECT id, password_hash FROM users WHERE id = ?')
-    .bind(payload.id)
-    .first<{ id: number; password_hash: string }>();
-  if (!user) return c.json({ message: '用户不存在' }, 404);
-
-  const ok = await verifyPassword(oldPassword, user.password_hash);
-  if (!ok) return c.json({ message: '原密码错误' }, 401);
-
-  const hash = await hashPassword(newPassword);
-  await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(hash, payload.id).run();
-  return c.json({ ok: true });
 });
 
 // 游戏站注册（账号已与论坛统一，写入 forum-db.users；先进站后可注册）
@@ -557,39 +387,6 @@ app.put('/api/admin/game/posts/:id/images', async (c) => {
     .run();
   if (!result.meta.changes) return c.json({ message: '帖子不存在' }, 404);
   return c.json({ ok: true, images });
-});
-
-// ===== 用户管理增强：搜索 / 封禁 =====
-app.get('/api/users/search', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const keyword = (c.req.query('keyword') || '').trim();
-  const kw = `%${keyword}%`;
-  const { results } = await c.env.DB
-    .prepare(
-      'SELECT id, username, nickname, email, role, is_banned, created_at FROM users WHERE username LIKE ? OR nickname LIKE ? OR email LIKE ? ORDER BY id ASC LIMIT 50'
-    )
-    .bind(kw, kw, kw)
-    .all();
-  return c.json({ users: results });
-});
-
-app.post('/api/users/:id/ban', async (c) => {
-  const payload = await getAuth(c);
-  if (!payload) return c.json({ message: '请先登录' }, 401);
-  if (!(await isAdmin(c, payload.id))) return c.json({ message: '需要管理员权限' }, 403);
-
-  const id = Number(c.req.param('id'));
-  if (id === payload.id) return c.json({ message: '不能封禁自己' }, 400);
-
-  const { banned } = await c.req.json();
-  const target = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(id).first<{ id: number }>();
-  if (!target) return c.json({ message: '用户不存在' }, 404);
-
-  await c.env.DB.prepare('UPDATE users SET is_banned = ? WHERE id = ?').bind(banned ? 1 : 0, id).run();
-  return c.json({ ok: true, banned: !!banned });
 });
 
 // ===== 数据导出（CSV）=====
