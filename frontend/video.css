@@ -247,3 +247,123 @@ body::before {
   .episodes-section { padding: 14px; }
   .episodes-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
 }
+/* ================================================================
+   苦海影视 · 影院身份（2026-11-07）
+   ----------------------------------------------------------------
+   板块个性：黑场放映厅。底色压到影院黑，只留一束琥珀色的放映光；
+   海报卡像胶片框，hover 时海报发亮、边框点亮成琥珀色。
+   原来铺满屏幕的 🎬 emoji 换成胶片格子条纹。
+   本段纯追加覆盖，不改上面已有规则。
+   ================================================================ */
+:root {
+  --cine-black: #0a0a0b;
+  --cine-panel: #131315;
+  --cine-line: rgba(224,163,62,.28);
+  --cine-amber: #e0a33e;
+  --cine-text: #f2ece0;
+  --cine-dim: #9a938a;
+}
+
+body {
+  background: var(--cine-black);
+  background-image:
+    radial-gradient(90% 60% at 50% -8%, rgba(224,163,62,.16) 0%, transparent 62%),
+    linear-gradient(180deg, #0a0a0b 0%, #08080a 60%, #0b0a09 100%);
+  color: var(--cine-text);
+}
+/* 胶片条纹 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(224,163,62,.045) 0 2px,
+    transparent 2px 26px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.header h1 {
+  font-family: "Songti SC", "SimSun", Georgia, serif;
+  letter-spacing: 3px;
+  background: linear-gradient(135deg, #fff4dd 0%, var(--cine-amber) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.header p { color: var(--cine-dim); letter-spacing: .5px; }
+.back-link { color: var(--cine-dim); }
+.back-link:hover { color: var(--cine-amber); }
+
+.search-box input {
+  background: #101011;
+  border: 1px solid var(--cine-line);
+  color: var(--cine-text);
+  border-radius: 4px;
+}
+.search-box input::placeholder { color: #7d7770; }
+.search-box input:focus { border-color: var(--cine-amber); box-shadow: 0 0 0 3px rgba(224,163,62,.14); }
+.search-box button {
+  background: linear-gradient(135deg, var(--cine-amber), #b8791f);
+  color: #1a1206;
+  font-weight: 800;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+.search-box button:hover { box-shadow: 0 0 24px rgba(224,163,62,.4); }
+
+.section-title { color: var(--cine-text); letter-spacing: 1.5px; }
+.section-title::before { background: linear-gradient(180deg, var(--cine-amber), #8a5a12); }
+
+.movie-card {
+  background: var(--cine-panel);
+  border: 1px solid rgba(224,163,62,.16);
+  border-radius: 4px;
+  box-shadow: 0 10px 26px rgba(0,0,0,.55);
+}
+.movie-card:hover {
+  border-color: rgba(224,163,62,.6);
+  box-shadow: 0 16px 40px rgba(0,0,0,.7), 0 0 28px rgba(224,163,62,.22);
+}
+.movie-poster { border-radius: 2px; }
+.movie-name { color: var(--cine-text); font-family: "Songti SC", "SimSun", serif; letter-spacing: .5px; }
+.movie-meta { color: var(--cine-dim); }
+.movie-status {
+  background: rgba(10,10,11,.82);
+  color: var(--cine-amber);
+  border: 1px solid rgba(224,163,62,.4);
+  border-radius: 3px;
+}
+
+.detail-page { background: transparent; }
+.detail-poster { border-radius: 4px; box-shadow: 0 14px 40px rgba(0,0,0,.65); }
+.detail-name {
+  font-family: "Songti SC", "SimSun", serif;
+  color: var(--cine-text);
+  letter-spacing: 1px;
+}
+.detail-tag {
+  background: transparent;
+  border: 1px solid var(--cine-line);
+  color: var(--cine-amber);
+  border-radius: 3px;
+}
+.detail-blurb { color: #cfc7ba; line-height: 1.9; }
+
+.player-section { background: #000; border: 1px solid rgba(224,163,62,.2); border-radius: 4px; }
+.player-title { color: var(--cine-amber); letter-spacing: 1px; }
+.video-player { background: #000; }
+
+.episodes-grid::-webkit-scrollbar-thumb { background: rgba(224,163,62,.45); border-radius: 0; }
+.episode-btn {
+  background: #131315;
+  border: 1px solid rgba(224,163,62,.18);
+  color: #ded8cd;
+  border-radius: 3px;
+}
+.episode-btn:hover { border-color: var(--cine-amber); color: var(--cine-amber); }
+.episode-btn.active { background: rgba(224,163,62,.16); border-color: var(--cine-amber); color: #fff3dd; }
+
+.empty { color: var(--cine-dim); }

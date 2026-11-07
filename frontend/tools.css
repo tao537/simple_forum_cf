@@ -61,3 +61,77 @@ body {
   .tool-icon { font-size: 28px; }
   .tool-name { font-size: 14px; }
 }
+/* ================================================================
+   苦海工具箱 · 仪表盘身份（2026-11-07）
+   ----------------------------------------------------------------
+   板块个性：一张桌面上的工具台。不做渐变、不做发光、不用紫色；
+   换成中性灰底 + 一丝冷蓝的克制的工业感，卡片切角小、线条细、信息密。
+   和其它板块最大的区别是"没有装饰"——工具就该长得像工具。
+   本段纯追加覆盖，不改上面已有规则。
+   ================================================================ */
+:root {
+  --tool-bg: #12141a;
+  --tool-panel: #181b23;
+  --tool-panel-2: #1e222c;
+  --tool-line: rgba(148,163,184,.22);
+  --tool-text: #e5e9f0;
+  --tool-dim: #98a2b3;
+  --tool-accent: #4a90d9;
+}
+
+body {
+  background: var(--tool-bg);
+  background-image:
+    linear-gradient(180deg, #161a22 0%, #12141a 40%, #101217 100%),
+    repeating-linear-gradient(90deg, rgba(148,163,184,.04) 0 1px, transparent 1px 44px);
+  color: var(--tool-text);
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+.container { max-width: 980px; }
+
+.header { text-align: left; padding: 26px 0 18px; border-bottom: 1px solid var(--tool-line); }
+.header h1 {
+  font-size: 22px;
+  letter-spacing: 1px;
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: var(--tool-text);
+  font-weight: 700;
+}
+.header p { color: var(--tool-dim); font-size: 13px; }
+.back-link { color: var(--tool-dim); font-size: 13px; }
+.back-link:hover { color: var(--tool-accent); }
+
+.tabs { border-bottom: 1px solid var(--tool-line); gap: 2px; }
+.tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  color: var(--tool-dim);
+  font-size: 13px;
+  padding: 8px 14px;
+}
+.tab-btn:hover { background: rgba(74,144,217,.1); color: var(--tool-text); }
+.tab-btn.active { background: var(--tool-panel-2); border-color: var(--tool-line); color: var(--tool-accent); font-weight: 700; }
+
+.cat-title { color: var(--tool-dim); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+
+.tool-grid { gap: 10px; }
+.tool-card {
+  background: var(--tool-panel);
+  border: 1px solid var(--tool-line);
+  border-radius: 3px;
+  box-shadow: none;
+  transition: border-color .15s, background .15s;
+}
+.tool-card:hover {
+  background: var(--tool-panel-2);
+  border-color: rgba(74,144,217,.55);
+  box-shadow: 0 0 0 1px rgba(74,144,217,.12) inset;
+  transform: none;
+}
+.tool-icon { filter: grayscale(.15); }
+.tool-name { color: var(--tool-text); font-weight: 600; font-size: 14px; }
+.tool-desc { color: var(--tool-dim); font-size: 12px; line-height: 1.6; }

@@ -226,3 +226,180 @@
            font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 60; }
   #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
   #toast.err { background: #dc2626; }
+/* ================================================================
+   苦海论坛 · 报纸身份（2026-11-07）
+   ----------------------------------------------------------------
+   板块个性：一张墨蓝印在米白纸上的报纸。去掉会呼吸的紫粉渐变，
+   改成纸面 + 细墨线 + 宋体系标题；强调色从亮蓝换成墨蓝，
+   置顶/热门这类"编辑部标记"用朱红。卡片圆角压小、加细边，
+   接近报纸栏目的切口感。本段纯追加覆盖，不改上面已有规则。
+   ================================================================ */
+:root {
+  --ink: #1c2b3a;         /* 正文墨色 */
+  --ink-2: #46586b;       /* 次要文字 */
+  --paper: #f2ebdd;       /* 纸面 */
+  --paper-2: #fbf7ee;     /* 卡片纸 */
+  --rule: rgba(28,43,58,.14);
+  --rule-strong: rgba(28,43,58,.28);
+  --press-blue: #26456e;  /* 墨蓝 */
+  --seal: #a8322a;        /* 朱红 */
+}
+
+body {
+  background: var(--paper);
+  background-image:
+    radial-gradient(circle at 18% 12%, rgba(28,43,58,.035) 0 42%, transparent 42%),
+    repeating-linear-gradient(0deg, rgba(28,43,58,.03) 0 1px, transparent 1px 3px);
+  animation: none;
+  color: var(--ink);
+  font-family: "Songti SC", "SimSun", Georgia, serif;
+}
+
+.container {
+  background: var(--paper-2);
+  border-left: 1px solid var(--rule);
+  border-right: 1px solid var(--rule);
+  border-radius: 0;
+  box-shadow: 0 0 0 1px rgba(28,43,58,.04), 0 18px 50px rgba(28,43,58,.08);
+}
+
+/* 顶部导航：一条墨线压底，像报头 */
+nav {
+  background: rgba(251,247,238,.92);
+  box-shadow: none;
+  border-bottom: 2px solid var(--ink);
+}
+.brand { color: var(--ink); font-family: "Kaiti SC", "KaiTi", serif; }
+.brand b { font-size: 19px; letter-spacing: 2px; }
+.brand .logo {
+  background: var(--press-blue);
+  border-radius: 4px;
+  color: #f7f2e6;
+}
+.nav-right .link { color: var(--press-blue); }
+.user-chip { background: rgba(28,43,58,.06); color: var(--ink-2); }
+.user-chip:hover { background: rgba(28,43,58,.11); }
+.user-chip .avatar { background: var(--press-blue); border-radius: 4px; }
+.bell-count { background: var(--seal); border-radius: 999px; }
+
+.banner { border-radius: 4px; box-shadow: 0 8px 26px rgba(28,43,58,.18); }
+.banner .mask { background: linear-gradient(90deg, rgba(20,30,42,.82) 0%, rgba(20,30,42,.34) 55%, rgba(20,30,42,.04) 100%); }
+.banner h2 { font-family: "Kaiti SC", "KaiTi", serif; letter-spacing: 1px; }
+
+.countdown {
+  background: transparent;
+  border: 1px solid var(--rule-strong);
+  border-left: 4px solid var(--seal);
+  border-radius: 2px;
+}
+.countdown-title { color: var(--ink-2); letter-spacing: 1px; }
+.cd-item span { color: var(--seal); font-family: Georgia, serif; }
+.cd-item label, .cd-sep { color: var(--ink-2); }
+
+.section-title {
+  color: var(--ink);
+  font-family: "Kaiti SC", "KaiTi", serif;
+  font-size: 17px;
+  letter-spacing: 1.5px;
+  padding-bottom: 6px;
+  border-bottom: 3px double var(--rule-strong);
+}
+.section-title .chip { background: transparent; color: var(--seal); border: 1px solid rgba(168,50,42,.35); }
+
+.fcard {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  box-shadow: none;
+}
+.fcard:hover {
+  transform: none;
+  border-color: var(--rule-strong);
+  box-shadow: 3px 3px 0 rgba(28,43,58,.08);
+}
+.fcard .ft { color: var(--ink); font-family: "Kaiti SC", "KaiTi", serif; letter-spacing: .5px; }
+.fcard .fs { color: var(--ink-2); }
+.fcard .fm { color: #7b8794; }
+.star-badge, .pin-badge { background: transparent; color: var(--seal); border: 1px solid rgba(168,50,42,.3); border-radius: 2px; }
+.hot-badge { background: var(--seal); color: #fff6ea; border-radius: 2px; }
+.cat-badge { background: transparent; color: var(--press-blue); border: 1px solid rgba(38,69,110,.25); border-radius: 2px; }
+
+.catbar button {
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  color: var(--ink-2);
+  font-family: inherit;
+  letter-spacing: .5px;
+}
+.catbar button:hover { border-color: var(--press-blue); color: var(--press-blue); }
+.catbar button.active { background: var(--press-blue); border-color: var(--press-blue); color: #f7f2e6; }
+
+.announcement {
+  background: var(--ink);
+  border-radius: 2px;
+  box-shadow: none;
+  font-family: inherit;
+}
+.announcement .tag { background: var(--seal); border-radius: 2px; }
+
+.site-footer { border-top: 1px solid var(--rule-strong); color: #7b8794; }
+
+.tabs { background: transparent; box-shadow: none; border-bottom: 1px solid var(--rule); border-radius: 0; padding: 0; gap: 4px; }
+.tabs button { border-radius: 0; color: var(--ink-2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button.active { background: transparent; color: var(--press-blue); border-bottom-color: var(--press-blue); }
+
+.searchbox input {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+.searchbox input:focus { border-color: var(--press-blue); box-shadow: none; }
+.suggest { background: var(--paper-2); border: 1px solid var(--rule-strong); border-radius: 2px; box-shadow: 4px 4px 0 rgba(28,43,58,.1); }
+.chip { background: transparent; border: 1px solid var(--rule); border-radius: 2px; color: var(--ink-2); }
+.chip:hover { background: rgba(38,69,110,.07); border-color: var(--press-blue); color: var(--press-blue); }
+.suggest-list .item { color: var(--ink-2); border-radius: 0; }
+.suggest-list .item:hover { background: rgba(38,69,110,.08); color: var(--press-blue); }
+mark { background: rgba(168,50,42,.16); }
+
+.btn { border-radius: 2px; font-family: inherit; }
+.btn-primary { background: var(--press-blue); }
+.btn-primary:hover { box-shadow: 3px 3px 0 rgba(28,43,58,.15); transform: none; }
+.btn-ghost { background: transparent; border: 1px solid var(--rule-strong); color: var(--ink); }
+
+.post {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.post:hover {
+  transform: none;
+  border-color: var(--rule-strong);
+  box-shadow: 3px 3px 0 rgba(28,43,58,.08);
+}
+.post.pinned { background: #fbf3e2; border-color: rgba(168,50,42,.35); }
+.post.featured { border-color: rgba(38,69,110,.4); }
+.post-title { color: var(--ink); font-family: "Kaiti SC", "KaiTi", serif; font-size: 18px; letter-spacing: .5px; }
+.post-title:hover { color: var(--press-blue); }
+.post-summary { color: var(--ink-2); }
+.thumbs img { border-radius: 2px; border-color: var(--rule); }
+.post-meta { color: #7b8794; }
+.like { color: #7b8794; }
+.like.liked, .like:hover { color: var(--seal); }
+.tag-me { background: rgba(38,69,110,.1); color: var(--press-blue); border-radius: 2px; }
+
+.empty { background: var(--paper-2); border: 1px dashed var(--rule-strong); border-radius: 3px; color: var(--ink-2); }
+.pager { color: var(--ink-2); }
+
+.modal { background: var(--paper-2); border: 1px solid var(--rule-strong); border-radius: 3px; box-shadow: 8px 8px 0 rgba(28,43,58,.12); }
+.modal h2 { font-family: "Kaiti SC", "KaiTi", serif; letter-spacing: 1px; }
+.field label { color: var(--ink-2); }
+.field input[type=text], .field textarea, .field select { background: #fffdf7; border: 1px solid var(--rule); border-radius: 2px; }
+.field input:focus, .field textarea:focus, .field select:focus { border-color: var(--press-blue); box-shadow: none; }
+.hint { color: #7b8794; }
+.overlay { background: rgba(20,30,42,.5); backdrop-filter: none; }
+
+#toast { background: var(--ink); border-radius: 2px; font-family: inherit; }
+#toast.err { background: var(--seal); }
