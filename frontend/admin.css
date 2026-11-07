@@ -160,3 +160,31 @@
 .health-item.lv-bad  .hi-tag { color: #991b1b; background: #fee2e2; }
 .health-item .hi-detail { font-size: 12.5px; color: #64748b; margin-top: 4px; line-height: 1.65; }
 
+
+/* 举报处理：工单卡片。左边一条状态色条，和站点体检验证过的视觉语言保持一致 */
+.rep-sum { font-size: 13px; color: #64748b; margin: 4px 0 14px;
+           display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.rep-sum b { font-size: 14px; color: #334155; }
+.rep-sum span { font-size: 12px; color: #94a3b8; }
+
+.rep-item { border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;
+            border-left: 4px solid #f59e0b; padding: 12px 14px; margin-bottom: 10px; }
+.rep-item.st-done    { border-left-color: #22c55e; background: #f7fdf9; }
+.rep-item.st-ignored { border-left-color: #94a3b8; background: #f8fafc; opacity: .9; }
+
+.rep-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rep-type { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px;
+            background: #e0e7ff; color: #3730a3; }
+.rep-title { font-size: 13.5px; font-weight: 700; color: #1e293b; flex: 1; min-width: 0;
+             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rep-st { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+.rep-st.st-open    { background: #fef3c7; color: #92400e; }
+.rep-st.st-done    { background: #dcfce7; color: #166534; }
+.rep-st.st-ignored { background: #e2e8f0; color: #475569; }
+
+.rep-body { font-size: 13px; color: #334155; line-height: 1.7; margin-top: 8px;
+            white-space: pre-wrap; word-break: break-word; }
+.rep-meta { font-size: 12px; color: #94a3b8; margin-top: 8px; display: flex;
+            gap: 12px; flex-wrap: wrap; }
+.rep-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.rep-actions .btn-sm { padding: 5px 12px; font-size: 12px; text-decoration: none; }

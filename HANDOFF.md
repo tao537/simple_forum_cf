@@ -4,7 +4,7 @@
 > **先读这三个文件，够了**：本卡 → `docs/后端模块化与门禁说明.md` → `backend/wrangler.jsonc`。
 > 需要更细的再按「按需查阅」跳，**不要整仓通读**。
 
-## 一、当前状态（2026-11-07，HEAD `fafd7c7`，Worker Version `d977862a`）
+## 一、当前状态（2026-11-07，HEAD 见仓库最新提交，Worker Version `8ddf25ee-1b45-4592-a6b8-8855bcefe3ae`）
 
 | 项 | 值 |
 |---|---|
@@ -66,6 +66,20 @@ cd backend && npx wrangler deploy
 - **门禁出厂默认口令仍可用**：后台「🔐 门禁」页现在会显示红色风险卡（`GET /api/admin/gate` 返回 `usingDefaultPassword`）。改密属运营动作，**由站长在后台操作**，AI 不要代改。
 - **公开设置接口曾整包泄露哈希**：`/api/settings` 必须只回 5 个白名单键，动到 `modules/site.ts` 时要保住 `pickPublicSettings`。
 - **`docs/项目速览.md` 已与机器档案同步**（2026-11-07 修正）：现在写的是 `index.ts` ~650 行 + `modules/`(gate/posts/game-posts/media/site) + `lib/`(security/auth/settings/notify)，与 `../AGENTS.md` 正文逐字节一致。改内容必须先改机器上的 ① 再复制到 ②，改完跑 `bash /home/zhong/Disk_C/ai/check-agents.sh`（第 10 项会比对两份正文）。
+
+## 五之二、本轮待部署的新代码（2026-11-07）
+
+仓库已新增一个后端模块，**必须重新部署 Worker 才会生效**：
+
+- `backend/src/modules/reports.ts`（举报工单）+ `index.ts` 多一行 `app.route('/', reportRoutes)`
+- 部署后上线这三条：`POST /api/reports`（登录用户）、`GET /api/admin/reports`、`PATCH /api/admin/reports/:key`
+- **不需要任何 SQL / 迁移**：工单存在已有的 KV 绑定 `IMG_KV`，键前缀 `report:`，180 天后自动过期
+- **不改任何 secret、不碰数据库数据**
+- 部署后请验证（未登录即可判定）：
+  1. `POST /api/reports`（不带 token）→ 401，不能是 404
+  2. `GET /api/admin/reports`（不带 token）→ 403，不能是 404
+  3. `GET /api/settings` → 仍然只回五个显示字段（没被本次改动带出敏感键）
+- 前端对应的标签页是后台第 11 个「🚩 举报处理」；前端已随 Pages 上线，Worker 未部署时该页会显示读取失败，属预期
 
 ## 六、下一步待办（接手者可做，但需站长授权）
 

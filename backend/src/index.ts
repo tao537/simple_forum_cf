@@ -19,6 +19,7 @@ import mediaRoutes from './modules/media';
 import postRoutes from './modules/posts';
 import gamePostRoutes from './modules/game-posts';
 import siteRoutes from './modules/site';
+import reportRoutes from './modules/reports';
 
 const app = new Hono<Env>();
 
@@ -39,6 +40,7 @@ app.route('/', mediaRoutes);
 app.route('/', postRoutes);
 app.route('/', gamePostRoutes);
 app.route('/', siteRoutes);
+app.route('/', reportRoutes);
 
 // 健康检查
 app.get('/', (c) => c.json({ ok: true, service: 'forum-api' }));

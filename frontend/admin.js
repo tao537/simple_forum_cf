@@ -17,7 +17,7 @@
   // ===== 标签页切换 =====
   // 记住上次停留的标签页（localStorage），并同步到地址栏 #hash，刷新/深链都不丢位置
   const TAB_KEY = 'admin_last_tab';
-  const TABS = ['dashboard', 'health', 'posts', 'users', 'categories', 'game', 'gate', 'content', 'settings', 'export'];
+  const TABS = ['dashboard', 'health', 'reports', 'posts', 'users', 'categories', 'game', 'gate', 'content', 'settings', 'export'];
 
   window.switchTab = function (tab) {
     if (!TABS.includes(tab)) tab = 'dashboard';
@@ -29,6 +29,7 @@
     try { history.replaceState(null, '', '#' + tab); } catch { /* 忽略 */ }
     if (tab === 'dashboard') loadDashboard();
     if (tab === 'health') loadHealth();
+    if (tab === 'reports') loadReports();
     if (tab === 'posts') loadPosts(1);
     if (tab === 'users') loadUsers();
     if (tab === 'categories') loadCategories();
@@ -81,6 +82,71 @@
     }
   }
   window.loadHealth = loadHealth;
+
+  // ===== 举报处理 =====
+  // 工单存在 KV 里，前端只做一件事：按状态列出来，然后改状态 + 写备注。
+  // 明确不做「一键删帖」——处置动作留给帖子管理页，避免一次误点造成不可逆结果。
+  const REP_LABEL = { open: '待处理', done: '已处理', ignored: '已忽略' };
+  const REP_TYPE = { post: '论坛帖', 'game-post': '游戏帖' };
+
+  async function loadReports() {
+    const sum = document.getElementById('repSum');
+    const list = document.getElementById('repList');
+    const status = (document.getElementById('repStatus') || {}).value || 'open';
+    sum.textContent = '加载中…';
+    list.innerHTML = '';
+    try {
+      const d = await api('/api/admin/reports?status=' + encodeURIComponent(status));
+      const items = d.items || [];
+      sum.innerHTML = `<b>${items.length} 条${REP_LABEL[status] || ''}工单</b><span>工单保存在 KV，保留 180 天</span>`;
+      if (!items.length) {
+        list.innerHTML = '<div class="empty">这一栏是空的。没有人举报，就是没人举报。</div>';
+        return;
+      }
+      list.innerHTML = items.map((r) => `
+        <div class="rep-item st-${r.status}">
+          <div class="rep-head">
+            <span class="rep-type">${escapeHtml(REP_TYPE[r.targetType] || r.targetType)}</span>
+            <span class="rep-title">${escapeHtml(r.targetTitle || ('#' + r.targetId))}</span>
+            <span class="rep-st st-${r.status}">${escapeHtml(REP_LABEL[r.status] || r.status)}</span>
+          </div>
+          <div class="rep-body">${escapeHtml(r.reason)}</div>
+          <div class="rep-meta">
+            <span>👤 ${escapeHtml(r.reporter)}</span>
+            <span>🕒 ${escapeHtml(new Date(r.createdAt).toLocaleString('zh-CN'))}</span>
+            ${r.handledAt ? `<span>✅ ${escapeHtml(r.handledBy || '管理员')} · ${escapeHtml(new Date(r.handledAt).toLocaleString('zh-CN'))}</span>` : ''}
+            ${r.note ? `<span>💬 ${escapeHtml(r.note)}</span>` : ''}
+          </div>
+          <div class="rep-actions">
+            <a class="btn btn-ghost btn-sm" href="/${r.targetType === 'game-post' ? 'game-post' : 'post'}?id=${encodeURIComponent(r.targetId)}" target="_blank" rel="noopener">查看原帖</a>
+            ${r.status !== 'done' ? `<button class="btn btn-primary btn-sm" onclick="reportAction('${escapeHtml(r.key)}','done')">标记已处理</button>` : ''}
+            ${r.status !== 'ignored' ? `<button class="btn btn-ghost btn-sm" onclick="reportAction('${escapeHtml(r.key)}','ignored')">忽略</button>` : ''}
+            ${r.status !== 'open' ? `<button class="btn btn-ghost btn-sm" onclick="reportAction('${escapeHtml(r.key)}','open')">退回待处理</button>` : ''}
+          </div>
+        </div>`).join('');
+    } catch (e) {
+      sum.textContent = '读取失败：' + (e.message || '接口不可用');
+      list.innerHTML = '';
+    }
+  }
+  window.loadReports = loadReports;
+
+  window.reportAction = async function (key, status) {
+    let note = '';
+    if (status !== 'open') {
+      note = prompt(REP_LABEL[status] + '：写一句处理备注（可留空）', '') || '';
+    }
+    try {
+      await api('/api/admin/reports/' + encodeURIComponent(key), {
+        method: 'PATCH',
+        body: JSON.stringify({ status, note }),
+      });
+      toast('已更新：' + REP_LABEL[status]);
+      loadReports();
+    } catch (e) {
+      toast(e.message || '更新失败', true);
+    }
+  };
 
   // 这三个 loader 被 HTML 的 onclick / onchange 直接调用。
   // <script type="module"> 有独立作用域，模块内的 function 不会变成全局变量，

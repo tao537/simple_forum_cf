@@ -5,7 +5,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>管理后台</title>
-<link rel="stylesheet" href="admin.css?v=20261108">
+<link rel="stylesheet" href="admin.css?v=20261111">
 </head>
 <body>
 
@@ -25,6 +25,7 @@
   <div class="admin-tabs">
     <button class="active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 数据概览</button>
     <button data-tab="health" onclick="switchTab('health')">🩺 站点体检</button>
+    <button data-tab="reports" onclick="switchTab('reports')">🚩 举报处理</button>
     <button data-tab="posts" onclick="switchTab('posts')">📝 帖子管理</button>
     <button data-tab="users" onclick="switchTab('users')">👥 用户管理</button>
     <button data-tab="categories" onclick="switchTab('categories')">📂 分类管理</button>
@@ -81,6 +82,28 @@
       <div class="settings-actions" style="margin-top:6px">
         <button class="btn btn-ghost" onclick="loadHealth()">重新检查</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ============ 举报处理 ============ -->
+  <div class="tab-panel" id="panel-reports">
+    <div class="card">
+      <h2>🚩 举报处理</h2>
+      <p style="font-size:13px;color:#94a3b8;margin-bottom:14px;line-height:1.7">
+        这里只流转工单状态，不会替你删帖或封人——判断完再回到「帖子管理 / 游戏站」动手，
+        处理完在这里点「标记已处理」并留一句备注，就闭环了。
+      </p>
+      <div class="filter-bar">
+        <select id="repStatus" onchange="loadReports()">
+          <option value="open">待处理</option>
+          <option value="done">已处理</option>
+          <option value="ignored">已忽略</option>
+          <option value="all">全部</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadReports()">刷新</button>
+      </div>
+      <div class="rep-sum" id="repSum">加载中…</div>
+      <div id="repList"></div>
     </div>
   </div>
 
@@ -357,6 +380,6 @@
 
 <div id="toast"></div>
 
-<script type="module" src="admin.js?v=20261109"></script>
+<script type="module" src="admin.js?v=20261111"></script>
 </body>
 </html>

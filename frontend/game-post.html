@@ -108,6 +108,7 @@
 <script type="module">
   import { auth, gameAuth, gameApi, escapeHtml, parseImages, initAnimatedBackground,
            initMusicPlayer, processImageForUpload, renderMarkdown, GAME_WALLPAPERS, setGateWallpaper } from './common.js?v=20261027';
+  import { openReport } from '/report.js?v=20261110';
 
   const postId = Number(new URLSearchParams(location.search).get('id'));
   let currentPost = null;
@@ -317,6 +318,7 @@
             ${me ? `<button class="btn btn-warn btn-sm" onclick="togglePin()">${p.pinned ? '取消置顶' : '📌 置顶'}</button>` : ''}
             ${me ? `<button class="btn btn-warn btn-sm" onclick="toggleFeatured()">${p.featured ? '取消精选' : '⭐ 精选'}</button>` : ''}
             ${canEdit ? `<button class="btn btn-danger btn-sm" onclick="deletePost()">删除</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="reportCurrent()">⚑ 举报</button>
           </div>
         </div>`;
       renderComments(p.comments);
@@ -325,8 +327,12 @@
     }
   }
 
-  window.likePost = async function () {
-    try {
+  window.reportCurrent = function () {
+    if (!currentPost) return;
+    openReport({ targetType: 'game-post', targetId: currentPost.id, title: currentPost.title });
+  };
+
+  window.likePost = async function () {    try {
       const data = await gameApi(`/api/game/posts/${postId}/like`, {
         method: 'POST',
         body: JSON.stringify({ visitorId: gameAuth.visitorId() }),

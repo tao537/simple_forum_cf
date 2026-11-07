@@ -78,6 +78,7 @@
 <script type="module">
   import { auth, api, escapeHtml, parseImages, renderNav, renderMentions, renderMarkdown, refreshUnread,
            initAnimatedBackground, initMusicPlayer, processImageForUpload } from './common.js?v=20261027';
+  import { openReport } from '/report.js?v=20261110';
 
   const postId = new URLSearchParams(location.search).get('id');
   let currentPost = null;
@@ -275,6 +276,7 @@
             ${isAdmin ? `<button class="btn btn-warn" onclick="togglePin()">${p.pinned ? '取消置顶' : '📌 置顶'}</button>` : ''}
             ${isAdmin ? `<button class="btn btn-warn" onclick="toggleFeatured()">${p.featured ? '取消精选' : '⭐ 精选'}</button>` : ''}
             ${canEdit ? `<button class="btn btn-danger" onclick="deletePost()">删除</button>` : ''}
+            <button class="btn btn-ghost" onclick="reportCurrent()">⚑ 举报</button>
           </div>
         </div>`;
       renderComments(p.comments);
@@ -285,6 +287,11 @@
     }
   }
   window.load = load;
+
+  window.reportCurrent = function () {
+    if (!currentPost) return;
+    openReport({ targetType: 'post', targetId: currentPost.id, title: currentPost.title });
+  };
 
   function renderComments(comments) {
     document.getElementById('commentCount').textContent = `(${comments.length})`;
