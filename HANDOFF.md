@@ -67,9 +67,9 @@ cd backend && npx wrangler deploy
 - **公开设置接口曾整包泄露哈希**：`/api/settings` 必须只回 5 个白名单键，动到 `modules/site.ts` 时要保住 `pickPublicSettings`。
 - **`docs/项目速览.md` 已与机器档案同步**（2026-11-07 修正）：现在写的是 `index.ts` ~650 行 + `modules/`(gate/posts/game-posts/media/site) + `lib/`(security/auth/settings/notify)，与 `../AGENTS.md` 正文逐字节一致。改内容必须先改机器上的 ① 再复制到 ②，改完跑 `bash /home/zhong/Disk_C/ai/check-agents.sh`（第 10 项会比对两份正文）。
 
-## 五之二、本轮待部署的新代码（2026-11-07）
+## 五之二、本轮新增模块（2026-11-07，已随推送上线）
 
-仓库已新增一个后端模块，**必须重新部署 Worker 才会生效**：
+后端新增了举报模块，**推送后线上已生效（已实测，不是待办）**：
 
 - `backend/src/modules/reports.ts`（举报工单）+ `index.ts` 多一行 `app.route('/', reportRoutes)`
 - 部署后上线这三条：`POST /api/reports`（登录用户）、`GET /api/admin/reports`、`PATCH /api/admin/reports/:key`
@@ -79,7 +79,8 @@ cd backend && npx wrangler deploy
   1. `POST /api/reports`（不带 token）→ 401，不能是 404
   2. `GET /api/admin/reports`（不带 token）→ 403，不能是 404
   3. `GET /api/settings` → 仍然只回五个显示字段（没被本次改动带出敏感键）
-- 前端对应的标签页是后台第 11 个「🚩 举报处理」；前端已随 Pages 上线，Worker 未部署时该页会显示读取失败，属预期
+- 前端对应后台第 11 个「🚩 举报处理」标签页；`frontend/report.js` 是详情页的举报弹窗（跨板块共享库）
+- 实测结果：`POST /api/reports` → 401、`GET /api/admin/reports` → 403，均不是 404，说明路由与鉴权都在
 
 ## 六、下一步待办（接手者可做，但需站长授权）
 
