@@ -1,8 +1,9 @@
 # 论坛 + 游戏分享 — 部署说明
 
 基于 **Cloudflare Workers + Hono + D1 + KV + Pages** 的双站点项目：一个论坛、一个游戏分享板块。
-两站**共用同一个 Worker 后端**，但数据互相隔离 —— 论坛用 `forum-db`，游戏站用 `game-db`，
-且**各自有独立的账号体系**（论坛账号不会在游戏站自动登录）。
+两站**共用同一个 Worker 后端**。历史上论坛与游戏站分两个 D1（`forum-db` / `game-db`），
+**现在游戏库已停用**（`wrangler.jsonc` 里 `GAME_DB` 绑定被注释），游戏数据也落在 `forum-db`，
+两站靠**表与字段**隔离。账号体系仍然独立：论坛账号不会在游戏站自动登录，反之亦然。
 
 ---
 
@@ -10,33 +11,69 @@
 
 ```
 simple_forum_cf/
-├── backend/                 # 后端 → Cloudflare Workers（API）
-│   ├── src/index.ts         # 所有接口代码（论坛 + 游戏站）
+├── README.md                # 本文件：部署与结构
+├── HANDOFF.md               # 交接卡：给外部 AI / 部署助手（**先读这个**）
+├── deploy.sh                # 一键部署脚本（Linux）
+├── Linux部署手册-数据库合并.md
+├── docs/                    # 设计文档（见第八节"文档地图"）
+├── backend/                 # → Cloudflare Workers（API）
+│   ├── src/index.ts         # 装配层，**48 行**：CORS + 11 个 app.route + 健康检查
+│   ├── src/types.ts         # Env 绑定与公共类型（28 行）
+│   ├── src/lib/             # 共享内核：auth 80 / security 74 / settings 38 / notify 22
+│   ├── src/modules/         # 11 个领域模块（表见下；小说书源代理在 media.ts 里）
 │   ├── schema.sql           # 论坛表结构（新库用）
 │   ├── migrate.sql          # 论坛增量迁移（已有库用）
 │   ├── game-schema.sql      # 游戏站表结构（新库用）
-│   ├── game-account-migrate.sql  # 游戏站账号体系增量迁移（非幂等，先查列再执行）
-│   ├── README.md            # 后端说明
-│   ├── wrangler.jsonc       # Worker 配置（D1×2 / KV 绑定）
-│   ├── package.json
-│   ├── .dev.vars            # 本地开发密钥（JWT_SECRET，勿提交）
-│   └── node_modules/        # 依赖（Linux 版，可直接用于 Linux）
-└── frontend/                # 前端 → Cloudflare Pages（网页）
-    ├── index.html           # 站点入口（论坛 / 游戏站二选一）
-    ├── forum.html           # 论坛首页（帖子列表）
-    ├── game.html            # 游戏分享板块
-    ├── post.html            # 论坛帖子详情
-    ├── game-post.html       # 游戏帖子详情
-    ├── admin.html           # 管理后台
-    ├── login.html           # 登录 / 注册（左右双入口）
-    ├── notifications.html   # 消息通知
-    ├── user.html            # 个人主页
-    ├── 404.html             # 自定义 404
-    ├── common.js            # 共享脚本（登录态、请求、设置、图片压缩）
-    ├── music/               # 背景音乐
-    ├── wallpapers/          # 壁纸
-    └── uploads/             # 历史图片
+│   ├── game-account-migrate.sql  # 游戏站账号迁移（非幂等，先查列）
+│   ├── wrangler.jsonc       # D1 `DB` / KV `IMG_KV`（`GAME_DB` 已注释停用）
+│   ├── .dev.vars            # 本地 JWT_SECRET（勿提交）
+│   └── node_modules/        # 依赖（Linux 版二进制，Windows 上 wrangler 跑不了）
+├── frontend/                # → Cloudflare Pages（无构建，静态 HTML + 原生 ES module）
+│   ├── index.html           # 双门面入口（论坛 / 游戏站）
+│   ├── forum.html/.css      # 论坛首页（报纸风）
+│   ├── post.html/.css       # 论坛帖子详情
+│   ├── game.html/.css       # 游戏站（霓虹机厅）
+│   ├── game-post.html/.css  # 游戏帖详情
+│   ├── video.html/.css      # 影视（影院琥珀）
+│   ├── novel.html/.css      # 小说（夜读暖棕）
+│   ├── music.html/.css      # 苦海音乐（网易云 + Spotify + 多歌单）
+│   ├── tools.html/.css      # 苦海工具箱（12 个本地工具）
+│   ├── user.html/.css       # 个人主页
+│   ├── notifications.html/.css
+│   ├── login.html/.css      # 登录入口（海港夜灯配色，论坛与游戏共用）
+│   ├── admin.html/.css/.js  # 管理后台（11 个标签页）
+│   ├── 404.html
+│   ├── common.js            # 全站共享库（871 行）：请求 / 登录态 / Markdown / 小播放器
+│   ├── spotify.js           # Spotify 链接解析与内嵌（139 行，零依赖）
+│   ├── music-playlists.js   # 多歌单数据 + 侧栏（300 行，零依赖）
+│   ├── report.js            # 跨板块举报弹窗（171 行，零依赖）
+│   ├── tools.js             # 工具箱注册表 + 弹窗壳（705 行）
+│   ├── _headers             # 安全响应头 + 缓存策略
+│   ├── vendor/              # 第三方库（按需加载，国内可直连）
+│   ├── music/               # 背景音乐
+│   ├── wallpapers/          # 壁纸
+│   └── uploads/             # 历史图片
+├── automation/              # 本地脚本，**不部署**：抓取 → 复核 → 发帖
+└── automation-worker/       # 定时触发用的独立 Worker
 ```
+
+### 后端 11 个模块（`backend/src/modules/`）
+
+| 模块 | 行数 | 管什么 |
+|---|---|---|
+| `posts.ts` | 526 | 论坛帖 CRUD / 点赞 / 置顶 / 精选 / 评论 |
+| `game-posts.ts` | 391 | 游戏站帖子与评论 |
+| `gate.ts` | 320 | 门禁：开关、口令（PBKDF2）、提示词、TTL、通行证签发 |
+| `admin.ts` | 242 | 后台统计与审核动作、CSV 导出 |
+| `users.ts` | 232 | 用户列表 / 删除 / 角色 / 资料 |
+| `media.ts` | 225 | 图片上传（KV）与 `GET /img/:id`；小说板块的维基文库代理（`/api/novel/*`，KV 缓存 1 天） |
+| `reports.ts` | 212 | 举报工单（存 KV，键 `report:<id>`，180 天过期） |
+| `accounts.ts` | 157 | 注册 / 登录 / me / 改密码 |
+| `site.ts` | 143 | 分类、站点文案、公开设置（只回 5 个白名单键） |
+| `health.ts` | 139 | 站点体检 7 项（只读） |
+| `notifications.ts` | 75 | 通知列表 / 已读 |
+
+模块之间只有三处单向只读依赖：`accounts → gate`、`admin → gate`、`health → gate`（都不复制门禁结构）。
 
 ## 二、文件分别放在哪里
 
@@ -44,7 +81,7 @@ simple_forum_cf/
 |---|---|---|
 | `backend/` | **Cloudflare Workers** | `npx wrangler deploy` |
 | `frontend/` 里的内容 | **Cloudflare Pages** | Git 连接 或 控制台直接上传 |
-| 数据库表 | **Cloudflare D1**（`forum-db` 论坛库 / `game-db` 游戏库，双库互相隔离） | `npx wrangler d1 execute` |
+| 数据库表 | **Cloudflare D1**（唯一在用 `forum-db`；`game-db` 已停用，游戏数据并在 `forum-db`） | `npx wrangler d1 execute` |
 | 图片存储 | **Cloudflare KV**（`IMG_KV`，免费 1 GB／1000 写/天，**无需绑卡**） | `npx wrangler kv namespace create IMG_KV` + 写入 `wrangler.jsonc` |
 
 整体关系（域名规划）：
@@ -56,9 +93,8 @@ simple_forum_cf/
             │ fetch 调用
             ▼
 后端 Worker → https://api.kuhai.de5.net
-            ├─ D1：forum-db（论坛数据）
-            ├─ D1：game-db（游戏站数据，与论坛完全隔离）
-            └─ KV：IMG_KV（图片，二进制直存，免费 1 GB）
+            ├─ D1：forum-db（论坛 + 游戏站数据，靠表/字段隔离）
+            └─ KV：IMG_KV（图片二进制 + 举报工单）
 ```
 
 > 域名 `kuhai.de5.net` 在 DNSHE 注册，NS 已托管到 Cloudflare（walt/sloan.ns.cloudflare.com），
@@ -210,31 +246,34 @@ npx wrangler kv namespace create IMG_KV
 
 ---
 
-## 五、功能说明
+## 五、功能说明（按板块）
 
-### 论坛
-- 发帖（分类：壁纸 / 资源 / 求助 / 闲聊）、图片上传、搜索、排序（最新/热门/最赞）
-- 评论、评论点赞、帖子点赞
-- 回复 / @提及 / 点赞 会产生消息通知
+七个板块各自有独立的视觉与逻辑，**跨板块只允许 `<a href>` 跳转**，方便单独拿出去放：
 
-### 游戏分享（游戏站，与论坛隔离）
+| 板块 | 入口 | 现在有什么 |
+|---|---|---|
+| 论坛 | `/forum` | 发帖（壁纸/资源/求助/闲聊）、图片上传、搜索、排序（最新/热门/最赞）、评论与点赞、@提及产通知 |
+| 游戏站 | `/game` | 封面墙、排序与搜索、**门禁密码**换 `scope=game` 通行证（默认 12 小时）、独立账号或访客昵称发帖 |
+| 苦海音乐 | `/music` | 网易云曲库搜索+点播、热门试听、**Spotify 链接内嵌**（与网易云并存）、**多歌单**（新建/改名/清空/删除，「我的收藏」自动迁移旧数据） |
+| 小说 | `/novel` | 书源 = 中文维基文库（只收公版），搜索即读，夜读排版 |
+| 影视 | `/video` | 片库浏览与剧集切换，影院风版式 |
+| 苦海工具箱 | `/tools` | **12 个纯本地工具**：JSON、时间戳、URL/Base64、正则、哈希、密码、UUID、颜色、对比度、文本清洗、命名转换；不联网、不上传 |
+| 管理后台 | `/admin` | 11 个标签页（见下） |
 
-- 独立紫色主题板块，封面墙展示，帖子归入「游戏」分类
-- 支持最新/热门/最赞排序与搜索
-- **访问需密码**：在游戏站输入访问密码换取 `scope=game` 的 token（**12 小时**有效），与论坛登录态完全隔离
-- **独立账号体系**：游戏站可自行注册 / 登录（数据在 `game-db`），发帖评论显示账号身份；
-  未登录则以「访客昵称」发帖
-- **独立数据库**：游戏站的用户 / 帖子 / 评论 / 图片都走 `game-db`（`GAME_DB` 绑定），
-  与论坛 `forum-db` 互不影响 —— 论坛账号在游戏站不会自动登录，反之亦然
-- 游戏站管理员：拥有游戏站的帖子管理权限（任命方式与论坛管理员相同）
+### 管理后台的 11 个标签页
 
-### 管理员（第一个注册用户自动成为管理员）
-- **数据概览**：用户 / 帖子 / 评论 / 点赞统计、今日新增、分类分布、热门帖子
-- **帖子管理**：集中置顶 / 精选 / 删除，支持筛选与分页
-- **用户管理**：任命管理员、删除、批量删除
-- **界面设置**：卡片大小（大/中/小）、布局密度、图片最大宽度、压缩质量
+数据概览 · 🩺 站点体检 · 🚩 举报处理 · 帖子管理 · 用户管理 · 分类管理 · 游戏站管理 ·
+🔐 门禁 · 内容设置 · 界面设置 · 导出
 
----
+- **站点体检**：7 项只读检查（配置里有无敏感键、门禁开关、口令是否还是出厂默认、
+  管理员数为 0、管理员是否仍用 `admin@2026`、内容质量、今日活跃）
+- **举报处理**：工单列表（待处理/已处理/已忽略/全部）、标记处理、忽略、退回、跳原帖；
+  帖子与游戏帖详情页都有「⚑ 举报」按钮
+- 门禁页会显示"口令仍是默认值"的红色风险卡
+
+### 图片与存储
+- 图片走 KV 二进制直存（`img:<id>`），单张 ≤ 5 MB，不设 TTL（永久）
+- 举报工单也存 KV（`report:<id>`，180 天自动过期），**不需要建表、不需要迁移**
 
 ## 六、常见问题
 
@@ -282,3 +321,19 @@ npx wrangler kv namespace create IMG_KV
 - 数据库用 **Cloudflare D1（SQLite 语法）**，通过 `c.env.DB` 访问。
 - 密码哈希用 **Web Crypto PBKDF2**。
 - JWT 用 **hono/jwt**，密钥从 `c.env.JWT_SECRET` 读取，不硬编码。
+
+---
+
+## 八、文档地图（别整仓通读，按需跳）
+
+| 想知道 | 读哪 |
+|---|---|
+| 项目整体、目录地图、后端锚点、踩过的坑 | `docs/项目速览.md`（**最省 token 的入口**） |
+| 接手部署与验证（外部 AI 先读） | `HANDOFF.md` |
+| 前端分层判据、缓存版本规矩、新增后台控件五步 | `docs/前端结构与约定.md` |
+| 后端模块化过程、门禁契约、举报域设计 | `docs/后端模块化与门禁说明.md` |
+| 界面与功能的规划、各板块视觉身份进度 | `docs/界面与功能规划.md` |
+| token 成本怎么降下来的 | `docs/Agent优化报告.md` |
+| automation 怎么写一个清单、怎么发布 | `automation/README.md` |
+
+> 改完代码顺手更新对应文档——文档过期比没有文档更坑（本文件 2026-11-13 就修过一次"`index.ts` 是所有接口"的错误描述）。
