@@ -1,0 +1,54 @@
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+         color: #1f2937; min-height: 100vh; }
+  nav { background: rgba(255,255,255,.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 1px 3px rgba(15,23,42,.06); position: sticky; top: 0; z-index: 30; }
+  nav .inner { max-width: 860px; margin: 0 auto; padding: 12px 16px;
+               display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0f172a; }
+  .brand .logo { width: 34px; height: 34px; border-radius: 10px; font-size: 18px;
+                 display: flex; align-items: center; justify-content: center;
+                 background: linear-gradient(135deg,#3b82f6,#2563eb); color: #fff; }
+  .brand b { font-size: 18px; }
+  .nav-right { display: flex; align-items: center; gap: 10px; }
+  .user-chip { display: flex; align-items: center; gap: 8px; font-size: 14px;
+               color: #334155; background: #f1f5f9; padding: 6px 12px; border-radius: 999px;
+               text-decoration: none; }
+  .user-chip:hover { background: #e2e8f0; }
+  .user-chip .avatar { width: 24px; height: 24px; border-radius: 50%;
+                       background: #3b82f6; color: #fff; font-size: 12px;
+                       display: flex; align-items: center; justify-content: center; }
+  .link { color: #3b82f6; text-decoration: none; font-size: 14px; font-weight: 500; }
+  .link:hover { text-decoration: underline; }
+  .logout { color: #94a3b8; font-size: 13px; cursor: pointer; }
+  .logout:hover { color: #ef4444; }
+
+  .container { max-width: 720px; margin: 0 auto; padding: 0 16px 40px; }
+  .top { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 14px; }
+  .top h1 { font-size: 20px; }
+  .btn { padding: 8px 14px; border: none; border-radius: 9px; cursor: pointer;
+         font-size: 13px; font-weight: 600; transition: .15s; }
+  .btn-ghost { background: #fff; color: #334155; border: 1px solid #e2e8f0; }
+  .btn-ghost:hover { background: #f8fafc; }
+
+  .card { background: rgba(255,255,255,.9); backdrop-filter: blur(12px); border-radius: 14px; padding: 8px 20px; box-shadow: 0 2px 10px rgba(15,23,42,.07); border: 1px solid rgba(255,255,255,.6); }
+  .notif { padding: 14px 0; border-bottom: 1px solid #f1f5f9; cursor: pointer;
+           display: flex; gap: 10px; align-items: flex-start; }
+  .notif:last-child { border-bottom: none; }
+  .notif .dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444;
+                margin-top: 7px; flex-shrink: 0; }
+  .notif.read .dot { visibility: hidden; }
+  .notif .body { flex: 1; }
+  .notif .msg { font-size: 14px; color: #334155; line-height: 1.6; }
+  .notif .meta { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+  .type-tag { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 6px; margin-right: 6px; }
+  .t-reply { color: #2563eb; background: #eff6ff; }
+  .t-like { color: #dc2626; background: #fee2e2; }
+  .t-mention { color: #7c3aed; background: #f3e8ff; }
+  .empty { text-align: center; color: #94a3b8; padding: 60px 20px; }
+
+  #toast { position: fixed; bottom: 24px; left: 50%;
+           transform: translateX(-50%) translateY(80px);
+           background: #0f172a; color: #fff; padding: 10px 20px; border-radius: 8px;
+           font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 90; }
+  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #toast.err { background: #dc2626; }
