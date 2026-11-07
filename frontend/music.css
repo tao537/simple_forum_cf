@@ -292,3 +292,248 @@ body::after {
   .sp-input-row { flex-direction: column; }
   .sp-input-row button { width: 100%; }
 }
+
+/* ================================================================
+   苦海音乐 · 排版与歌单（2026-11-12 覆盖层）
+   ----------------------------------------------------------------
+   原有蓝色玻璃拟态播放器保留，这一层只做三件事：
+   1. 抬头：把「🎵 苦海音乐」改成正经的刊头（kicker + 大标题 + 当前播放行）
+   2. 版式：单列改左右分栏（左：播放器/热门/搜索/Spotify；右：我的歌单，粘性跟随）
+   3. 歌单：多歌单（可新建/改名/清空/删除），曲目列表带封面与"正在播放"标记
+   强调色用暖金 #e8c37a，与 Spotify 卡的墨绿刻意区分，两者同屏也不抢。
+   ================================================================ */
+:root {
+  --mz-ink: #0b1626;
+  --mz-ink-2: #12233a;
+  --mz-line: rgba(147,197,253,.18);
+  --mz-text: #eef4ff;
+  --mz-dim: #93a5bd;
+  --mz-blue: #3b82f6;
+  --mz-gold: #e8c37a;
+}
+
+body {
+  background:
+    radial-gradient(70% 50% at 12% 0%, rgba(59,130,246,.22) 0%, transparent 62%),
+    radial-gradient(60% 50% at 92% 8%, rgba(232,195,122,.10) 0%, transparent 60%),
+    linear-gradient(160deg, #071120 0%, #0b1a2e 55%, #0a1526 100%);
+  background-attachment: fixed;
+}
+body::before { color: rgba(147,197,253,.05); }
+
+.container { max-width: 1180px; padding: 18px 20px 60px; }
+.back-link { color: var(--mz-dim); }
+.back-link:hover { color: var(--mz-gold); }
+
+/* ---------- 刊头 ---------- */
+.mz-hero { padding: 14px 0 26px; border-bottom: 1px solid var(--mz-line); margin-bottom: 26px; }
+.mz-kicker {
+  font-size: 11px; letter-spacing: .32em; color: var(--mz-gold);
+  text-transform: uppercase; margin-bottom: 10px; opacity: .85;
+}
+.mz-hero h1 {
+  font-family: "Kaiti SC", "KaiTi", "Songti SC", serif;
+  font-size: clamp(34px, 6vw, 52px);
+  letter-spacing: .18em;
+  line-height: 1.15;
+  margin-bottom: 10px;
+  background: linear-gradient(120deg, #ffffff 10%, #cfe3ff 55%, var(--mz-gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.mz-hero p { color: var(--mz-dim); font-size: 13.5px; letter-spacing: .06em; }
+.mz-hero-line {
+  margin-top: 14px; font-size: 12.5px; color: var(--mz-dim);
+  display: flex; align-items: center; gap: 8px;
+}
+.mz-hero-line::before {
+  content: ''; width: 22px; height: 2px; background: var(--mz-gold);
+  border-radius: 2px; flex: none;
+}
+
+/* ---------- 分栏 ---------- */
+.mz-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 336px;
+  gap: 28px;
+  align-items: start;
+}
+.mz-main { min-width: 0; }
+.mz-side { position: sticky; top: 18px; }
+
+/* ---------- 播放器微调 ---------- */
+.player { padding: 32px 28px; border-radius: 22px; }
+.player-cover {
+  width: 176px; height: 176px; font-size: 64px;
+  box-shadow: 0 18px 50px rgba(59,130,246,.42), inset 0 0 0 6px rgba(255,255,255,.08);
+}
+.player-title { font-size: 20px; }
+.controls button {
+  border-radius: 50%;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.controls button:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(59,130,246,.3); }
+.play-btn { box-shadow: 0 8px 26px rgba(59,130,246,.45); }
+
+/* ---------- 区块标题 ---------- */
+.section-title {
+  font-size: 13px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--mz-dim); margin-bottom: 12px; display: flex; align-items: center; gap: 10px;
+}
+.section-title::after {
+  content: ''; flex: 1; height: 1px; background: var(--mz-line);
+}
+
+/* ---------- 热门卡片：加收藏按钮 ---------- */
+.hot-card { position: relative; border-radius: 14px; overflow: hidden; }
+.hot-add {
+  position: absolute; top: 6px; right: 6px;
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.22);
+  background: rgba(6,14,26,.7); color: #dbe8ff;
+  font-size: 14px; line-height: 1; cursor: pointer;
+  opacity: 0; transition: opacity .15s, background .15s, color .15s;
+}
+.hot-card:hover .hot-add { opacity: 1; }
+.hot-add:hover { background: var(--mz-gold); color: #14100a; border-color: var(--mz-gold); }
+
+/* ---------- 搜索框 ---------- */
+.search-box { border-radius: 12px; }
+.search-box button { border-radius: 9px; }
+
+/* ---------- 搜索结果：加收藏按钮 ---------- */
+.song-item { position: relative; }
+.song-add {
+  flex: none; width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid rgba(147,197,253,.28); background: transparent;
+  color: #cfe0f7; cursor: pointer; font-size: 14px; line-height: 1;
+  transition: all .15s;
+}
+.song-add:hover { background: var(--mz-gold); border-color: var(--mz-gold); color: #14100a; }
+
+/* ---------- 侧栏：歌单面板 ---------- */
+.pl-panel {
+  background: linear-gradient(180deg, rgba(18,35,58,.92), rgba(10,21,38,.92));
+  border: 1px solid var(--mz-line);
+  border-radius: 18px;
+  padding: 18px 16px 14px;
+  box-shadow: 0 18px 46px rgba(2,8,20,.55);
+  backdrop-filter: blur(14px);
+}
+.pl-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.pl-kind { font-size: 10px; letter-spacing: .3em; color: var(--mz-gold); opacity: .8; }
+.pl-title {
+  font-family: "Kaiti SC", "KaiTi", serif;
+  font-size: 22px; letter-spacing: .14em; color: var(--mz-text); margin-top: 2px;
+}
+.pl-new {
+  border: 1px solid var(--mz-line); background: rgba(147,197,253,.08);
+  color: #d9e6fb; border-radius: 999px; padding: 6px 12px;
+  font-size: 12px; cursor: pointer; transition: all .15s; font-family: inherit;
+}
+.pl-new:hover { border-color: var(--mz-gold); color: var(--mz-gold); }
+
+.pl-chips { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0 12px; }
+.pl-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--mz-line); background: rgba(147,197,253,.06);
+  color: #c8d8ee; border-radius: 999px; padding: 5px 11px;
+  font-size: 12px; cursor: pointer; transition: all .15s; font-family: inherit;
+  max-width: 100%;
+}
+.pl-chip i {
+  font-style: normal; font-size: 10px; color: var(--mz-dim);
+  background: rgba(147,197,253,.14); border-radius: 999px; padding: 1px 6px;
+}
+.pl-chip:hover { border-color: rgba(232,195,122,.55); color: #f0e2c4; }
+.pl-chip.on {
+  background: rgba(232,195,122,.16); border-color: var(--mz-gold); color: #fbeed2;
+}
+.pl-chip.on i { color: var(--mz-gold); }
+
+.pl-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 0 11px; border-top: 1px solid var(--mz-line);
+  font-size: 12px; color: var(--mz-dim); flex-wrap: wrap;
+}
+.pl-bar b { color: var(--mz-text); font-weight: 600; }
+.pl-tools { display: flex; gap: 6px; }
+.pl-tools button {
+  border: none; background: transparent; color: var(--mz-dim);
+  font-size: 11.5px; cursor: pointer; padding: 2px 4px; font-family: inherit;
+  border-bottom: 1px solid transparent;
+}
+.pl-tools button:hover { color: var(--mz-gold); border-bottom-color: rgba(232,195,122,.5); }
+
+.pl-songs { list-style: none; max-height: 52vh; overflow-y: auto; margin: 0; padding: 0; }
+.pl-song {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 6px; border-radius: 9px; cursor: pointer;
+  position: relative; transition: background .15s;
+}
+.pl-song:hover { background: rgba(147,197,253,.09); }
+.pl-song.now { background: rgba(232,195,122,.12); }
+.pl-song.now::before {
+  content: ''; position: absolute; left: 0; top: 8px; bottom: 8px;
+  width: 2px; background: var(--mz-gold); border-radius: 2px;
+}
+.pl-idx { flex: none; width: 16px; font-size: 11px; color: var(--mz-dim); text-align: right; }
+.pl-song.now .pl-idx { color: var(--mz-gold); }
+.pl-cover {
+  flex: none; width: 30px; height: 30px; border-radius: 7px;
+  background: rgba(147,197,253,.14); overflow: hidden;
+  display: flex; align-items: center; justify-content: center; font-size: 13px; color: #cfe0f7;
+}
+.pl-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pl-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pl-meta b {
+  font-size: 12.5px; font-weight: 600; color: var(--mz-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pl-meta em {
+  font-style: normal; font-size: 11px; color: var(--mz-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pl-del {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  border: none; background: transparent; color: #6e8099;
+  cursor: pointer; font-size: 12px; line-height: 1; opacity: 0;
+  transition: opacity .15s, color .15s, background .15s;
+}
+.pl-song:hover .pl-del { opacity: 1; }
+.pl-del:hover { background: rgba(239,68,68,.18); color: #fca5a5; }
+
+.pl-empty {
+  border: 1px dashed var(--mz-line); border-radius: 12px;
+  padding: 22px 14px; text-align: center; font-size: 12.5px;
+  color: var(--mz-dim); line-height: 1.9;
+}
+.pl-empty b { color: var(--mz-gold); }
+
+.mz-tip {
+  margin-top: 12px; font-size: 11.5px; color: #6f819b; line-height: 1.7;
+  text-align: center;
+}
+
+/* ---------- 轻提示 ---------- */
+#mzToast {
+  position: fixed; top: 18px; right: 18px; z-index: 999;
+  max-width: 300px; padding: 10px 15px; border-radius: 10px;
+  background: rgba(10,21,38,.95); color: #e9f1ff;
+  border: 1px solid var(--mz-line); border-left: 3px solid var(--mz-gold);
+  font-size: 13px; line-height: 1.5; box-shadow: 0 14px 34px rgba(0,0,0,.45);
+  opacity: 0; transform: translateY(-6px); pointer-events: none;
+  transition: opacity .18s, transform .18s;
+}
+#mzToast.show { opacity: 1; transform: none; }
+#mzToast.err { border-left-color: #ef4444; }
+
+/* ---------- 窄屏：堆成一列，歌单挪到播放器后面 ---------- */
+@media (max-width: 900px) {
+  .mz-layout { grid-template-columns: 1fr; gap: 20px; }
+  .mz-side { position: static; order: -1; }
+  .pl-songs { max-height: none; }
+  .container { padding: 14px 14px 48px; }
+  .mz-hero h1 { letter-spacing: .12em; }
+}

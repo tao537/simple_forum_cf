@@ -4,16 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>苦海音乐</title>
-<link rel="stylesheet" href="music.css?v=20261109">
+<link rel="stylesheet" href="music.css?v=20261112">
 </head>
 <body>
 <div class="container">
   <a href="/game.html" class="back-link">← 返回游戏站</a>
 
-  <div class="header">
-    <h1>🎵 苦海音乐</h1>
-    <p>搜索网易云歌曲，添加到你的歌单</p>
-  </div>
+  <header class="mz-hero">
+    <div class="mz-kicker">KŪHǍI · SOUND</div>
+    <h1>苦海音乐</h1>
+    <p>网易云曲库点播 · Spotify 内嵌 · 自己的歌单</p>
+    <div class="mz-hero-line"><span id="mzNowHint">还没开始听</span></div>
+  </header>
+
+  <div class="mz-layout">
+  <main class="mz-main">
 
   <!-- 大尺寸播放器 -->
   <div class="player" id="player">
@@ -53,13 +58,6 @@
     <ul class="song-list" id="searchList"></ul>
   </div>
 
-  <!-- 我的歌单 -->
-  <div style="margin-top:32px">
-    <div class="section-title">📋 我的歌单</div>
-    <ul class="song-list" id="playlistList"></ul>
-    <div class="empty" id="playlistEmpty">歌单是空的，搜索歌曲后点 + 添加</div>
-  </div>
-
   <!-- Spotify：与上面的网易云播放器并存，互不影响（关掉这张卡片不影响原有播放） -->
   <div class="spotify-card" id="spotifyCard">
     <div class="sp-head">
@@ -81,6 +79,15 @@
       公开歌单/单曲链接即可播放；要听会员曲库或个人收藏，先在浏览器里登录 Spotify。
     </div>
   </div>
+  </main>
+
+  <aside class="mz-side">
+    <div class="pl-panel" id="playlistPanel"></div>
+    <div class="mz-tip">
+      歌单存在这台浏览器里，清缓存会丢；换设备不会同步。
+    </div>
+  </aside>
+  </div>
 </div>
 
 <audio id="audio"></audio>
@@ -89,6 +96,7 @@
 // 导入工具函数
 import { escapeHtml, writeMusicNow, readMusicNow, onMusicNow } from '/common.js?v=20261027';
 import { mountSpotify } from '/spotify.js?v=20261109';
+import { Playlists, mountPlaylistPanel } from '/music-playlists.js?v=20261112';
 
 // Spotify 面板：与网易云播放器完全独立的一套状态，互不干扰
 mountSpotify(document.getElementById('spotifyCard'));
@@ -101,8 +109,9 @@ const audio = document.getElementById('audio');
 const player = document.getElementById('player');
 const playBtn = document.getElementById('playBtn');
 
-// 歌单数据，从 localStorage 读取
-let playlist = JSON.parse(localStorage.getItem('music_playlist') || '[]');
+// 歌单数据由 music-playlists.js 管理；这里的 playlist 只是"当前歌单"的镜像，
+// 用来支持上一首/下一首和"正在播放"高亮，不直接写 localStorage。
+let playlist = [];
 let currentIndex = -1; // 当前播放的歌在歌单中的索引，-1 表示没在播放
 let nowSong = null;    // 当前曲目（与右下角小播放器共用 music_now）
 
@@ -122,7 +131,25 @@ function snapMusic(song) {
 console.log('[音乐模块] 初始化完成，歌单长度:', playlist.length);
 
 // 初始化：渲染歌单 + 热门试听
+playlist = Playlists.songs();
 renderPlaylist();
+
+// 侧栏歌单面板：点哪首歌就播哪首（索引对应当前歌单）
+mountPlaylistPanel(document.getElementById('playlistPanel'), {
+  onPlay(i) {
+    const s = playlist[i];
+    if (!s) return;
+    currentIndex = i;
+    playSong(s);
+  },
+});
+
+// 换歌单 / 加歌 / 删歌 都会回调，页面只同步镜像与前高亮
+Playlists.onChange((songs) => {
+  playlist = songs;
+  if (currentIndex >= songs.length) currentIndex = -1;
+  Playlists.setNowPlaying(currentIndex, !audio.paused);
+});
 
 // ===== 热门试听 =====
 // 只放几首，点封面就播（不用先搜索），结果缓存 6 小时
@@ -174,6 +201,7 @@ function renderHot(songs) {
       <div class="hot-cover">${s.artwork ? `<img src="${s.artwork}" alt="${escapeHtml(s.name)}" loading="lazy" referrerpolicy="no-referrer">` : '🎵'}</div>
       <div class="hot-name">${escapeHtml(s.name)}</div>
       <div class="hot-artist">${escapeHtml(s.artist)}</div>
+      <button class="hot-add" title="加入当前歌单" onclick="event.stopPropagation(); addHotToPlaylist(${i})">＋</button>
     </div>
   `).join('');
 }
@@ -261,6 +289,7 @@ window.searchMusic = async function(keyword) {
           <div class="song-name">${escapeHtml(s.name)}</div>
           <div class="song-artist">${escapeHtml(s.artist)}</div>
         </div>
+        <button class="song-add" title="加入当前歌单" onclick="event.stopPropagation(); addToPlaylist(${i})">＋</button>
       </li>
     `).join('');
     window._searchResults = songs;
@@ -290,30 +319,40 @@ window.playFromSearch = function(i) {
 };
 
 /**
- * 添加到歌单
- * @param {number} i - 歌曲索引
+ * 添加到歌单（默认加到当前歌单）
+ * @param {number} i - 搜索结果里的索引
  */
 window.addToPlaylist = function(i) {
-  console.log('[音乐模块] 点击添加到歌单，索引:', i);
-  try {
-    const s = window._searchResults[i];
-    if (!s) throw new Error('没找到歌曲数据');
-    
-    // 检查是否已经在歌单里
-    if (playlist.find(x => x.id === s.id)) {
-      alert('这首歌已经在歌单里了');
-      return;
-    }
-    
-    playlist.push(s);
-    localStorage.setItem('music_playlist', JSON.stringify(playlist));
-    renderPlaylist();
-    alert(`已添加：${s.name} - ${s.artist}`);
-  } catch (e) {
-    console.error('[音乐模块] 添加到歌单失败:', e);
-    alert('添加失败：' + e.message);
-  }
+  const s = (window._searchResults || [])[i];
+  if (!s) return;
+  const r = Playlists.addSong(s);
+  if (r === 'duplicate') return toastMsg('这首歌已经在「' + Playlists.active().name + '」里了', true);
+  if (r === 'added') toastMsg('已加入「' + Playlists.active().name + '」：' + s.name);
 };
+
+/** 热门试听卡片也能一键收藏 */
+window.addHotToPlaylist = function(i) {
+  const s = (window._hotTracks || [])[i];
+  if (!s) return;
+  const r = Playlists.addSong(s);
+  if (r === 'duplicate') return toastMsg('已经在「' + Playlists.active().name + '」里了', true);
+  if (r === 'added') toastMsg('已加入「' + Playlists.active().name + '」：' + s.name);
+};
+
+// 轻提示：原来用 alert，弹一次要点一次，改成右上角亮点，2 秒后自己消失
+function toastMsg(msg, isErr = false) {
+  let el = document.getElementById('mzToast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'mzToast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.className = 'show' + (isErr ? ' err' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = ''; }, 2200);
+}
+window.toastMsg = toastMsg;
 
 /**
  * 从歌单播放
@@ -337,29 +376,7 @@ window.playFromPlaylist = function(i) {
  * @param {number} i - 歌曲索引
  */
 window.removeFromPlaylist = function(i) {
-  console.log('[音乐模块] 删除歌单歌曲，索引:', i);
-  try {
-    playlist.splice(i, 1);
-    localStorage.setItem('music_playlist', JSON.stringify(playlist));
-    
-    // 如果删除的是当前播放的歌，就停止播放
-    if (currentIndex === i) {
-      audio.pause();
-      currentIndex = -1;
-      document.getElementById('nowTitle').textContent = '♫ 未播放';
-      document.getElementById('nowArtist').textContent = '';
-      playBtn.textContent = '▶';
-      player.classList.remove('playing');
-    } else if (currentIndex > i) {
-      // 删除的歌在当前播放歌前面，索引要减 1
-      currentIndex--;
-    }
-    
-    renderPlaylist();
-  } catch (e) {
-    console.error('[音乐模块] 删除歌单歌曲失败:', e);
-    alert('删除失败：' + e.message);
-  }
+  if (Playlists.removeSong(Number(i))) toastMsg('已从歌单移除');
 };
 
 /**
@@ -393,6 +410,8 @@ async function playSong(song) {
   writeMusicNow({ src: 'big', song: snapMusic(song), url, playing: true, position: 0 });
   document.getElementById('nowTitle').textContent = song.name;
   document.getElementById('nowArtist').textContent = song.artist;
+  const hint = document.getElementById('mzNowHint');
+  if (hint) hint.textContent = '正在播放 · ' + song.name + (song.artist ? ' — ' + song.artist : '');
   
   // 显示专辑封面
   const cover = document.getElementById('cover');
@@ -544,31 +563,12 @@ onMusicNow((now) => {
 });
 
 /**
- * 渲染歌单到页面上
+ * 刷新"正在播放"标记
+ * 歌单列表本身由 music-playlists.js 渲染，这里只把当前索引/播放状态丢给它，
+ * 免得两处各画一份列表、状态对不上。
  */
 function renderPlaylist() {
-  const list = document.getElementById('playlistList');
-  const empty = document.getElementById('playlistEmpty');
-  
-  if (!playlist.length) {
-    list.innerHTML = '';
-    empty.style.display = 'block';
-    return;
-  }
-  
-  empty.style.display = 'none';
-  list.innerHTML = playlist.map((s, i) => `
-    <li class="song-item ${i === currentIndex ? 'active' : ''}" onclick="playFromPlaylist(${i})">
-      <span class="song-num">${i+1}</span>
-      <div class="song-info">
-        <div class="song-name">${s.name}</div>
-        <div class="song-artist">${s.artist}</div>
-      </div>
-      <div class="song-actions">
-        <button onclick="event.stopPropagation(); removeFromPlaylist(${i})">✕ 删除</button>
-      </div>
-    </li>
-  `).join('');
+  Playlists.setNowPlaying(currentIndex, !audio.paused);
 }
 
 /**
