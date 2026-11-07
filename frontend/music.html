@@ -4,246 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>苦海音乐</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
-  min-height: 100vh;
-  color: #fff;
-  position: relative;
-  overflow-x: hidden;
-}
-/* 音符背景图案 */
-body::before {
-  content: '♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬ ♪ ♫ ♩ ♬';
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  font-size: 40px;
-  line-height: 80px;
-  color: rgba(59,130,246,.08);
-  pointer-events: none;
-  z-index: 0;
-  word-wrap: break-word;
-  overflow: hidden;
-}
-/* 背景光斑装饰 */
-body::after {
-  content: '';
-  position: fixed;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  width: 800px; height: 800px;
-  background: radial-gradient(circle, rgba(59,130,246,.15) 0%, transparent 70%);
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 0;
-}
-.container { max-width: 900px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
-
-.header { text-align: center; padding: 30px 0; }
-.header h1 {
-  font-size: 28px;
-  margin-bottom: 8px;
-  background: linear-gradient(135deg, #fff 0%, #93c5fd 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.header p { color: #94a3b8; font-size: 14px; }
-
-/* 大尺寸播放器 */
-.player {
-  background: rgba(255,255,255,.08);
-  backdrop-filter: blur(20px);
-  border-radius: 24px;
-  padding: 40px;
-  margin-bottom: 24px;
-  border: 1px solid rgba(255,255,255,.15);
-  box-shadow: 0 20px 60px rgba(0,0,0,.3);
-}
-.player-cover {
-  width: 200px; height: 200px;
-  margin: 0 auto 24px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #1e3a8a, #3b82f6, #0ea5e9);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 80px;
-  box-shadow: 0 20px 60px rgba(59,130,246,.5), inset 0 0 0 8px rgba(255,255,255,.1);
-  animation: rotate 20s linear infinite;
-  animation-play-state: paused;
-  overflow: hidden;
-}
-.player.playing .player-cover { animation-play-state: running; }
-@keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-.player-title { text-align: center; font-size: 22px; font-weight: 600; margin-bottom: 6px; }
-.player-artist { text-align: center; color: #94a3b8; font-size: 14px; margin-bottom: 24px; }
-
-.progress-bar {
-  height: 6px;
-  background: rgba(255,255,255,.1);
-  border-radius: 3px;
-  margin-bottom: 16px;
-  cursor: pointer;
-}
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #1e3a8a, #3b82f6);
-  border-radius: 3px;
-  width: 0%;
-  transition: width .1s linear;
-}
-
-.time-row { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 24px; }
-
-.controls { display: flex; justify-content: center; gap: 24px; align-items: center; }
-.controls button {
-  width: 56px; height: 56px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255,255,255,.1);
-  color: #fff;
-  font-size: 20px;
-  cursor: pointer;
-  transition: all .2s;
-}
-.controls button:hover { background: rgba(255,255,255,.2); transform: scale(1.05); }
-.controls button.play-btn {
-  width: 72px; height: 72px;
-  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
-  font-size: 28px;
-}
-
-/* 搜索框 */
-.search-box {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
-}
-.search-box input {
-  flex: 1;
-  padding: 14px 20px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.15);
-  background: rgba(255,255,255,.05);
-  color: #fff;
-  font-size: 15px;
-  outline: none;
-}
-.search-box input:focus { border-color: #3b82f6; }
-.search-box button {
-  padding: 14px 28px;
-  border-radius: 12px;
-  border: none;
-  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
-  color: #fff;
-  font-size: 15px;
-  cursor: pointer;
-}
-
-/* 列表 */
-.section-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 16px;
-  color: #e2e8f0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.section-title::before {
-  content: '';
-  width: 4px;
-  height: 16px;
-  background: linear-gradient(180deg, #3b82f6, #0ea5e9);
-  border-radius: 2px;
-}
-.song-list { list-style: none; }
-.song-item {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 14px 16px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all .2s;
-  margin-bottom: 6px;
-  background: rgba(255,255,255,.03);
-  border: 1px solid rgba(255,255,255,.05);
-}
-.song-item:hover {
-  background: rgba(59,130,246,.15);
-  border-color: rgba(59,130,246,.3);
-  transform: translateX(4px);
-}
-.song-item.active {
-  background: rgba(59,130,246,.2);
-  border-color: rgba(59,130,246,.5);
-}
-.song-num { width: 24px; color: #64748b; font-size: 14px; font-weight: 600; }
-.song-info { flex: 1; min-width: 0; }
-.song-name { font-size: 15px; margin-bottom: 2px; }
-.song-artist { font-size: 12px; color: #64748b; }
-.song-actions { display: flex; gap: 8px; }
-.song-actions button {
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: none;
-  background: rgba(255,255,255,.1);
-  color: #cbd5e1;
-  font-size: 12px;
-  cursor: pointer;
-}
-.song-actions button:hover { background: rgba(255,255,255,.2); }
-
-.empty { text-align: center; color: #64748b; padding: 40px 0; font-size: 14px; }
-
-/* 热门试听：封面网格，点一下直接播放 */
-.hot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
-.hot-card {
-  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
-  border-radius: 12px; padding: 8px; cursor: pointer; transition: all .2s;
-}
-.hot-card:hover { background: rgba(59,130,246,.18); border-color: rgba(59,130,246,.3); transform: translateY(-3px); }
-.hot-cover {
-  width: 100%; aspect-ratio: 1/1; border-radius: 8px; overflow: hidden; margin-bottom: 8px;
-  display: flex; align-items: center; justify-content: center; font-size: 30px;
-  background: rgba(255,255,255,.06);
-}
-.hot-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.hot-name { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hot-artist { font-size: 11px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-.back-link { display: inline-block; margin-bottom: 20px; color: #7c3aed; text-decoration: none; font-size: 14px; }
-.back-link:hover { color: #4c1d95; }
-
-/* 手机版响应式设计 */
-@media (max-width: 768px) {
-  .container { padding: 12px; }
-  .header { padding: 20px 0; }
-  .header h1 { font-size: 22px; }
-  
-  .player { padding: 24px; border-radius: 20px; }
-  .player-cover { width: 160px; height: 160px; font-size: 60px; }
-  .player-title { font-size: 18px; }
-  .player-artist { font-size: 13px; }
-  
-  .controls { gap: 16px; }
-  .controls button { width: 48px; height: 48px; font-size: 18px; }
-  .controls button.play-btn { width: 60px; height: 60px; font-size: 24px; }
-  
-  .search-box { flex-direction: column; gap: 10px; }
-  .search-box button { width: 100%; padding: 16px 28px; font-size: 16px; }
-  
-  .song-item { padding: 12px; gap: 12px; }
-  .song-num { width: 20px; font-size: 13px; }
-  .song-name { font-size: 14px; }
-  .song-artist { font-size: 11px; }
-  
-  .song-actions button { padding: 8px 12px; font-size: 13px; border-radius: 8px; }
-}
-</style>
+<link rel="stylesheet" href="music.css?v=20261109">
 </head>
 <body>
 <div class="container">
@@ -298,6 +59,28 @@ body::after {
     <ul class="song-list" id="playlistList"></ul>
     <div class="empty" id="playlistEmpty">歌单是空的，搜索歌曲后点 + 添加</div>
   </div>
+
+  <!-- Spotify：与上面的网易云播放器并存，互不影响（关掉这张卡片不影响原有播放） -->
+  <div class="spotify-card" id="spotifyCard">
+    <div class="sp-head">
+      <span class="sp-dot"></span>
+      <div>
+        <div class="sp-title">Spotify</div>
+        <div class="sp-sub">粘贴歌单 / 单曲 / 专辑 / 艺人链接，直接内嵌播放</div>
+      </div>
+    </div>
+    <div class="sp-input-row">
+      <input id="spInput" type="text" spellcheck="false" autocomplete="off"
+             placeholder="https://open.spotify.com/playlist/…（或 spotify:track:…）" />
+      <button id="spLoad">载入</button>
+    </div>
+    <div class="sp-msg" id="spMsg">载入过的会记住（最多 8 个），点标签可切换。</div>
+    <div class="sp-chips" id="spChips"></div>
+    <div class="sp-frame" id="spFrame"></div>
+    <div class="sp-foot">
+      公开歌单/单曲链接即可播放；要听会员曲库或个人收藏，先在浏览器里登录 Spotify。
+    </div>
+  </div>
 </div>
 
 <audio id="audio"></audio>
@@ -305,6 +88,10 @@ body::after {
 <script type="module">
 // 导入工具函数
 import { escapeHtml, writeMusicNow, readMusicNow, onMusicNow } from '/common.js?v=20261027';
+import { mountSpotify } from '/spotify.js?v=20261109';
+
+// Spotify 面板：与网易云播放器完全独立的一套状态，互不干扰
+mountSpotify(document.getElementById('spotifyCard'));
 
 // 网易云解析接口（国内直连可用，支持 CORS；dataiqs.com 在国内被劫持，已弃用）
 const GD_API = 'https://music-api.gdstudio.xyz/api.php';
