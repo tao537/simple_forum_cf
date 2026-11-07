@@ -42,3 +42,76 @@
            font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 20; }
   #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
   #toast.err { background: #dc2626; }
+/* ================================================================
+   登录页 · 全站入口（2026-11-07）
+   ----------------------------------------------------------------
+   这页不绑定任何单个板块（论坛与游戏站都从这里进），所以用一版
+   中性的"海港夜灯"：深海墨蓝底 + 暖金强调，纸白卡片。
+   和论坛的米白纸、游戏的霓虹紫都不同，作为入口自成一格。
+   ================================================================ */
+:root {
+  --harbor: #0d1a2b;
+  --harbor-2: #122439;
+  --harbor-line: rgba(148,196,255,.2);
+  --harbor-text: #eaf1fa;
+  --harbor-dim: #93a8c2;
+  --lamp: #e8b567;
+}
+
+body {
+  background: var(--harbor);
+  background-image:
+    radial-gradient(80% 55% at 50% -10%, rgba(232,181,103,.16) 0%, transparent 62%),
+    linear-gradient(180deg, #0d1a2b 0%, #0a1422 60%, #0c1725 100%);
+  color: var(--harbor-text);
+  font-family: "Songti SC", "SimSun", Georgia, serif;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(148,196,255,.05) 0 1px, transparent 1px 3px);
+  pointer-events: none;
+}
+
+.wrap { max-width: 420px; }
+.card {
+  background: #f8f4ea;
+  border-radius: 4px;
+  border: 1px solid rgba(13,26,43,.18);
+  box-shadow: 0 24px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(232,181,103,.18);
+  color: #1c2b3a;
+}
+.brand { text-align: center; }
+.brand .logo { background: var(--harbor); border-radius: 4px; color: var(--lamp); }
+.brand h1 { font-family: "Kaiti SC", "KaiTi", serif; color: #1c2b3a; letter-spacing: 2px; }
+.brand p { color: #6d7b8a; }
+
+.tabs { border-bottom: 1px solid rgba(13,26,43,.16); gap: 4px; }
+.tabs button { color: #6d7b8a; border-radius: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button.active { color: var(--harbor); border-bottom-color: var(--lamp); font-weight: 700; }
+
+.field label { color: #6d7b8a; }
+.field input {
+  background: #fffdf7;
+  border: 1px solid rgba(13,26,43,.18);
+  color: #1c2b3a;
+  border-radius: 2px;
+}
+.field input:focus { border-color: var(--harbor); box-shadow: none; }
+.hint { color: #7d8b99; }
+
+.submit {
+  background: var(--harbor);
+  color: #f3e7cf;
+  border-radius: 2px;
+  letter-spacing: 2px;
+  font-family: inherit;
+}
+.submit:hover { background: #14293f; box-shadow: 0 6px 20px rgba(13,26,43,.35); }
+.submit:disabled { opacity: .6; }
+.share-note, .home-link { color: var(--harbor-dim); }
+.home-link:hover { color: var(--lamp); }
+
+#toast { background: #0d1a2b; border: 1px solid rgba(232,181,103,.3); border-radius: 2px; }
+#toast.err { background: #8c2f22; }

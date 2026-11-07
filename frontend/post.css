@@ -155,3 +155,95 @@
            font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 90; }
   #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
   #toast.err { background: #dc2626; }
+/* ================================================================
+   帖子详情 · 报纸内页（2026-11-07）
+   ----------------------------------------------------------------
+   跟随论坛板块：这是同板块的"内页"，配色必须和列表页是同一张报纸，
+   否则从列表点进来会突然换风格。正文按印刷排版处理：宋体、行距宽、
+   段落首行不缩进（中文网页阅读习惯），引用块用朱红竖线。
+   ================================================================ */
+:root {
+  --ink: #1c2b3a;
+  --ink-2: #46586b;
+  --paper: #f2ebdd;
+  --paper-2: #fbf7ee;
+  --rule: rgba(28,43,58,.14);
+  --rule-strong: rgba(28,43,58,.28);
+  --press-blue: #26456e;
+  --seal: #a8322a;
+}
+
+body {
+  background: var(--paper);
+  background-image: repeating-linear-gradient(0deg, rgba(28,43,58,.03) 0 1px, transparent 1px 3px);
+  color: var(--ink);
+  font-family: "Songti SC", "SimSun", Georgia, serif;
+}
+
+nav { background: rgba(251,247,238,.92); box-shadow: none; border-bottom: 2px solid var(--ink); }
+.brand { color: var(--ink); }
+.brand .logo { background: var(--press-blue); border-radius: 4px; color: #f7f2e6; }
+.link { color: var(--press-blue); }
+.user-chip { background: rgba(28,43,58,.06); color: var(--ink-2); }
+.user-chip .avatar { background: var(--press-blue); border-radius: 4px; }
+.bell-count { background: var(--seal); }
+
+.container { background: var(--paper-2); border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); }
+.back { color: var(--ink-2); }
+.back:hover { color: var(--press-blue); }
+
+.card {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  box-shadow: none;
+}
+.card h1 { font-family: "Kaiti SC", "KaiTi", serif; color: var(--ink); letter-spacing: 1px; }
+h1 { font-family: "Kaiti SC", "KaiTi", serif; color: var(--ink); }
+h2 { font-family: "Kaiti SC", "KaiTi", serif; color: var(--ink); letter-spacing: 1px; }
+
+.meta { color: #7b8794; }
+.meta a.author { color: var(--press-blue); }
+.meta .like { color: #7b8794; }
+.meta .like.liked, .meta .like:hover { color: var(--seal); }
+.pin-badge, .star-badge { background: transparent; color: var(--seal); border: 1px solid rgba(168,50,42,.3); border-radius: 2px; }
+.cat-badge { background: transparent; color: var(--press-blue); border: 1px solid rgba(38,69,110,.25); border-radius: 2px; }
+
+.content { color: var(--ink); line-height: 1.95; }
+.content a { color: var(--press-blue); }
+.content code { background: rgba(28,43,58,.07); color: #24313d; border-radius: 2px; }
+.content pre { background: #f6f1e5; border: 1px solid var(--rule); border-radius: 2px; }
+.content pre code { background: transparent; }
+.content blockquote { border-left: 3px solid var(--seal); background: rgba(168,50,42,.05); color: var(--ink-2); }
+.content hr { border: none; border-top: 3px double var(--rule-strong); }
+.mention { background: rgba(38,69,110,.1); color: var(--press-blue); border-radius: 2px; }
+.gallery img { border-radius: 2px; border: 1px solid var(--rule); }
+
+.btn { border-radius: 2px; font-family: inherit; }
+.btn-primary { background: var(--press-blue); }
+.btn-primary:hover { box-shadow: 3px 3px 0 rgba(28,43,58,.15); transform: none; }
+.btn-ghost { background: transparent; border: 1px solid var(--rule-strong); color: var(--ink); }
+.btn-danger { background: var(--seal); }
+.btn-warn { background: #b8862b; }
+.actions { border-top: 1px solid var(--rule); }
+
+.comment-form textarea { background: #fffdf7; border: 1px solid var(--rule); border-radius: 2px; color: var(--ink); font-family: inherit; }
+.comment-form textarea:focus { border-color: var(--press-blue); box-shadow: none; }
+.comment { border-bottom: 1px solid var(--rule); }
+.comment-author { color: var(--press-blue); }
+.comment-body { color: var(--ink); }
+.comment .like { color: #7b8794; }
+.comment .like.liked, .comment .like:hover { color: var(--seal); }
+.no-comment, .login-tip { color: #7b8794; }
+
+.modal { background: var(--paper-2); border: 1px solid var(--rule-strong); border-radius: 3px; box-shadow: 8px 8px 0 rgba(28,43,58,.12); }
+.modal h2 { border-bottom: 3px double var(--rule-strong); padding-bottom: 8px; }
+.field label { color: var(--ink-2); }
+.field input[type=text], .field textarea, .field select { background: #fffdf7; border: 1px solid var(--rule); border-radius: 2px; color: var(--ink); }
+.field input:focus, .field textarea:focus, .field select:focus { border-color: var(--press-blue); box-shadow: none; }
+.hint { color: #7b8794; }
+.overlay { background: rgba(20,30,42,.55); }
+.lightbox { background: rgba(20,30,42,.86); }
+
+#toast { background: var(--ink); border-radius: 2px; font-family: inherit; }
+#toast.err { background: var(--seal); }

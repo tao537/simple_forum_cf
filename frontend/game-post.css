@@ -173,3 +173,98 @@
     .modal { max-width: 100%; margin: 0 12px; padding: 18px 16px; max-height: 88vh; overflow-y: auto; }
     .modal .row { flex-direction: column; align-items: stretch; }
   }
+/* ================================================================
+   游戏帖详情 · 霓虹内页（2026-11-07）
+   ----------------------------------------------------------------
+   跟随游戏站：深紫暗面板 + 青边，正文用偏亮的紫白，门禁层同步转暗，
+   从列表点进来不会突然变成白纸。
+   ================================================================ */
+:root {
+  --neon-bg: #0a0718;
+  --neon-panel: #14102a;
+  --neon-panel-2: #1b1536;
+  --neon-line: rgba(139,92,246,.32);
+  --neon-violet: #a78bfa;
+  --neon-cyan: #22d3ee;
+  --neon-text: #eae4ff;
+  --neon-dim: #9d92bb;
+}
+
+body {
+  background: var(--neon-bg);
+  background-image:
+    radial-gradient(60% 45% at 10% 0%, rgba(124,58,237,.26) 0%, transparent 60%),
+    radial-gradient(50% 40% at 95% 6%, rgba(34,211,238,.14) 0%, transparent 62%);
+  color: var(--neon-text);
+}
+
+nav { background: rgba(10,7,24,.84); border-bottom: 1px solid var(--neon-line); box-shadow: 0 1px 24px rgba(124,58,237,.2); }
+.brand { color: var(--neon-text); }
+.brand .logo { background: linear-gradient(135deg,#7c3aed,#22d3ee); box-shadow: 0 0 18px rgba(124,58,237,.55); }
+.link { color: var(--neon-violet); }
+.link:hover { color: var(--neon-cyan); }
+.guest-chip { background: rgba(139,92,246,.16); color: #e9d5ff; border: 1px solid var(--neon-line); }
+.guest-chip .avatar { background: linear-gradient(135deg,#7c3aed,#22d3ee); }
+
+.card {
+  background: var(--neon-panel);
+  border: 1px solid var(--neon-line);
+  border-radius: 12px;
+  box-shadow: 0 10px 32px rgba(0,0,0,.5);
+}
+.card h1 { color: var(--neon-text); text-shadow: 0 0 20px rgba(167,139,250,.35); }
+.meta { color: var(--neon-dim); }
+.meta .like { color: var(--neon-dim); }
+.meta .like.liked, .meta .like:hover { color: #f472b6; }
+.author-badge { background: rgba(34,211,238,.14); color: var(--neon-cyan); border: 1px solid rgba(34,211,238,.3); }
+.pin-badge { background: rgba(251,191,36,.14); color: #fbbf24; border: 1px solid rgba(251,191,36,.35); }
+.star-badge { background: rgba(251,191,36,.14); color: #fbbf24; border: 1px solid rgba(251,191,36,.35); }
+
+.content { color: #dcd5f2; }
+.content a { color: var(--neon-cyan); }
+.content code { background: rgba(34,211,238,.1); color: #b7f7ff; border-radius: 4px; }
+.content pre { background: #0f0b22; border: 1px solid var(--neon-line); border-radius: 8px; }
+.content pre code { background: transparent; }
+.content blockquote { border-left: 3px solid var(--neon-violet); background: rgba(124,58,237,.1); color: #cfc6ea; }
+.gallery img { border-radius: 8px; border: 1px solid var(--neon-line); }
+
+.sec-title { color: var(--neon-text); border-bottom: 1px solid var(--neon-line); }
+.comment-box textarea { background: #0f0b22; border: 1px solid var(--neon-line); color: var(--neon-text); border-radius: 8px; }
+.comment-box textarea:focus { border-color: var(--neon-cyan); box-shadow: 0 0 0 3px rgba(34,211,238,.14); }
+.comment-nick input { background: #0f0b22; border: 1px solid var(--neon-line); color: var(--neon-text); border-radius: 6px; }
+.comment-nick input:focus { border-color: var(--neon-cyan); }
+.comment-row { border-bottom: 1px solid rgba(139,92,246,.16); }
+.comment-row .cname { color: var(--neon-cyan); }
+.comment-row .ctime { color: var(--neon-dim); }
+.comment-row .clike { color: var(--neon-dim); }
+.comment-row .clike.liked, .comment-row .clike:hover { color: #f472b6; }
+.comment-row .ctext { color: #dcd5f2; }
+.comment-row .cdel { color: #6f6490; }
+.comment-row .cdel:hover { color: #f87171; }
+
+.btn { border-radius: 8px; }
+.btn-primary { background: linear-gradient(135deg,#7c3aed,#22d3ee); color: #06121a; font-weight: 800; }
+.btn-primary:hover { box-shadow: 0 0 22px rgba(34,211,238,.45); }
+.btn-ghost { background: rgba(20,16,42,.9); border: 1px solid var(--neon-line); color: var(--neon-text); }
+.btn-ghost:hover { border-color: var(--neon-cyan); color: var(--neon-cyan); }
+.btn-danger { background: #b91c1c; }
+
+.overlay { background: rgba(6,4,16,.72); }
+.modal { background: var(--neon-panel-2); border: 1px solid var(--neon-line); border-radius: 12px; }
+.modal h2 { color: var(--neon-text); }
+.field label { color: var(--neon-dim); }
+.field input[type=text], .field textarea { background: #0f0b22; border: 1px solid var(--neon-line); color: var(--neon-text); border-radius: 8px; }
+.field input:focus, .field textarea:focus { border-color: var(--neon-cyan); box-shadow: 0 0 0 3px rgba(34,211,238,.14); }
+.hint { color: var(--neon-dim); }
+#lightbox { background: rgba(6,4,16,.9); }
+
+.gate .card { background: rgba(20,16,42,.94); border: 1px solid var(--neon-line); box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 40px rgba(124,58,237,.25); }
+.gate h2 { color: var(--neon-text); }
+.gate p { color: var(--neon-dim); }
+.gate input { background: #0f0b22; border: 1px solid var(--neon-line); color: var(--neon-text); }
+.gate input:focus { border-color: var(--neon-cyan); box-shadow: 0 0 0 3px rgba(34,211,238,.15); }
+.gate .err { color: #f87171; }
+.gate .back { color: var(--neon-violet); }
+
+#toast { background: #1b1536; border: 1px solid var(--neon-line); border-radius: 8px; color: var(--neon-text); }
+#toast.err { background: #7f1d1d; border-color: #b91c1c; }
