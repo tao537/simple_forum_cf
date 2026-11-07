@@ -144,16 +144,19 @@ routes.post('/api/posts', async (c) => {
   if (!payload) return c.json({ message: '请先登录' }, 401);
 
   const { title, content, category, images } = await c.req.json();
-  if (!title || !content) return c.json({ message: '标题和内容不能为空' }, 400);
+  // 先 trim 再校验：全空格的标题是 truthy，不 trim 会存进一条"看不见标题"的帖子
+  const safeTitle = typeof title === 'string' ? title.trim() : '';
+  const safeContent = typeof content === 'string' ? content.trim() : '';
+  if (!safeTitle || !safeContent) return c.json({ message: '标题和内容不能为空' }, 400);
 
   const safeImages = sanitizeImages(images);
 
   const result = await c.env.DB
     .prepare('INSERT INTO posts (title, content, category, author_id, images) VALUES (?, ?, ?, ?, ?)')
-    .bind(title, content, category || '', payload.id, JSON.stringify(safeImages))
+    .bind(safeTitle, safeContent, category || '', payload.id, JSON.stringify(safeImages))
     .run();
 
-  return c.json({ id: result.meta.last_row_id, title, content }, 201);
+  return c.json({ id: result.meta.last_row_id, title: safeTitle, content: safeContent }, 201);
 });
 
 // 帖子详情
@@ -284,7 +287,10 @@ routes.put('/api/posts/:id', async (c) => {
   }
 
   const { title, content, category, images } = await c.req.json();
-  if (!title || !content) return c.json({ message: '标题和内容不能为空' }, 400);
+  // 同创建接口：trim 后再校验，避免"全空格标题"落库
+  const safeTitle = typeof title === 'string' ? title.trim() : '';
+  const safeContent = typeof content === 'string' ? content.trim() : '';
+  if (!safeTitle || !safeContent) return c.json({ message: '标题和内容不能为空' }, 400);
 
   const safeImages = sanitizeImages(images);
 
@@ -294,7 +300,7 @@ routes.put('/api/posts/:id', async (c) => {
        SET title = ?, content = ?, category = ?, images = ?, updated_at = datetime('now','localtime')
        WHERE id = ?`
     )
-    .bind(title, content, category || '', JSON.stringify(safeImages), id)
+    .bind(safeTitle, safeContent, category || '', JSON.stringify(safeImages), id)
     .run();
 
   const updated = await db

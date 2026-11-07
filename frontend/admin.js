@@ -230,6 +230,7 @@
           <td>${p.views}</td><td>${p.upvotes}</td><td>${p.comment_count}</td>
           <td>${p.pinned ? '<span class="state-ico">📌</span>' : ''}${p.featured ? '<span class="state-ico">⭐</span>' : ''}${(!p.pinned && !p.featured) ? '—' : ''}</td>
           <td><div class="row-actions">
+            <button class="btn btn-ghost" onclick="editPost(${p.id})">编辑</button>
             <button class="btn btn-warn" onclick="pinPost(${p.id})">${p.pinned ? '取消置顶' : '置顶'}</button>
             <button class="btn btn-warn" onclick="featurePost(${p.id})">${p.featured ? '取消精选' : '精选'}</button>
             <button class="btn btn-danger" onclick="deletePost(${p.id})">删除</button>
@@ -258,6 +259,101 @@
     try { await api(`/api/posts/${id}`, { method: 'DELETE' }); toast('已删除'); loadPosts(postState.page); }
     catch (e) { toast(e.message, true); }
   };
+
+  // ----- 帖子编辑弹窗（后端 PUT /api/posts/:id 早就有了，这里补入口） -----
+  const postEdit = { id: null, saving: false };
+  const IMG_URL_RE = /^(\/img\/|https:\/\/api\.kuhai\.de5\.net\/img\/)[A-Za-z0-9._-]{1,120}$/;
+
+  /** images 在库里是 JSON 字符串，接口原样返回；两种形态都吃 */
+  function parsePostImages(raw) {
+    if (Array.isArray(raw)) return raw.slice();
+    if (typeof raw !== 'string' || !raw) return [];
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v) ? v.filter(x => typeof x === 'string') : [];
+    } catch { return []; }
+  }
+
+  async function fillPostEditCategories(current) {
+    const sel = document.getElementById('peCategory');
+    try {
+      const d = await api('/api/admin/stats');
+      const names = (d.categories || []).map(c => c.name).filter(n => n && n !== '未分类');
+      sel.innerHTML = '<option value="">未分类</option>' +
+        names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    } catch { /* 拉不到分类就只留"未分类"，不阻塞编辑 */ }
+    if (current && !Array.from(sel.options).some(o => o.value === current)) {
+      sel.insertAdjacentHTML('beforeend',
+        `<option value="${escapeHtml(current)}">${escapeHtml(current)}（已不在分类表）</option>`);
+    }
+    sel.value = current || '';
+  }
+
+  // 注意：赋值式挂到 window 上的函数不会在模块作用域建绑定，
+  // 所以对内的函数一律先声明、再挂出去（否则内部互相调用会 ReferenceError）
+  async function editPostFn(id) {
+    try {
+      const p = await api(`/api/posts/${id}`);
+      postEdit.id = id;
+      document.getElementById('peId').textContent = id;
+      document.getElementById('peTitle').value = p.title || '';
+      document.getElementById('peContent').value = p.content || '';
+      document.getElementById('peImages').value = parsePostImages(p.images).join('\n');
+      await fillPostEditCategories(p.category || '');
+      document.getElementById('postEditMask').classList.add('open');
+      document.getElementById('peTitle').focus();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  function closePostEdit() {
+    document.getElementById('postEditMask').classList.remove('open');
+    postEdit.id = null;
+  }
+
+  /** 点遮罩空白处关闭（点内容区不关） */
+  function closePostEditOnMask(event) {
+    if (event.target === document.getElementById('postEditMask')) closePostEdit();
+  }
+
+  async function savePostEdit() {
+    if (!postEdit.id || postEdit.saving) return;
+    const title = document.getElementById('peTitle').value.trim();
+    const content = document.getElementById('peContent').value.trim();
+    const category = document.getElementById('peCategory').value;
+    const images = document.getElementById('peImages').value
+      .split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+
+    if (!title) return toast('标题不能为空', true);
+    if (!content) return toast('正文不能为空', true);
+    const bad = images.filter(u => !IMG_URL_RE.test(u));
+    if (bad.length) return toast('图片地址不合法：' + bad[0], true);
+    if (images.length > 9) return toast('最多 9 张图片', true);
+
+    postEdit.saving = true;
+    try {
+      await api(`/api/posts/${postEdit.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title, content, category, images }),
+      });
+      toast('已保存');
+      closePostEdit();
+      loadPosts(postState.page);
+    } catch (e) {
+      toast(e.message, true);
+    } finally {
+      postEdit.saving = false;
+    }
+  }
+
+  window.editPost = editPostFn;
+  window.closePostEdit = closePostEdit;
+  window.closePostEditOnMask = closePostEditOnMask;
+  window.savePostEdit = savePostEdit;
+
+  document.addEventListener('keydown', (e) => {
+    const mask = document.getElementById('postEditMask');
+    if (e.key === 'Escape' && mask && mask.classList.contains('open')) closePostEdit();
+  });
 
   window.toggleAllPosts = function (master) {
     document.querySelectorAll('.post-checkbox').forEach(cb => (cb.checked = master.checked));

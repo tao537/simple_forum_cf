@@ -15,14 +15,14 @@
 | 绑定 | D1 `DB = forum-db`、KV `IMG_KV`；`GAME_DB` 已注释停用（游戏库并入 forum-db） |
 | 后端部署状态 | **已上线**，当前代码已全部模块化；实测 `670339f` 部署为 Version `8ddf25ee-1b45-4592-a6b8-8855bcefe3ae`（设备 AI 回报，哈希泄露修复版） |
 
-后端已按「共享内核 + 领域模块」拆完，总 2952 行：
+后端已按「共享内核 + 领域模块」拆完，总 2958 行：
 
 ```
 backend/src/
 ├── index.ts             48 行  ← 只剩装配层：CORS + 11 个 app.route + GET /
 ├── types.ts             28
 ├── lib/        auth 80 / security 74 / settings 38 / notify 22
-└── modules/    posts 526 / game-posts 391 / gate 320 / admin 242 / users 232 / media 225
+└── modules/    posts 532 / game-posts 391 / gate 320 / admin 242 / users 232 / media 225
                 / reports 212 / accounts 157 / site 143 / health 139 / notifications 75
 ```
 
@@ -108,7 +108,9 @@ cd backend && npx wrangler deploy
 ## 六、下一步待办（接手者可做，但需站长授权）
 
 1. **举报闭环的人工实测**（唯一没走完的一条）：登录 → 详情页点「⚑ 举报」提交 → 后台「🚩 举报处理」看到工单 → 标记已处理。线上只验到"路由在、鉴权在前"（401/403 而不是 404），因为手上没有可用账号凭据。
-2. **帖子管理缺编辑入口**（`PUT /api/posts/:id` 有接口，后台无 UI）；门禁缺「当前版本 / 通行证数」可视化。
+2. ~~帖子管理缺编辑入口~~ **已完成（2026-11-14）**：后台帖子列表每行「编辑」，弹窗改名/分类/正文/图片。
+   门禁的「当前版本」已在页面上显示（`vN`）；**通行证条数**仍缺——没有对应接口，要做需先加一个只读统计。
+   顺带修了后端一处：`POST/PUT /api/posts*` 对全空格标题只判 truthy，会存入"看不见标题"的帖子，已改 trim 后校验。
 3. 评估把举报工单从 KV 迁到 D1（当前 KV 只能前缀列举，`total` 是已读条数而非精确聚合；接口形状可以不变）。
 4. 注册顺序不能乱：`/featured`、`/suggest`、`/batch` 必须在 `/api/posts/:id` 之前注册。
 

@@ -5,7 +5,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>管理后台</title>
-<link rel="stylesheet" href="admin.css?v=20261111">
+<link rel="stylesheet" href="admin.css?v=20261114">
 </head>
 <body>
 
@@ -137,6 +137,31 @@
           <span id="postPageNow"></span>
           <button class="btn btn-ghost" id="postNext" onclick="loadPosts(postState.page+1)">下一页</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 帖子编辑弹窗（点「编辑」出现，保存走 PUT /api/posts/:id） -->
+  <div class="pe-mask" id="postEditMask" onclick="closePostEditOnMask(event)">
+    <div class="pe-box" role="dialog" aria-modal="true" aria-labelledby="peHead">
+      <div class="pe-head">
+        <span id="peHead">编辑帖子 <span class="pe-id">#<b id="peId"></b></span></span>
+        <button class="btn btn-ghost" onclick="closePostEdit()">✕</button>
+      </div>
+      <div class="pe-body">
+        <label class="pe-lb" for="peTitle">标题</label>
+        <input id="peTitle" type="text" maxlength="120" placeholder="帖子标题" />
+        <label class="pe-lb" for="peCategory">分类</label>
+        <select id="peCategory"><option value="">未分类</option></select>
+        <label class="pe-lb" for="peContent">正文（支持 Markdown）</label>
+        <textarea id="peContent" rows="14" placeholder="正文不能为空"></textarea>
+        <label class="pe-lb" for="peImages">图片地址（每行一张，最多 9 张，留空即清空）</label>
+        <textarea id="peImages" rows="3" placeholder="/img/xxx 或 https://api.kuhai.de5.net/img/xxx"></textarea>
+        <div class="pe-tip">只接受本站图片地址；正文改动会更新 <code>updated_at</code>，不影响点赞与评论。</div>
+      </div>
+      <div class="pe-foot">
+        <button class="btn btn-ghost" onclick="closePostEdit()">取消</button>
+        <button class="btn btn-primary" onclick="savePostEdit()">保存</button>
       </div>
     </div>
   </div>
@@ -380,6 +405,6 @@
 
 <div id="toast"></div>
 
-<script type="module" src="admin.js?v=20261111"></script>
+<script type="module" src="admin.js?v=20261114"></script>
 </body>
 </html>
