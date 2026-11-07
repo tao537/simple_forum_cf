@@ -4,7 +4,7 @@
 > **先读这三个文件，够了**：本卡 → `docs/后端模块化与门禁说明.md` → `backend/wrangler.jsonc`。
 > 需要更细的再按「按需查阅」跳，**不要整仓通读**。
 
-## 一、当前状态（2026-11-07，HEAD 见仓库最新提交，Worker Version `8ddf25ee-1b45-4592-a6b8-8855bcefe3ae`）
+## 一、当前状态（2026-11-13，HEAD 见仓库最新提交；Worker Version 以最近一次部署回报为准）
 
 | 项 | 值 |
 |---|---|
@@ -12,16 +12,17 @@
 | 分支 | `main`，本地与 `origin/main` 一致 |
 | 站点 | 前端 `https://kuhai.de5.net`（Pages，push 后自动发布）　后端 `https://api.kuhai.de5.net`（Worker `forum-api`） |
 | 绑定 | D1 `DB = forum-db`、KV `IMG_KV`；`GAME_DB` 已注释停用（游戏库并入 forum-db） |
-| 后端部署状态 | **已上线**：Version `d977862a-82fb-4cd0-b9e8-04e9f9b5f24e`（2026-11-07，含 `gate.ts` 门禁红条） |
+| 后端部署状态 | **已上线**，当前代码已全部模块化；实测 `670339f` 部署为 Version `8ddf25ee-1b45-4592-a6b8-8855bcefe3ae`（设备 AI 回报，哈希泄露修复版） |
 
-后端已按「共享内核 + 领域模块」拆完，总 2498 行：
+后端已按「共享内核 + 领域模块」拆完，总 2952 行：
 
 ```
 backend/src/
-├── index.ts            651 行  ← 装配层 + 认证/用户/通知/统计/导出（5 个 app.route 挂载）
+├── index.ts             48 行  ← 只剩装配层：CORS + 11 个 app.route + GET /
 ├── types.ts             28
-├── lib/        security 74 / auth 80 / settings 38 / notify 22
-└── modules/    gate 320 / posts 526 / game-posts 391 / media 225 / site 143
+├── lib/        auth 80 / security 74 / settings 38 / notify 22
+└── modules/    posts 526 / game-posts 391 / gate 320 / admin 242 / users 232 / media 225
+                / reports 212 / accounts 157 / site 143 / health 139 / notifications 75
 ```
 
 约定：模块各自是 `Hono<Env>` 子应用，只依赖 `lib/`，模块之间**不互相 import**；
@@ -62,10 +63,13 @@ cd backend && npx wrangler deploy
 
 ## 五、已知坑（别再踩一遍）
 
+- **前端 12 页的内联 `<style>` 已全部抽成同名 css**（`frontend/<page>.css`），每个板块一套"覆盖层"式主题；改视觉请**追加**到该页 css 末尾，不要手写整份（曾因此覆盖掉 `novel.css` 原文）。
+- **`common.js` 改一行，所有 HTML 的 `?v=` 都要加一**；`admin.js`/`admin.css` 改了两处版本号要一起改。
+
 - **`*.workers.dev` 域名在国内直连会 TLS 失败**：验证一律走 `https://api.kuhai.de5.net`，不要拿裸 workers.dev 域名判失败。
 - **门禁出厂默认口令仍可用**：后台「🔐 门禁」页现在会显示红色风险卡（`GET /api/admin/gate` 返回 `usingDefaultPassword`）。改密属运营动作，**由站长在后台操作**，AI 不要代改。
 - **公开设置接口曾整包泄露哈希**：`/api/settings` 必须只回 5 个白名单键，动到 `modules/site.ts` 时要保住 `pickPublicSettings`。
-- **`docs/项目速览.md` 已与机器档案同步**（2026-11-07 修正）：现在写的是 `index.ts` ~650 行 + `modules/`(gate/posts/game-posts/media/site) + `lib/`(security/auth/settings/notify)，与 `../AGENTS.md` 正文逐字节一致。改内容必须先改机器上的 ① 再复制到 ②，改完跑 `bash /home/zhong/Disk_C/ai/check-agents.sh`（第 10 项会比对两份正文）。
+- **`docs/项目速览.md` 的正文在 2026-11-13 更新过**（改成 `index.ts` 48 行 + 11 个模块 + 前端 4 个新模块），但**只改了仓库里的 ②**，机器上的 ①（`../AGENTS.md`）当时不可达，**未同步**。接手时若能在那台机器上操作，请把 ② 正文整体复制回 ①，再跑 `bash /home/zhong/Disk_C/ai/check-agents.sh`（第 10 项比对两份正文）。
 
 ## 五之二、本轮新增模块（2026-11-07，已随推送上线）
 
@@ -84,9 +88,10 @@ cd backend && npx wrangler deploy
 
 ## 六、下一步待办（接手者可做，但需站长授权）
 
-1. 继续拆 `index.ts` 剩余域：`modules/users.ts`（用户管理 + 封禁 + 搜索 + 个人主页）→ `modules/notifications.ts` → `modules/admin.ts`（统计 + 游戏站管理增强 + CSV 导出）→ `modules/auth.ts`（最后动，牵涉最广）。
-2. 后台还有两处「有接口无入口」可补：帖子管理缺编辑入口（`PUT /api/posts/:id`）、门禁缺「当前版本/通行证数」可视化。
-3. 拆的时候保持注册顺序：`/featured`、`/suggest`、`/batch` 必须在 `/api/posts/:id` 之前注册。
+1. **举报闭环的人工实测**（唯一没走完的一条）：登录 → 详情页点「⚑ 举报」提交 → 后台「🚩 举报处理」看到工单 → 标记已处理。线上只验到"路由在、鉴权在前"（401/403 而不是 404），因为手上没有可用账号凭据。
+2. **帖子管理缺编辑入口**（`PUT /api/posts/:id` 有接口，后台无 UI）；门禁缺「当前版本 / 通行证数」可视化。
+3. 评估把举报工单从 KV 迁到 D1（当前 KV 只能前缀列举，`total` 是已读条数而非精确聚合；接口形状可以不变）。
+4. 注册顺序不能乱：`/featured`、`/suggest`、`/batch` 必须在 `/api/posts/:id` 之前注册。
 
 ## 七、凭据
 

@@ -8,7 +8,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
 import type { Env } from './types';
-// 领域模块（各自闭环，互相之间仅在 accounts → gate 处单向依赖）
+// 领域模块（各自闭环；跨模块只有三处单向只读依赖：accounts→gate / admin→gate / health→gate）
 import gateRoutes from './modules/gate';
 import accountRoutes from './modules/accounts';
 import userRoutes from './modules/users';
