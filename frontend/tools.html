@@ -3,141 +3,150 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>黑客工具箱 · 苦海游戏站</title>
-<link rel="stylesheet" href="tools.css?v=20261110">
+<title>苦海工具箱</title>
+<link rel="stylesheet" href="tools.css?v=20261113">
 </head>
 <body>
 <div class="container">
   <a href="/game.html" class="back-link">← 返回游戏站</a>
 
   <div class="header">
-    <h1>🧰 实用工具箱</h1>
-    <p>实用工具集合，方便日常使用</p>
+    <h1>苦海工具箱</h1>
+    <p>不用装软件、不用登录，点开就能用的小工具</p>
   </div>
 
-  <!-- 分类标签 -->
-  <div class="tabs">
-    <button class="tab-btn active">推荐</button>
-    <button class="tab-btn">影音书漫</button>
-    <button class="tab-btn">资源解析</button>
-    <button class="tab-btn">趣味文案</button>
-    <button class="tab-btn">生活便捷</button>
+  <!-- 分类筛选：数据在 tools.js 里按 group 归类，点一下只看那一类 -->
+  <div class="tabs" id="toolTabs">
+    <button class="tab-btn active" data-group="all">全部</button>
+    <button class="tab-btn" data-group="text">文本处理</button>
+    <button class="tab-btn" data-group="code">编码转换</button>
+    <button class="tab-btn" data-group="dev">开发调试</button>
+    <button class="tab-btn" data-group="color">配色图形</button>
+    <button class="tab-btn" data-group="site">站点入口</button>
   </div>
 
-  <!-- 影音书漫 -->
-  <div class="cat-title">🎬 影音书漫</div>
-  <div class="tool-grid">
-    <div class="tool-card" onclick="location.href='/music.html'">
-      <div class="tool-icon">🎵</div>
-      <div class="tool-name">音乐搜索</div>
-      <div class="tool-desc">在线搜索和播放网易云音乐</div>
+  <div id="toolArea">
+    <!-- 文本处理 -->
+    <div class="cat-title" data-cat="text">📝 文本处理</div>
+    <div class="tool-grid" data-cat="text">
+      <div class="tool-card" data-tool="text" data-group="text">
+        <div class="tool-icon">📝</div>
+        <div class="tool-name">文本统计与清洗</div>
+        <div class="tool-desc">字数/行数统计、去重行、排序、去空行</div>
+      </div>
+      <div class="tool-card" data-tool="case" data-group="text">
+        <div class="tool-icon">🔤</div>
+        <div class="tool-name">大小写与命名转换</div>
+        <div class="tool-desc">全大写/小写/首字母大写、驼峰、下划线</div>
+      </div>
+      <div class="tool-card" data-tool="regex" data-group="text">
+        <div class="tool-icon">🔍</div>
+        <div class="tool-name">正则测试</div>
+        <div class="tool-desc">写规则、贴文本，看命中几处、错在哪</div>
+      </div>
     </div>
-    <div class="tool-card" onclick="location.href='/novel.html'">
-      <div class="tool-icon">📚</div>
-      <div class="tool-name">小说阅读</div>
-      <div class="tool-desc">在线搜索和阅读网络小说</div>
-    </div>
-    <div class="tool-card" onclick="location.href='/game.html'">
-      <div class="tool-icon">🎮</div>
-      <div class="tool-name">游戏分享</div>
-      <div class="tool-desc">二次元游戏资源分享站</div>
-    </div>
-  </div>
 
-  <!-- 资源解析 -->
-  <div class="cat-title">🔍 资源解析</div>
-  <div class="tool-grid">
-    <div class="tool-card">
-      <div class="tool-icon">📹</div>
-      <div class="tool-name">短视频解析</div>
-      <div class="tool-desc">抖音/快手视频无水印解析</div>
+    <!-- 编码转换 -->
+    <div class="cat-title" data-cat="code">🔗 编码转换</div>
+    <div class="tool-grid" data-cat="code">
+      <div class="tool-card" data-tool="urlcode" data-group="code">
+        <div class="tool-icon">🔗</div>
+        <div class="tool-name">URL 编解码</div>
+        <div class="tool-desc">encodeURIComponent / decodeURIComponent</div>
+      </div>
+      <div class="tool-card" data-tool="base64" data-group="code">
+        <div class="tool-icon">🧬</div>
+        <div class="tool-name">Base64</div>
+        <div class="tool-desc">文本与 Base64 互转，正确处理中文</div>
+      </div>
+      <div class="tool-card" data-tool="timestamp" data-group="code">
+        <div class="tool-icon">⏰</div>
+        <div class="tool-name">时间戳转换</div>
+        <div class="tool-desc">秒/毫秒与日期互转，带本地与 UTC</div>
+      </div>
+      <div class="tool-card" data-tool="json" data-group="code">
+        <div class="tool-icon">📋</div>
+        <div class="tool-name">JSON 格式化</div>
+        <div class="tool-desc">格式化、压缩、校验报错位置</div>
+      </div>
     </div>
-    <div class="tool-card">
-      <div class="tool-icon">🎬</div>
-      <div class="tool-name">影视解析</div>
-      <div class="tool-desc">在线影视资源解析播放</div>
-    </div>
-  </div>
 
-  <!-- 趣味文案 -->
-  <div class="cat-title">✨ 趣味文案</div>
-  <div class="tool-grid">
-    <div class="tool-card">
-      <div class="tool-icon">💬</div>
-      <div class="tool-name">趣味文案生成</div>
-      <div class="tool-desc">生成各种有趣的文案和句子</div>
+    <!-- 开发调试 -->
+    <div class="cat-title" data-cat="dev">💻 开发调试</div>
+    <div class="tool-grid" data-cat="dev">
+      <div class="tool-card" data-tool="hash" data-group="dev">
+        <div class="tool-icon">#</div>
+        <div class="tool-name">文本哈希</div>
+        <div class="tool-desc">SHA-256 / SHA-1，浏览器本地算</div>
+      </div>
+      <div class="tool-card" data-tool="password" data-group="dev">
+        <div class="tool-icon">🔐</div>
+        <div class="tool-name">密码生成器</div>
+        <div class="tool-desc">定长度、定字符集，附强度提示</div>
+      </div>
+      <div class="tool-card" data-tool="uuid" data-group="dev">
+        <div class="tool-icon">🆔</div>
+        <div class="tool-name">UUID 生成</div>
+        <div class="tool-desc">一次生成多条 v4 标识，可直接复制</div>
+      </div>
     </div>
-    <div class="tool-card">
-      <div class="tool-icon">😂</div>
-      <div class="tool-name">表情包制作</div>
-      <div class="tool-desc">在线制作表情包和梗图</div>
-    </div>
-  </div>
 
-  <!-- 生活便捷 -->
-  <div class="cat-title">🏠 生活便捷</div>
-  <div class="tool-grid">
-    <div class="tool-card">
-      <div class="tool-icon">🔧</div>
-      <div class="tool-name">在线工具箱</div>
-      <div class="tool-desc">各种实用小工具集合</div>
+    <!-- 配色图形 -->
+    <div class="cat-title" data-cat="color">🎨 配色图形</div>
+    <div class="tool-grid" data-cat="color">
+      <div class="tool-card" data-tool="color" data-group="color">
+        <div class="tool-icon">🎨</div>
+        <div class="tool-name">颜色转换</div>
+        <div class="tool-desc">HEX / RGB / HSL 互转并即时预览</div>
+      </div>
+      <div class="tool-card" data-tool="contrast" data-group="color">
+        <div class="tool-icon">◐</div>
+        <div class="tool-name">对比度检查</div>
+        <div class="tool-desc">两个颜色之间的 WCAG 对比度与评级</div>
+      </div>
     </div>
-    <div class="tool-card">
-      <div class="tool-icon">📱</div>
-      <div class="tool-name">实用查询</div>
-      <div class="tool-desc">天气、快递、日历等实用查询</div>
-    </div>
-  </div>
 
-  <!-- 开发工具 -->
-  <div class="cat-title">💻 开发工具</div>
-  <div class="tool-grid">
-    <div class="tool-card" onclick="alert('功能开发中')">
-      <div class="tool-icon">📋</div>
-      <div class="tool-name">JSON 格式化</div>
-      <div class="tool-desc">JSON 格式化、压缩、校验</div>
-    </div>
-    <div class="tool-card" onclick="alert('功能开发中')">
-      <div class="tool-icon">🎨</div>
-      <div class="tool-name">颜色选择器</div>
-      <div class="tool-desc">颜色选择、调色、HEX/RGB 转换</div>
-    </div>
-    <div class="tool-card" onclick="alert('功能开发中')">
-      <div class="tool-icon">🔐</div>
-      <div class="tool-name">密码生成器</div>
-      <div class="tool-desc">随机密码生成、强度检测</div>
-    </div>
-    <div class="tool-card" onclick="alert('功能开发中')">
-      <div class="tool-icon">⏰</div>
-      <div class="tool-name">时间戳转换</div>
-      <div class="tool-desc">Unix 时间戳与日期互转</div>
-    </div>
-    <div class="tool-card" onclick="alert('功能开发中')">
-      <div class="tool-icon">🔗</div>
-      <div class="tool-name">URL 编解码</div>
-      <div class="tool-desc">URL 编码解码、Base64 转换</div>
-    </div>
-    <div class="tool-card" onclick="alert('功能开发中')">
-      <div class="tool-icon">🔍</div>
-      <div class="tool-name">正则测试</div>
-      <div class="tool-desc">正则表达式在线测试和调试</div>
-    </div>
-  </div>
-</div>
-</body>
-</html>
-      <div class="tool-card">
-        <div class="tool-name">OpenVAS</div>
-        <div class="tool-cat">开源漏洞扫描</div>
-        <div class="tool-desc">开源漏洞扫描器和漏洞管理框架，Greenbone 生态系统的核心组件。</div>
-        <div class="tool-link"><a href="https://www.openvas.org" target="_blank">openvas.org →</a></div>
+    <!-- 站点入口 -->
+    <div class="cat-title" data-cat="site">🏠 站点入口</div>
+    <div class="tool-grid" data-cat="site">
+      <div class="tool-card" onclick="location.href='/forum'">
+        <div class="tool-icon">🏛</div>
+        <div class="tool-name">苦海论坛</div>
+        <div class="tool-desc">发帖、评论、分类浏览</div>
+      </div>
+      <div class="tool-card" onclick="location.href='/game'">
+        <div class="tool-icon">🎮</div>
+        <div class="tool-name">游戏站</div>
+        <div class="tool-desc">二次元游戏资源分享</div>
+      </div>
+      <div class="tool-card" onclick="location.href='/music'">
+        <div class="tool-icon">🎵</div>
+        <div class="tool-name">苦海音乐</div>
+        <div class="tool-desc">网易云点播 + Spotify 内嵌 + 歌单</div>
+      </div>
+      <div class="tool-card" onclick="location.href='/novel'">
+        <div class="tool-icon">📚</div>
+        <div class="tool-name">小说阅读</div>
+        <div class="tool-desc">夜读模式，搜索即读</div>
+      </div>
+      <div class="tool-card" onclick="location.href='/video'">
+        <div class="tool-icon">🎬</div>
+        <div class="tool-name">影视</div>
+        <div class="tool-desc">片库浏览与剧集</div>
+      </div>
+      <div class="tool-card" onclick="location.href='/admin'">
+        <div class="tool-icon">⌬</div>
+        <div class="tool-name">管理后台</div>
+        <div class="tool-desc">帖子、用户、门禁、举报处理</div>
       </div>
     </div>
   </div>
 
-  <div class="warning">
-    ⚠ 警告：以上工具仅授权用于安全研究和授权测试。未经授权的渗透测试是违法行为。
+  <div class="tools-foot">
+    所有工具都在你这台浏览器里跑，输入的内容不会上传到服务器。
   </div>
 </div>
+
+<script type="module" src="tools.js?v=20261113"></script>
 </body>
 </html>
