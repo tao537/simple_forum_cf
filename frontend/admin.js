@@ -82,6 +82,13 @@
   }
   window.loadHealth = loadHealth;
 
+  // 这三个 loader 被 HTML 的 onclick / onchange 直接调用。
+  // <script type="module"> 有独立作用域，模块内的 function 不会变成全局变量，
+  // 必须显式挂到 window，否则点「筛选」「上一页」会报 xxx is not defined。
+  window.loadPosts = (page) => loadPosts(page);
+  window.loadUsers = () => loadUsers();
+  window.loadGamePosts = (page) => loadGamePosts(page);
+
   // ===== 数据概览 =====
   async function loadDashboard() {
     try {
