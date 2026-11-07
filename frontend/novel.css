@@ -152,3 +152,155 @@ a.book-card { display: block; text-decoration: none; color: inherit; }
   .reader-nav { gap: 8px; }
   .reader-nav button { padding: 8px 16px; font-size: 13px; }
 }
+
+/* ================================================================
+   苦海书院 · 夜读身份（2026-11-07）
+   ----------------------------------------------------------------
+   板块个性：灯下读书。底色从冷蓝改成暖棕，标题与正文改用宋体/楷体，
+   强调色换成朱红与琥珀。仍然保持深色，是为了让页面里那些
+   rgba(255,255,255,.x) 的内联块自然融进来，不出现"白条"。
+   本段是纯追加的覆盖层，不改上面任何一条已有规则。
+   ================================================================ */
+:root {
+  --paper-ink: #efe3d0;       /* 正文墨色 */
+  --paper-dim: #b8a68c;       /* 次要文字 */
+  --paper-line: rgba(217,161,91,.22);
+  --lamp: #d9a15b;            /* 灯黄 */
+  --seal: #c0563b;            /* 朱红 */
+}
+
+body {
+  background:
+    radial-gradient(120% 80% at 50% -10%, #2b2118 0%, rgba(25,19,16,0) 60%),
+    linear-gradient(160deg, #191310 0%, #120d0b 55%, #1a1210 100%);
+  color: var(--paper-ink);
+  font-family: "Songti SC", "SimSun", Georgia, "Times New Roman", serif;
+}
+/* 书页上淡淡的横线，替代原来铺满屏幕的 emoji */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(217,161,91,.035) 0 1px,
+    transparent 1px 4px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+body::after {
+  background: radial-gradient(circle, rgba(217,161,91,.16) 0%, transparent 68%);
+}
+
+.header h1 {
+  font-family: "Kaiti SC", "KaiTi", "Songti SC", serif;
+  font-size: 30px;
+  letter-spacing: 2px;
+  background: linear-gradient(135deg, #fff6e4 0%, var(--lamp) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.header p { color: var(--paper-dim); letter-spacing: .5px; }
+/* 标题下的一道朱红短横，像盖了个印 */
+.header::after {
+  content: '';
+  display: block;
+  width: 46px;
+  height: 3px;
+  margin: 14px auto 0;
+  background: var(--seal);
+  border-radius: 2px;
+  opacity: .8;
+}
+
+.back-link { color: var(--paper-dim); }
+.back-link:hover { color: var(--lamp); }
+
+.search-box input {
+  background: rgba(239,227,208,.06);
+  border: 1px solid var(--paper-line);
+  color: var(--paper-ink);
+  border-radius: 10px;
+}
+.search-box input::placeholder { color: #8a7a66; }
+.search-box input:focus { border-color: var(--lamp); box-shadow: 0 0 0 3px rgba(217,161,91,.12); }
+.search-box button {
+  background: linear-gradient(135deg, var(--seal), #a34a34);
+  color: #fff4e6;
+  border-radius: 10px;
+  letter-spacing: 1px;
+}
+.search-box button:hover { box-shadow: 0 8px 22px rgba(192,86,59,.35); }
+
+.section-title { color: var(--paper-ink); letter-spacing: 1px; }
+.section-title::before { background: linear-gradient(180deg, var(--seal), var(--lamp)); }
+
+.book-card {
+  background: linear-gradient(180deg, rgba(239,227,208,.055), rgba(239,227,208,.02));
+  border: 1px solid var(--paper-line);
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.25);
+}
+.book-card:hover {
+  background: linear-gradient(180deg, rgba(217,161,91,.16), rgba(217,161,91,.05));
+  border-color: rgba(217,161,91,.45);
+  box-shadow: 0 14px 30px rgba(0,0,0,.42), 0 0 0 1px rgba(217,161,91,.15) inset;
+}
+.book-cover { background: linear-gradient(150deg, #3a2a1e, #6b4a2e 55%, #8a5f34); }
+.book-title { font-family: "Kaiti SC", "KaiTi", serif; font-size: 15px; letter-spacing: .5px; }
+.book-author { color: var(--paper-dim); }
+.book-cat { color: #8a7a66; }
+
+.chapter-item {
+  background: rgba(239,227,208,.045);
+  border-left: 2px solid transparent;
+  border-radius: 6px;
+  color: var(--paper-ink);
+  font-family: "Songti SC", "SimSun", serif;
+}
+.chapter-item:hover {
+  background: rgba(217,161,91,.12);
+  border-left-color: var(--seal);
+}
+
+/* 阅读页：做成一张真正的纸 */
+.reader {
+  background: linear-gradient(180deg, rgba(239,227,208,.07), rgba(239,227,208,.03));
+  border: 1px solid var(--paper-line);
+  border-radius: 12px;
+  padding: 32px 28px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.35);
+}
+.reader-title {
+  font-family: "Kaiti SC", "KaiTi", serif;
+  font-size: 22px;
+  letter-spacing: 2px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--paper-line);
+  margin-bottom: 22px;
+}
+.reader-content {
+  font-size: 17px;
+  line-height: 2.05;
+  color: #e6d8c3;
+  letter-spacing: .6px;
+  text-align: justify;
+}
+.reader-nav button {
+  background: rgba(239,227,208,.09);
+  border: 1px solid var(--paper-line);
+  color: var(--paper-ink);
+  font-family: inherit;
+  border-radius: 8px;
+}
+.reader-nav button:hover { background: rgba(217,161,91,.18); border-color: rgba(217,161,91,.4); }
+
+.empty { color: #8a7a66; }
+
+@media (max-width: 768px) {
+  .reader { padding: 20px 16px; }
+  .reader-content { font-size: 16px; line-height: 1.95; }
+  .header h1 { font-size: 23px; letter-spacing: 1px; }
+}
